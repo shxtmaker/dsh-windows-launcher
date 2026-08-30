@@ -1,0 +1,1 @@
+DshWindowsLauncher:install:v1

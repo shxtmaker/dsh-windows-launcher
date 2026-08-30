@@ -1,0 +1,28 @@
+<Window x:Class="DshLauncher.Desktop.TargetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:resources="clr-namespace:DshLauncher.Desktop.Resources"
+        Width="1280" Height="820" MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="OnPreviewKeyDown"
+        AutomationProperties.Name="{Binding Title, RelativeSource={RelativeSource Self}}">
+  <Grid>
+    <ContentControl x:Name="HostSurface" />
+    <Border x:Name="StatePanel" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+            Visibility="Visible">
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+        <TextBlock x:Name="StateHeading" Text="{x:Static resources:Strings.TargetWindowLoading}"
+                   FontSize="22" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock x:Name="StateDetail" Margin="0,10,0,0" TextAlignment="Center" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Margin="0,18,0,0" HorizontalAlignment="Center">
+          <Button x:Name="ReloadButton" Content="{x:Static resources:Strings.ButtonReload}"
+                  AutomationProperties.Name="{x:Static resources:Strings.ButtonReload}"
+                  Visibility="Collapsed" Click="ReloadClick" />
+          <Button Content="{x:Static resources:Strings.ButtonClose}"
+                  AutomationProperties.Name="{x:Static resources:Strings.ButtonClose}"
+                  Click="CloseClick" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

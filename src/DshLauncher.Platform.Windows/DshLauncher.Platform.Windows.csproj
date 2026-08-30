@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DshLauncher.Platform.Windows</RootNamespace>
+    <AssemblyName>DshLauncher.Platform.Windows</AssemblyName>
+    <Description>文件、网络类别、IPC、剪贴板与系统集成的 Windows 适配器。</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DshLauncher.Core/DshLauncher.Core.csproj" />
+  </ItemGroup>
+</Project>

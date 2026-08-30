@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>DshLauncher.Desktop</RootNamespace>
+    <AssemblyName>DshWindowsLauncher</AssemblyName>
+    <Product>DSH Windows Launcher</Product>
+    <Description>DSH Windows Launcher 的 WPF 表示层与组合根。</Description>
+    <UseWPF>true</UseWPF>
+    <UseAppHost>true</UseAppHost>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DshLauncher.Core/DshLauncher.Core.csproj" />
+    <ProjectReference Include="../DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
+    <ProjectReference Include="../DshLauncher.WebView/DshLauncher.WebView.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../../eng/release-constants.json"
+                      LogicalName="DshLauncher.Desktop.ReleaseConstants.json" />
+  </ItemGroup>
+</Project>

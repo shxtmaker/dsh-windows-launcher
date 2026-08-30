@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DshLauncher.Core/DshLauncher.Core.csproj" />
+    <Project Path="src/DshLauncher.Desktop/DshLauncher.Desktop.csproj" />
+    <Project Path="src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
+    <Project Path="src/DshLauncher.WebView/DshLauncher.WebView.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DshLauncher.Acceptance.Tests/DshLauncher.Acceptance.Tests.csproj" />
+    <Project Path="tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj" />
+    <Project Path="tests/DshLauncher.Platform.Windows.Tests/DshLauncher.Platform.Windows.Tests.csproj" />
+    <Project Path="tests/DshLauncher.WebView.Tests/DshLauncher.WebView.Tests.csproj" />
+  </Folder>
+</Solution>

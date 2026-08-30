@@ -1,0 +1,568 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.invalid/dsh-windows-launcher/release-constants.schema.json",
+  "title": "DSH Windows Launcher release constants",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "releaseStatus",
+    "product",
+    "platform",
+    "build",
+    "dependencyBaseline",
+    "distribution",
+    "limits"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./release-constants.schema.json"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "releaseStatus": {
+      "enum": [
+        "development",
+        "candidate"
+      ]
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "executableName",
+        "applicationDataId",
+        "applicationDataRoot",
+        "defaultInstallRoot",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "DSH Windows Launcher"
+        },
+        "executableName": {
+          "const": "DshWindowsLauncher.exe"
+        },
+        "applicationDataId": {
+          "const": "DshWindowsLauncher"
+        },
+        "applicationDataRoot": {
+          "const": "%LOCALAPPDATA%\\DshWindowsLauncher"
+        },
+        "defaultInstallRoot": {
+          "const": "%LOCALAPPDATA%\\Programs\\DshWindowsLauncher"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supportedWindows",
+        "compatibilityWindows",
+        "linuxReference"
+      ],
+      "properties": {
+        "supportedWindows": {
+          "const": "Windows 11 25H2+ x64"
+        },
+        "compatibilityWindows": {
+          "const": "Windows 10 22H2 x64"
+        },
+        "linuxReference": {
+          "const": "Ubuntu Server 24.04 LTS x64"
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dotnetSdkVersion",
+        "targetFramework",
+        "runtimeIdentifier",
+        "selfContained",
+        "singleFile",
+        "trimmed"
+      ],
+      "properties": {
+        "dotnetSdkVersion": {
+          "const": "10.0.400"
+        },
+        "targetFramework": {
+          "const": "net10.0-windows"
+        },
+        "runtimeIdentifier": {
+          "const": "win-x64"
+        },
+        "selfContained": {
+          "const": true
+        },
+        "singleFile": {
+          "const": false
+        },
+        "trimmed": {
+          "const": false
+        }
+      }
+    },
+    "dependencyBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "harness",
+        "lanPlugin",
+        "webView2Sdk",
+        "webView2Runtime"
+      ],
+      "properties": {
+        "harness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "commit",
+            "version",
+            "probeFingerprint",
+            "legacyUnauthenticatedBaseline"
+          ],
+          "properties": {
+            "commit": {
+              "const": "cd5ef8148158c3a752a658978873241fdf8e2bbc"
+            },
+            "version": {
+              "const": "dsh-v0.1.2-alpha.1"
+            },
+            "probeFingerprint": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "api",
+                "root"
+              ],
+              "properties": {
+                "api": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "sourcePath",
+                    "requestPath",
+                    "statusCode",
+                    "bodyLength",
+                    "bodySha256"
+                  ],
+                  "properties": {
+                    "sourcePath": {
+                      "const": "packages/client/connection/src/index.ts"
+                    },
+                    "requestPath": {
+                      "const": "/api"
+                    },
+                    "statusCode": {
+                      "const": 401
+                    },
+                    "bodyLength": {
+                      "const": 12
+                    },
+                    "bodySha256": {
+                      "const": "e9d83f01c9aff03af6380e341aad90a5547d378ef54582383c6c9a35c53181af"
+                    }
+                  }
+                },
+                "root": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "sourcePath",
+                    "requestPath",
+                    "statusCode",
+                    "bodyLength",
+                    "bodySha256"
+                  ],
+                  "properties": {
+                    "sourcePath": {
+                      "const": "packages/client/connection/src/browser-auth.ts"
+                    },
+                    "requestPath": {
+                      "const": "/"
+                    },
+                    "statusCode": {
+                      "const": 401
+                    },
+                    "bodyLength": {
+                      "const": 68
+                    },
+                    "bodySha256": {
+                      "const": "3aad6226baa021e747c19d2c55cbd7a5995d10f43c1d05b248af37836942acaf"
+                    }
+                  }
+                }
+              }
+            },
+            "legacyUnauthenticatedBaseline": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "package",
+                "version",
+                "probeFingerprint"
+              ],
+              "properties": {
+                "package": {
+                  "const": "@deepseek-ai/dsh"
+                },
+                "version": {
+                  "const": "0.1.1-rc.2"
+                },
+                "probeFingerprint": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "api",
+                    "root"
+                  ],
+                  "properties": {
+                    "api": {
+                      "$ref": "#/$defs/legacyProbeApi"
+                    },
+                    "root": {
+                      "$ref": "#/$defs/legacyProbeRoot"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "lanPlugin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "package",
+            "version"
+          ],
+          "properties": {
+            "package": {
+              "const": "dsh-web-lan-access"
+            },
+            "version": {
+              "const": "1.2.1"
+            }
+          }
+        },
+        "webView2Sdk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "package",
+            "version"
+          ],
+          "properties": {
+            "package": {
+              "const": "Microsoft.Web.WebView2"
+            },
+            "version": {
+              "const": "1.0.4129.50"
+            }
+          }
+        },
+        "webView2Runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minimumVersion",
+            "offlineInstallerVersion",
+            "offlineInstallerSourceUri",
+            "offlineInstallerSha256",
+            "bootstrapper"
+          ],
+          "properties": {
+            "minimumVersion": {
+              "$ref": "#/$defs/pendingString"
+            },
+            "offlineInstallerVersion": {
+              "$ref": "#/$defs/pendingString"
+            },
+            "offlineInstallerSourceUri": {
+              "$ref": "#/$defs/pendingHttpsUri"
+            },
+            "offlineInstallerSha256": {
+              "$ref": "#/$defs/pendingSha256"
+            },
+            "bootstrapper": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "version",
+                "sourceUri",
+                "sha256"
+              ],
+              "properties": {
+                "version": {
+                  "const": "1.3.263.3"
+                },
+                "sourceUri": {
+                  "const": "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+                },
+                "sha256": {
+                  "const": "94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installerFileNameTemplate",
+        "innoSetup",
+        "signing",
+        "officialReleaseUri"
+      ],
+      "properties": {
+        "installerFileNameTemplate": {
+          "const": "{Product}-Setup-{SemVer}-win-x64.exe"
+        },
+        "innoSetup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "appId",
+            "version",
+            "sourceUri",
+            "sha256"
+          ],
+          "properties": {
+            "appId": {
+              "const": "4440FC88-98CA-403E-8E20-3DFEBEF0E609"
+            },
+            "version": {
+              "$ref": "#/$defs/pendingString"
+            },
+            "sourceUri": {
+              "$ref": "#/$defs/pendingHttpsUri"
+            },
+            "sha256": {
+              "$ref": "#/$defs/pendingSha256"
+            }
+          }
+        },
+        "signing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "publisher",
+            "certificateSubject",
+            "timestampServerUri"
+          ],
+          "properties": {
+            "publisher": {
+              "$ref": "#/$defs/pendingString"
+            },
+            "certificateSubject": {
+              "$ref": "#/$defs/pendingString"
+            },
+            "timestampServerUri": {
+              "$ref": "#/$defs/pendingHttpsUri"
+            }
+          }
+        },
+        "officialReleaseUri": {
+          "$ref": "#/$defs/pendingHttpsUri"
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "defaultTargetPort",
+        "activeTargetWindows"
+      ],
+      "properties": {
+        "defaultTargetPort": {
+          "const": 3080
+        },
+        "activeTargetWindows": {
+          "const": 4
+        }
+      }
+    }
+  },
+  "$defs": {
+    "legacyProbeApi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestPath",
+        "statusCode",
+        "bodyLength",
+        "bodySha256"
+      ],
+      "properties": {
+        "requestPath": {
+          "const": "/api"
+        },
+        "statusCode": {
+          "const": 404
+        },
+        "bodyLength": {
+          "const": 9
+        },
+        "bodySha256": {
+          "const": "907ba78b4545338d3539683e63ecb51cf51c10adc9dabd86e92bd52339f298b9"
+        }
+      }
+    },
+    "legacyProbeRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestPath",
+        "statusCode",
+        "bodyLength",
+        "bodySha256"
+      ],
+      "properties": {
+        "requestPath": {
+          "const": "/"
+        },
+        "statusCode": {
+          "const": 200
+        },
+        "bodyLength": {
+          "const": 14556
+        },
+        "bodySha256": {
+          "const": "a1c9e8d395d34fc83466b19d652a36e94b4f643fafef57f840b226b0bfab74de"
+        }
+      }
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "httpsUri": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9A-Fa-f]{64}$"
+    },
+    "pendingString": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pendingHttpsUri": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/httpsUri"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pendingSha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "releaseStatus": {
+            "const": "candidate"
+          }
+        },
+        "required": [
+          "releaseStatus"
+        ]
+      },
+      "then": {
+        "properties": {
+          "dependencyBaseline": {
+            "properties": {
+              "webView2Runtime": {
+                "properties": {
+                  "minimumVersion": {
+                    "$ref": "#/$defs/nonEmptyString"
+                  },
+                  "offlineInstallerVersion": {
+                    "$ref": "#/$defs/nonEmptyString"
+                  },
+                  "offlineInstallerSourceUri": {
+                    "$ref": "#/$defs/httpsUri"
+                  },
+                  "offlineInstallerSha256": {
+                    "$ref": "#/$defs/sha256"
+                  }
+                }
+              }
+            }
+          },
+          "distribution": {
+            "properties": {
+              "innoSetup": {
+                "properties": {
+                  "version": {
+                    "$ref": "#/$defs/nonEmptyString"
+                  },
+                  "sourceUri": {
+                    "$ref": "#/$defs/httpsUri"
+                  },
+                  "sha256": {
+                    "$ref": "#/$defs/sha256"
+                  }
+                }
+              },
+              "signing": {
+                "properties": {
+                  "publisher": {
+                    "$ref": "#/$defs/nonEmptyString"
+                  },
+                  "certificateSubject": {
+                    "$ref": "#/$defs/nonEmptyString"
+                  },
+                  "timestampServerUri": {
+                    "$ref": "#/$defs/httpsUri"
+                  }
+                }
+              },
+              "officialReleaseUri": {
+                "$ref": "#/$defs/httpsUri"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

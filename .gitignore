@@ -1,0 +1,32 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+TestResults/
+
+# IDE and user state
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Test and coverage outputs
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Local diagnostics and package staging
+*.log
+*.tmp
+packages/
+.scratch/
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

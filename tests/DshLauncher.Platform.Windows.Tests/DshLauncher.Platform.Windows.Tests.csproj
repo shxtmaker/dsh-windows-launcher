@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DshLauncher.Platform.Windows.Tests</RootNamespace>
+    <AssemblyName>DshLauncher.Platform.Windows.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/DshLauncher.Core/DshLauncher.Core.csproj" />
+    <ProjectReference Include="../../src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+</Project>

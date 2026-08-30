@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ProductName" xml:space="preserve"><value>DSH Windows Launcher</value></data>
+  <data name="TargetCenterTitle" xml:space="preserve"><value>目标中心</value></data>
+  <data name="TargetCenterHeading" xml:space="preserve"><value>Harness 目标</value></data>
+  <data name="TargetCenterDescription" xml:space="preserve"><value>选择已保存的局域网 Harness，或添加一个新目标。</value></data>
+  <data name="TargetListAutomationName" xml:space="preserve"><value>已保存的 Harness 目标</value></data>
+  <data name="ColumnName" xml:space="preserve"><value>名称</value></data>
+  <data name="ColumnEndpoint" xml:space="preserve"><value>地址</value></data>
+  <data name="ColumnPairingState" xml:space="preserve"><value>会话</value></data>
+  <data name="ColumnDefault" xml:space="preserve"><value>默认</value></data>
+  <data name="DefaultBadge" xml:space="preserve"><value>默认</value></data>
+  <data name="PairingPending" xml:space="preserve"><value>待配对</value></data>
+  <data name="PairingCommitted" xml:space="preserve"><value>已配对</value></data>
+  <data name="ButtonAdd" xml:space="preserve"><value>添加(_A)</value></data>
+  <data name="ButtonOpen" xml:space="preserve"><value>打开(_O)</value></data>
+  <data name="ButtonPair" xml:space="preserve"><value>配对(_P)</value></data>
+  <data name="ButtonSetDefault" xml:space="preserve"><value>设为默认(_D)</value></data>
+  <data name="ButtonRename" xml:space="preserve"><value>重命名(_R)</value></data>
+  <data name="ButtonForget" xml:space="preserve"><value>忘记(_F)</value></data>
+  <data name="ButtonExportDiagnostics" xml:space="preserve"><value>导出诊断信息(_E)</value></data>
+  <data name="ButtonViewUpdates" xml:space="preserve"><value>查看更新(_U)</value></data>
+  <data name="ButtonRefresh" xml:space="preserve"><value>刷新(_R)</value></data>
+  <data name="ButtonClose" xml:space="preserve"><value>关闭(_C)</value></data>
+  <data name="ButtonCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="ButtonContinue" xml:space="preserve"><value>继续</value></data>
+  <data name="ButtonConfirm" xml:space="preserve"><value>确认</value></data>
+  <data name="ButtonRetry" xml:space="preserve"><value>重试</value></data>
+  <data name="ButtonReload" xml:space="preserve"><value>刷新页面</value></data>
+  <data name="ButtonCopyPath" xml:space="preserve"><value>复制路径</value></data>
+  <data name="NoTargets" xml:space="preserve"><value>尚未保存目标。请选择“添加”开始。</value></data>
+  <data name="ReadyStatus" xml:space="preserve"><value>就绪</value></data>
+  <data name="WorkingStatus" xml:space="preserve"><value>正在处理…</value></data>
+  <data name="AddTargetTitle" xml:space="preserve"><value>添加 Harness 目标</value></data>
+  <data name="AddTargetHeading" xml:space="preserve"><value>输入 Linux 主机地址</value></data>
+  <data name="AddTargetDescription" xml:space="preserve"><value>只接受受信任局域网中的私有 IPv4 地址。端口留空时使用 3080。</value></data>
+  <data name="Ipv4Label" xml:space="preserve"><value>IPv4 地址(_I)</value></data>
+  <data name="Ipv4Help" xml:space="preserve"><value>例如 192.168.1.20</value></data>
+  <data name="PortLabel" xml:space="preserve"><value>端口(_P)</value></data>
+  <data name="PortHelp" xml:space="preserve"><value>可选，默认 3080</value></data>
+  <data name="DisplayNameLabel" xml:space="preserve"><value>显示名称(_N)</value></data>
+  <data name="DisplayNameHelp" xml:space="preserve"><value>可选，不影响目标身份</value></data>
+  <data name="TrustTitle" xml:space="preserve"><value>确认受信任局域网</value></data>
+  <data name="TrustHeading" xml:space="preserve"><value>连接前请确认网络边界</value></data>
+  <data name="TrustEndpointLabel" xml:space="preserve"><value>即将信任的目标</value></data>
+  <data name="TrustEndpointAutomationName" xml:space="preserve"><value>即将信任的目标地址</value></data>
+  <data name="TrustWarning" xml:space="preserve"><value>Harness 会话具有较高权限。启动器无法验证 Linux 防火墙配置。</value></data>
+  <data name="TrustLanCheckbox" xml:space="preserve"><value>我确认当前 Windows 网络为专用网络，且此目标位于受信任局域网。</value></data>
+  <data name="TrustFirewallCheckbox" xml:space="preserve"><value>我确认 Linux 防火墙只允许指定 Windows 客户端或最小可信网段。</value></data>
+  <data name="TrustPrivilegeCheckbox" xml:space="preserve"><value>我了解配对后的 Harness 会话可能执行高权限操作。</value></data>
+  <data name="PairTargetTitle" xml:space="preserve"><value>首次配对</value></data>
+  <data name="PairTargetHeading" xml:space="preserve"><value>粘贴完整 LAN 配对链接</value></data>
+  <data name="PairTargetDescription" xml:space="preserve"><value>从对应 Linux Harness 的启动输出复制完整“dsh web:”LAN 链接。链接只用于本次配对。</value></data>
+  <data name="PairingLinkLabel" xml:space="preserve"><value>配对链接(_L)</value></data>
+  <data name="PairingLinkAutomationName" xml:space="preserve"><value>完整 LAN 配对链接</value></data>
+  <data name="PairingSecretNotice" xml:space="preserve"><value>配对完成、失败或取消后，启动器会清除此输入，并在内容未变化时尽力清空当前剪贴板。</value></data>
+  <data name="ForgetTitle" xml:space="preserve"><value>忘记目标</value></data>
+  <data name="ForgetPrompt" xml:space="preserve"><value>将删除此目标的本地配置和配对会话。远端 Harness 不受影响。</value></data>
+  <data name="SuccessorLabel" xml:space="preserve"><value>新的默认目标(_D)</value></data>
+  <data name="RenameTitle" xml:space="preserve"><value>重命名目标</value></data>
+  <data name="RenameHeading" xml:space="preserve"><value>设置显示名称</value></data>
+  <data name="RenameDescription" xml:space="preserve"><value>显示名称可留空或重复，不会改变目标身份与配对会话。</value></data>
+  <data name="TargetWindowLoading" xml:space="preserve"><value>正在连接 Harness…</value></data>
+  <data name="TargetWindowRecovering" xml:space="preserve"><value>页面容器正在恢复…</value></data>
+  <data name="TargetWindowFailed" xml:space="preserve"><value>无法打开此目标</value></data>
+  <data name="TargetWindowDownloadBlocked" xml:space="preserve"><value>V1 不支持从 Harness 下载文件。</value></data>
+  <data name="DiagnosticsTitle" xml:space="preserve"><value>导出诊断信息</value></data>
+  <data name="DiagnosticsConsent" xml:space="preserve"><value>诊断包可包含规范化私有 IP 和端口，但不包含显示名称、token、Cookie、页面、图片或剪贴板内容。</value></data>
+  <data name="UpdateConfirmation" xml:space="preserve"><value>是否使用系统浏览器打开官方发布页面？</value></data>
+  <data name="UpdateUnavailable" xml:space="preserve"><value>当前开发构建尚未配置固定的官方发布地址。</value></data>
+  <data name="PublicNetworkBlocked" xml:space="preserve"><value>当前 Windows 网络不是可确认的专用网络，可能为公用网络或状态未知。已阻止探测、配对和连接。</value></data>
+  <data name="InvalidIpv4" xml:space="preserve"><value>请输入无前导零的 RFC1918 IPv4 地址。</value></data>
+  <data name="InvalidPort" xml:space="preserve"><value>端口必须留空或为 1 到 65535 的十进制整数。</value></data>
+  <data name="HarnessNotRunning" xml:space="preserve"><value>目标拒绝连接，Harness 似乎未启动或未监听此端口。启动器不会启动远端 Harness，也不会扫描其他端口。</value></data>
+  <data name="DefaultPortOccupied" xml:space="preserve"><value>默认端口 3080 返回了其他服务，可能已被其他进程占用。请由 Linux 管理者确认占用，并为 Harness 明确选择固定端口；启动器不会扫描端口。</value></data>
+  <data name="WrongService" xml:space="preserve"><value>该端口返回了其他服务或不受支持的响应。请核对明确配置的 Harness 端口；启动器不会扫描其他端口。</value></data>
+  <data name="LegacyUnauthenticatedHarness" xml:space="preserve"><value>检测到固定旧基线的无认证 Harness。为避免高权限会话暴露到局域网，启动器已拒绝连接。请升级到当前固定的认证型 Harness。</value></data>
+  <data name="UnsupportedHarness" xml:space="preserve"><value>该地址响应了 Harness 风格协议，但不是当前固定基线支持的认证版本。</value></data>
+  <data name="ProbeForbidden" xml:space="preserve"><value>Harness 或 LAN 访问配置拒绝了探测。请检查 Host/Origin fence 和允许的客户端范围。</value></data>
+  <data name="ProbeUnreachable" xml:space="preserve"><value>无法到达该目标。请检查地址、路由和 Linux 主机状态。</value></data>
+  <data name="ProbeTimedOut" xml:space="preserve"><value>目标探测超时。请检查 Harness 是否启动及防火墙规则。</value></data>
+  <data name="SessionForbidden" xml:space="preserve"><value>Harness 或 LAN 访问配置拒绝了当前会话。已保留本地配对数据，请检查访问范围后重试。</value></data>
+  <data name="TargetUnavailable" xml:space="preserve"><value>目标当前不可达。已保留本地配对会话。</value></data>
+  <data name="PairingRequired" xml:space="preserve"><value>此目标需要首次配对。</value></data>
+  <data name="PairingLinkInvalid" xml:space="preserve"><value>配对链接格式无效。请粘贴该 Harness 输出的完整 LAN 链接。</value></data>
+  <data name="PairingLinkWrongTarget" xml:space="preserve"><value>此配对链接属于另一个目标，未发送任何凭据。</value></data>
+  <data name="PairingLinkPasteOnly" xml:space="preserve"><value>请直接粘贴完整配对链接。手工输入、拖放或粘贴后的编辑不会被接受。</value></data>
+  <data name="PairingRejected" xml:space="preserve"><value>Harness 拒绝了配对链接。请从对应进程获取新的 LAN 链接。</value></data>
+  <data name="PairingIncomplete" xml:space="preserve"><value>配对握手未完整通过，已清理未提交会话。</value></data>
+  <data name="CatalogUnknownSchema" xml:space="preserve"><value>目标数据来自较新版本。为保护数据，已停止写入和自动连接。</value></data>
+  <data name="CatalogUnavailable" xml:space="preserve"><value>目标数据无法安全读取。原文件已保留，请导出诊断信息。</value></data>
+  <data name="SessionCleanupFailed" xml:space="preserve"><value>本地会话未能完整清理，目标配置没有被报告为已删除。</value></data>
+  <data name="SuccessorRequired" xml:space="preserve"><value>忘记默认目标前必须选择新的默认目标。</value></data>
+  <data name="SnapshotStale" xml:space="preserve"><value>目标列表已发生变化。请刷新后重试。</value></data>
+  <data name="UnexpectedError" xml:space="preserve"><value>操作未完成。请导出诊断信息后重试。</value></data>
+  <data name="ExternalLinkTitle" xml:space="preserve"><value>打开外部链接</value></data>
+  <data name="ExternalLinkPrompt" xml:space="preserve"><value>是否使用系统浏览器打开此链接？</value></data>
+  <data name="BlockedContent" xml:space="preserve"><value>已阻止不受支持的页面操作。</value></data>
+  <data name="ButtonRepairRuntime" xml:space="preserve"><value>在线修复(_R)</value></data>
+  <data name="RuntimeRepairTitle" xml:space="preserve"><value>修复 WebView2 Runtime</value></data>
+  <data name="RuntimeRepairHeading" xml:space="preserve"><value>需要修复 WebView2 Runtime</value></data>
+  <data name="RuntimeRepairDescription" xml:space="preserve"><value>启动 Harness 界面需要 Microsoft Edge WebView2 Evergreen Runtime {0} 或更高版本。完成修复前不会创建 WebView。</value></data>
+  <data name="RuntimeRepairOnlineGuidance" xml:space="preserve"><value>选择“在线修复”后，启动器会以当前标准用户运行程序目录中的 {0}，并等待安装完成。不会请求管理员权限。</value></data>
+  <data name="RuntimeRepairOfflineGuidance" xml:space="preserve"><value>如果设备离线，请关闭启动器并重新运行完整正式安装包。启动器不会自行下载或替换安装程序。</value></data>
+  <data name="RuntimeRepairRequired" xml:space="preserve"><value>当前 WebView2 Runtime 不满足启动要求。</value></data>
+  <data name="RuntimeRepairMissing" xml:space="preserve"><value>未检测到 WebView2 Evergreen Runtime。</value></data>
+  <data name="RuntimeRepairInvalidVersion" xml:space="preserve"><value>检测到的 WebView2 Runtime 版本无法安全识别。</value></data>
+  <data name="RuntimeRepairBelowMinimum" xml:space="preserve"><value>已安装的 WebView2 Runtime 版本低于当前版本要求。</value></data>
+  <data name="RuntimeRepairRunning" xml:space="preserve"><value>正在运行 WebView2 修复程序，请稍候…</value></data>
+  <data name="RuntimeRepairBootstrapperMissing" xml:space="preserve"><value>程序目录中缺少固定的 WebView2 修复程序。请重新运行完整正式安装包。</value></data>
+  <data name="RuntimeRepairProcessFailed" xml:space="preserve"><value>无法启动或等待 WebView2 修复程序。未请求提升权限，请重新运行完整正式安装包。</value></data>
+  <data name="RuntimeRepairInstallerFailed" xml:space="preserve"><value>WebView2 修复程序未成功完成。请检查网络后重试，或重新运行完整正式安装包。</value></data>
+  <data name="RuntimeRepairTimedOut" xml:space="preserve"><value>等待 WebView2 修复程序超时。请重试，或重新运行完整正式安装包。</value></data>
+  <data name="RuntimeRepairCancelled" xml:space="preserve"><value>WebView2 修复已取消。</value></data>
+  <data name="RuntimeRepairStillUnavailable" xml:space="preserve"><value>修复完成后仍未检测到符合要求的 WebView2 Runtime。请重新运行完整正式安装包。</value></data>
+</root>

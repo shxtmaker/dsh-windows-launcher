@@ -1,0 +1,88 @@
+<Window x:Class="DshLauncher.Desktop.TargetCenterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:resources="clr-namespace:DshLauncher.Desktop.Resources"
+        xmlns:vm="clr-namespace:DshLauncher.Desktop.ViewModels"
+        mc:Ignorable="d"
+        Title="{x:Static resources:Strings.TargetCenterTitle}"
+        Width="940" Height="620" MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        AutomationProperties.Name="{x:Static resources:Strings.TargetCenterTitle}">
+  <Window.InputBindings>
+    <KeyBinding Key="N" Modifiers="Control" Command="{Binding AddCommand}" />
+    <KeyBinding Key="Enter" Command="{Binding OpenCommand}" />
+    <KeyBinding Key="Delete" Command="{Binding ForgetCommand}" />
+    <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+  </Window.InputBindings>
+
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="12" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="{x:Static resources:Strings.TargetCenterHeading}"
+                 FontSize="26" FontWeight="SemiBold" />
+      <TextBlock Text="{x:Static resources:Strings.TargetCenterDescription}"
+                 Margin="0,6,0,0" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Grid Grid.Row="2">
+      <ListView ItemsSource="{Binding Targets}"
+                SelectedItem="{Binding SelectedTarget}"
+                AutomationProperties.Name="{x:Static resources:Strings.TargetListAutomationName}">
+        <ListView.View>
+          <GridView>
+            <GridViewColumn Header="{x:Static resources:Strings.ColumnName}" Width="230"
+                            DisplayMemberBinding="{Binding EffectiveDisplayName}" />
+            <GridViewColumn Header="{x:Static resources:Strings.ColumnEndpoint}" Width="210"
+                            DisplayMemberBinding="{Binding Endpoint}" />
+            <GridViewColumn Header="{x:Static resources:Strings.ColumnPairingState}" Width="130"
+                            DisplayMemberBinding="{Binding PairingStateText}" />
+            <GridViewColumn Header="{x:Static resources:Strings.ColumnDefault}" Width="100"
+                            DisplayMemberBinding="{Binding DefaultText}" />
+          </GridView>
+        </ListView.View>
+      </ListView>
+
+      <TextBlock Text="{x:Static resources:Strings.NoTargets}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                 FontSize="16" TextWrapping="Wrap" TextAlignment="Center"
+                 Visibility="{Binding EmptyStateVisibility}" />
+    </Grid>
+
+    <WrapPanel Grid.Row="3" Margin="-4,12,-4,0">
+      <Button Content="{x:Static resources:Strings.ButtonAdd}" Command="{Binding AddCommand}"
+              AutomationProperties.Name="{x:Static resources:Strings.ButtonAdd}" />
+      <Button Content="{x:Static resources:Strings.ButtonOpen}" Command="{Binding OpenCommand}"
+              AutomationProperties.Name="{x:Static resources:Strings.ButtonOpen}" />
+      <Button Content="{x:Static resources:Strings.ButtonPair}" Command="{Binding PairCommand}"
+              AutomationProperties.Name="{x:Static resources:Strings.ButtonPair}" />
+      <Button Content="{x:Static resources:Strings.ButtonSetDefault}" Command="{Binding SetDefaultCommand}"
+              AutomationProperties.Name="{x:Static resources:Strings.ButtonSetDefault}" />
+      <Button Content="{x:Static resources:Strings.ButtonRename}" Command="{Binding RenameCommand}"
+              AutomationProperties.Name="{x:Static resources:Strings.ButtonRename}" />
+      <Button Content="{x:Static resources:Strings.ButtonForget}" Command="{Binding ForgetCommand}"
+              AutomationProperties.Name="{x:Static resources:Strings.ButtonForget}" />
+    </WrapPanel>
+
+    <DockPanel Grid.Row="4" Margin="0,12,0,0">
+      <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
+                 AutomationProperties.LiveSetting="Polite" />
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button Content="{x:Static resources:Strings.ButtonExportDiagnostics}"
+                Command="{Binding ExportDiagnosticsCommand}"
+                AutomationProperties.Name="{x:Static resources:Strings.ButtonExportDiagnostics}" />
+        <Button Content="{x:Static resources:Strings.ButtonViewUpdates}"
+                Command="{Binding ViewUpdatesCommand}"
+                AutomationProperties.Name="{x:Static resources:Strings.ButtonViewUpdates}" />
+      </StackPanel>
+    </DockPanel>
+  </Grid>
+</Window>
