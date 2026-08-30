@@ -62,10 +62,28 @@ public sealed class TargetContentSecurityPolicy
         return TargetNavigationDecision.Blocked;
     }
 
-    public bool AllowsResource(Uri resource)
+    public bool AllowsResource(
+        Uri resource,
+        TargetContentResourceKind resourceKind)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        return IsSameOrigin(resource);
+        return IsSameOrigin(resource) ||
+               resourceKind == TargetContentResourceKind.Websocket &&
+               DshWebUiCompatibilityPolicy.IsBoundWebSocket(
+                   resource,
+                   Binding) ||
+               DshWebUiCompatibilityPolicy.AllowsResource(
+                   resource,
+                   Binding,
+                   resourceKind);
+    }
+
+    public bool AllowsFrameNavigation(Uri destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        return DshWebUiCompatibilityPolicy.AllowsFrameNavigation(
+            destination,
+            Binding);
     }
 
     private bool IsSameOrigin(Uri destination)
@@ -81,6 +99,26 @@ public sealed class TargetContentSecurityPolicy
                    StringComparison.OrdinalIgnoreCase) &&
                destination.Port == Binding.Origin.Port;
     }
+}
+
+public enum TargetContentResourceKind
+{
+    Document,
+    Stylesheet,
+    Image,
+    Media,
+    Font,
+    Script,
+    XmlHttpRequest,
+    Fetch,
+    TextTrack,
+    EventSource,
+    Websocket,
+    Manifest,
+    SignedExchange,
+    Ping,
+    CspViolationReport,
+    Other,
 }
 
 public sealed record TargetNavigationDecision(

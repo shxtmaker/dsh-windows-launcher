@@ -451,7 +451,9 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
                 UriKind.Absolute,
                 out var resource) &&
             (_policy ?? throw new InvalidOperationException())
-                .AllowsResource(resource))
+                .AllowsResource(
+                    resource,
+                    ClassifyResourceContext(args.ResourceContext)))
         {
             return;
         }
@@ -462,7 +464,45 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
                 403,
                 "Forbidden",
                 "Cache-Control: no-store");
-        FireSignal(TargetRuntimeSignal.Blocked());
+    }
+
+    private static TargetContentResourceKind ClassifyResourceContext(
+        CoreWebView2WebResourceContext resourceContext)
+    {
+        return resourceContext switch
+        {
+            CoreWebView2WebResourceContext.Document =>
+                TargetContentResourceKind.Document,
+            CoreWebView2WebResourceContext.Stylesheet =>
+                TargetContentResourceKind.Stylesheet,
+            CoreWebView2WebResourceContext.Image =>
+                TargetContentResourceKind.Image,
+            CoreWebView2WebResourceContext.Media =>
+                TargetContentResourceKind.Media,
+            CoreWebView2WebResourceContext.Font =>
+                TargetContentResourceKind.Font,
+            CoreWebView2WebResourceContext.Script =>
+                TargetContentResourceKind.Script,
+            CoreWebView2WebResourceContext.XmlHttpRequest =>
+                TargetContentResourceKind.XmlHttpRequest,
+            CoreWebView2WebResourceContext.Fetch =>
+                TargetContentResourceKind.Fetch,
+            CoreWebView2WebResourceContext.TextTrack =>
+                TargetContentResourceKind.TextTrack,
+            CoreWebView2WebResourceContext.EventSource =>
+                TargetContentResourceKind.EventSource,
+            CoreWebView2WebResourceContext.Websocket =>
+                TargetContentResourceKind.Websocket,
+            CoreWebView2WebResourceContext.Manifest =>
+                TargetContentResourceKind.Manifest,
+            CoreWebView2WebResourceContext.SignedExchange =>
+                TargetContentResourceKind.SignedExchange,
+            CoreWebView2WebResourceContext.Ping =>
+                TargetContentResourceKind.Ping,
+            CoreWebView2WebResourceContext.CspViolationReport =>
+                TargetContentResourceKind.CspViolationReport,
+            _ => TargetContentResourceKind.Other,
+        };
     }
 
     private void OnWebResourceResponseReceived(
@@ -525,8 +565,7 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
     {
         if (!Uri.TryCreate(args.Uri, UriKind.Absolute, out var destination) ||
             (_policy ?? throw new InvalidOperationException())
-                .EvaluateNavigation(destination, isUserInitiated: false)
-                .Disposition != TargetNavigationDisposition.AllowInTarget)
+                .AllowsFrameNavigation(destination) is false)
         {
             args.Cancel = true;
             FireSignal(TargetRuntimeSignal.Blocked());

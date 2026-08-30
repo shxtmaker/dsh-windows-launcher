@@ -14,4 +14,4 @@ status: accepted
 
 ## Consequences
 
-实现必须完整接管相关 WebView2 事件，并为真实 Runtime 和确定性测试分别提供适配器。目标内容宿主保持 Harness 图片拖放和粘贴可用，但不读取图片或建立上传接口；Harness ZIP 导出及其他目标窗口下载被阻断。新增页面权限、通用文件传输、外部协议、原生桥接或 Linux 到 Windows 文件传递均需显式重新决策。Harness 与 WebView2 升级必须重跑能力扫描和宿主验收矩阵。
+实现必须完整接管相关 WebView2 事件，并为真实 Runtime 和确定性测试分别提供适配器。目标内容宿主支持 `dsh-web` 已核实的同源皮肤、受限 iframe、创意工坊和 Turnstile 依赖，但该允许清单不构成通用浏览器能力。服务端 CSP 必须保留，宿主 CSP 只能追加更严格的边界。目标内容宿主保持 Harness 图片拖放和粘贴可用，但不读取图片或建立上传接口；Harness ZIP 导出及其他目标窗口下载被阻断。新增页面权限、任意外站 iframe、外部脚本、通用文件传输、外部协议、原生桥接或 Linux 到 Windows 文件传递均需显式重新决策。Harness、`dsh-web` 与 WebView2 升级必须重跑能力扫描和宿主验收矩阵。

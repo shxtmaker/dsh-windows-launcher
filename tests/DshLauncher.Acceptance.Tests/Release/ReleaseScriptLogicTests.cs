@@ -84,6 +84,7 @@ public sealed class ReleaseScriptLogicTests
             "First=@(Get-DshRequiredSmokeIds -ReleaseKind FirstRelease);" +
             "Regular=@(Get-DshRequiredSmokeIds -ReleaseKind RegularPatch);" +
             "Installer=@(Get-DshRequiredSmokeIds -ReleaseKind RegularPatch -TriggerTags installer);" +
+            "ThirdPartyUi=@(Get-DshRequiredSmokeIds -ReleaseKind RegularPatch -TriggerTags third-party-ui);" +
             "Matrix=@(Get-DshSmokeMatrix)" +
             "}");
 
@@ -93,6 +94,14 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains(
             root.GetProperty("Installer").EnumerateArray().Select(static value => value.GetString()),
             static id => id == "RS-03");
+        string?[] thirdPartyUi = root.GetProperty("ThirdPartyUi")
+            .EnumerateArray()
+            .Select(static value => value.GetString())
+            .ToArray();
+        Assert.Contains("RS-07", thirdPartyUi);
+        Assert.Contains("RS-08", thirdPartyUi);
+        Assert.Contains("RS-12", thirdPartyUi);
+        Assert.Contains("RS-15", thirdPartyUi);
         Assert.All(
             root.GetProperty("Matrix").EnumerateArray(),
             static item =>

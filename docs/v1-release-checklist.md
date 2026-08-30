@@ -122,8 +122,8 @@ pwsh -File .\eng\verify.ps1
 | `RS-06` | 每次；Windows 11 实体机、Linux A/B | 保存 `A:3080`、`A:3180`、`B:3180` 和 `B:3280`。验证同主机不同端口、不同主机使用相同端口、唯一默认目标、显式切换默认、窗口去重和逐目标会话隔离；一个目标离线不影响其他窗口。忘记非默认目标后其他会话保持，忘记默认目标时按剩余数量选择或自动继任。 | `REQ-TGT-002` 至 `REQ-TGT-007`、`REQ-DATA-001` 至 `REQ-DATA-005` |
 | `RS-07` | 首版或网络/探测/插件变化；Windows 11 实体机与夹具 | 让 `B:3080` 分别承载非 HTTP 和错误 HTTP `200`，让 Harness 使用明确的替代端口；验证拒绝错误服务且不扫描端口。再验证 `403`、旧无认证服务、非 RFC1918 输入和 Windows 公用网络阻断。 | `REQ-NET-001` 至 `REQ-NET-008` |
 | `RS-08` | 首版或配对/数据变化；Windows 11 实体机 | 验证错误、过期、重复、loopback、跨目标和含额外参数的配对链接均不发送到错误目标。确认输入与内存 token 清除，当前剪贴板仅在内容未变化时尽力清空；取消、崩溃恢复和 `401` 只影响当前目标。 | `REQ-PAIR-002` 至 `REQ-PAIR-010` |
-| `RS-09` | 每次；Windows 11 实体机、Linux A | 在真实 Harness 中创建或打开 Session，完成完整流式回复、持续 WebSocket、空闲后继续交互、页面内复制及 Linux 工作目录浏览。启动器不替代 Harness 业务。 | `REQ-WEB-003`、`REQ-WEB-010` |
-| `RS-10` | 每次；Windows 11 实体机 | 验证跨 origin 导航被阻止；外部 HTTP/HTTPS 和 `mailto:` 仅由用户触发并逐次确认后交给系统；所有下载、弹窗、未知协议、权限、证书绕过、DevTools 和原生桥接入口被阻断。主动导出原生诊断 ZIP，并确认其中无 token、Cookie、页面、图片或剪贴板内容。 | `REQ-WEB-002` 至 `REQ-WEB-009`、`REQ-DIAG-001` 至 `REQ-DIAG-005` |
+| `RS-09` | 每次；Windows 11 实体机、Linux A | 在真实 Harness 中创建或打开 Session，完成完整流式回复、持续 WebSocket、空闲后继续交互、页面内复制及 Linux 工作目录浏览。启用 `dsh-web` 时，对照同一 endpoint 的 Edge，确认活动皮肤、插件入口、Wallpaper Engine iframe、创意工坊清单、图片和本机安装入口可用。验证启动器未阻断 Turnstile 必需资源；若点赞或安装计数仍失败，必须用 Edge 对照和响应 CSP 区分上游故障。启动器不替代 Harness 业务。 | `REQ-WEB-003`、`REQ-WEB-010`、`REQ-WEB-013` 至 `REQ-WEB-015` |
+| `RS-10` | 每次；Windows 11 实体机 | 验证跨 origin 主导航和非清单 iframe 被阻止；外部 HTTP/HTTPS 和 `mailto:` 仅由用户触发并逐次确认后交给系统；服务端 CSP 保持存在。所有下载、任意外部脚本、未知协议、权限、证书绕过、DevTools 和原生桥接入口被阻断。主动导出原生诊断 ZIP，并确认其中无 token、Cookie、页面、图片或剪贴板内容。 | `REQ-WEB-002` 至 `REQ-WEB-009`、`REQ-WEB-013` 至 `REQ-WEB-015`、`REQ-DIAG-001` 至 `REQ-DIAG-005` |
 | `RS-11` | 每次；Windows 11 实体机、Linux A/B | 从 Explorer 拖入单图和多图，粘贴截图及文本图片混合内容；验证附件只进入当前目标当前 Session。不支持格式和非图片保持 Harness 原生错误；刷新或重建后不自动重复提交。 | `REQ-IMG-001` 至 `REQ-IMG-005` |
 | `RS-12` | 首版或 WebView/Runtime/Harness 变化；Windows 11 实体机 | 验证网络中断恢复、主导航失败、renderer 失败、browser 进程失败和无响应处理。恢复复用对应 UDF，不清其他会话、不切换默认目标、不重放业务写入。 | `REQ-WEB-010` 至 `REQ-WEB-012` |
 | `RS-13` | 每次；4 逻辑处理器、8 GiB RAM、SSD 的 Windows 11 实体参考机 | 同时打开四个不同目标窗口并混合使用 30 分钟。无崩溃、无无响应、无跨目标污染，四窗口均可继续操作；启动器 PID 及其 WebView2 子进程树 `Private Bytes` 峰值不超过 2.5 GiB，最后五分钟稳定空闲平均 CPU 不超过 10%，关闭后 60 秒内释放全部对应 UDF 文件锁。 | 同时活动窗口承诺 |
@@ -144,6 +144,7 @@ pwsh -File .\eng\verify.ps1
 | 网络、探测、配对或 Windows 网络类别 | `RS-07`、`RS-08` 及完整地址、状态码、重定向、凭据和并行隔离数据集。 |
 | Harness、LAN 插件或能力指纹基线 | `RS-05`、`RS-07`、`RS-08`、`RS-09`、`RS-11`、`RS-12`；重新核实源码契约和所有固定指纹。 |
 | WebView2 SDK、最低 Runtime、内容宿主或权限策略 | `RS-09` 至 `RS-12`、`RS-13`、`RS-15` 及完整导航、权限、下载、进程和剪贴板数据集。 |
+| `dsh-web`、第三方 UI、皮肤、iframe 或外部资源清单 | `RS-05`、`RS-07` 至 `RS-13`、`RS-15`；重新核实 UI 版本、资源清单、CSP、配对和浏览器本地状态边界。 |
 | 图片附件相关页面契约 | `RS-11` 和多目标隔离、重建不重试数据集。 |
 | 多窗口、UDF 或进程生命周期 | `RS-06`、`RS-12`、`RS-13`，必要时额外执行 6/8 窗口专项观察。 |
 | 仅文档且不影响构建输入或行为 | 仍运行 `eng/verify.ps1` 的适用静态检查；无需重新生成发布物。 |

@@ -1297,6 +1297,7 @@ internal sealed class WebView2TargetBrowserSession : ITargetBrowserSession
     private static void ConfigureSecurity(CoreWebView2 core)
     {
         var settings = core.Settings;
+        settings.IsScriptEnabled = false;
         settings.AreDefaultContextMenusEnabled = false;
         settings.AreDevToolsEnabled = false;
         settings.AreHostObjectsAllowed = false;

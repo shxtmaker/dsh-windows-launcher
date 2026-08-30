@@ -18,14 +18,33 @@ internal static class TargetResponseCspPolicy
     public static string CreatePolicy(TargetContentBinding binding)
     {
         ArgumentNullException.ThrowIfNull(binding);
-        return $"connect-src http://{binding.Authority} ws://{binding.Authority}; " +
-               "frame-src 'none'; object-src 'none'; base-uri 'self'; " +
+        return "connect-src 'self' ws: " +
+               $"{DshWebUiCompatibilityPolicy.MarketOrigin}; " +
+               "script-src 'self' 'unsafe-inline' blob:; " +
+               "worker-src 'self' blob:; " +
+               $"frame-src 'self' blob: {DshWebUiCompatibilityPolicy.MarketOrigin} " +
+               $"{DshWebUiCompatibilityPolicy.TurnstileOrigin}; " +
+               "object-src 'none'; base-uri 'self'; " +
                "form-action 'self'";
     }
 
-    public static string CreateEnableParameters() =>
-        "{\"patterns\":[{\"urlPattern\":\"*\",\"requestStage\":\"Response\"}]," +
-        "\"handleAuthRequests\":false}";
+    public static string CreateEnableParameters(TargetContentBinding binding)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        return JsonSerializer.Serialize(new
+        {
+            patterns = new[]
+            {
+                new
+                {
+                    urlPattern = binding.Origin.AbsoluteUri + "*",
+                    resourceType = "Document",
+                    requestStage = "Response",
+                },
+            },
+            handleAuthRequests = false,
+        });
+    }
 
     public static DevToolsFetchCommand? CreatePausedResponseCommand(
         string parameterObjectJson,
@@ -54,6 +73,11 @@ internal static class TargetResponseCspPolicy
                 !TryGetRequiredString(request, "url", out var requestUrl) ||
                 !Uri.TryCreate(requestUrl, UriKind.Absolute, out var resource) ||
                 !IsBoundResource(resource, binding) ||
+                !TryGetRequiredString(root, "resourceType", out var resourceType) ||
+                !string.Equals(
+                    resourceType,
+                    "Document",
+                    StringComparison.Ordinal) ||
                 !root.TryGetProperty("responseStatusCode", out var statusElement) ||
                 !statusElement.TryGetInt32(out var statusCode) ||
                 statusCode is < 100 or > 599 ||
@@ -74,13 +98,7 @@ internal static class TargetResponseCspPolicy
                     return CreateFailRequest(requestId);
                 }
 
-                if (!string.Equals(
-                        name,
-                        ContentSecurityPolicyHeader,
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    headers.Add((name, valueElement.GetString() ?? string.Empty));
-                }
+                headers.Add((name, valueElement.GetString() ?? string.Empty));
             }
 
             headers.Add((ContentSecurityPolicyHeader, CreatePolicy(binding)));
@@ -229,7 +247,7 @@ internal sealed class WebView2ResponseCspBoundary : IDisposable
         {
             await core.CallDevToolsProtocolMethodAsync(
                 "Fetch.enable",
-                TargetResponseCspPolicy.CreateEnableParameters())
+                TargetResponseCspPolicy.CreateEnableParameters(binding))
                 .ConfigureAwait(true);
             return boundary;
         }

@@ -3,7 +3,7 @@ using Xunit;
 
 namespace DshLauncher.WebView.Tests;
 
-[Trait("triggerTags", "VFY-06")]
+[Trait("triggerTags", "VFY-06,third-party-ui")]
 public sealed class TargetContentSecurityPolicyTests
 {
     private static readonly Guid TargetId =
@@ -39,21 +39,69 @@ public sealed class TargetContentSecurityPolicyTests
     }
 
     [Theory]
-    [InlineData("http://192.168.10.20:3080/assets/app.js", true)]
-    [InlineData("http://192.168.10.20:3080/api/session", true)]
-    [InlineData("http://192.168.10.20:3180/assets/app.js", false)]
-    [InlineData("http://192.168.10.21:3080/assets/app.js", false)]
-    [InlineData("https://192.168.10.20:3080/assets/app.js", false)]
-    [InlineData("https://cdn.example.com/app.js", false)]
-    [InlineData("data:text/plain,blocked", false)]
-    [InlineData("file:///C:/Windows/win.ini", false)]
-    public void SubresourcesAreConfinedToTheExactBoundOrigin(
+    [InlineData("http://192.168.10.20:3080/assets/app.js", TargetContentResourceKind.Script, true)]
+    [InlineData("http://192.168.10.20:3080/api/session", TargetContentResourceKind.Fetch, true)]
+    [InlineData("ws://192.168.10.20:3080/sidebar/ws/terminal", TargetContentResourceKind.Websocket, true)]
+    [InlineData("ws://192.168.10.20:3180/sidebar/ws/terminal", TargetContentResourceKind.Websocket, false)]
+    [InlineData("ws://192.168.10.21:3080/sidebar/ws/terminal", TargetContentResourceKind.Websocket, false)]
+    [InlineData("wss://192.168.10.20:3080/sidebar/ws/terminal", TargetContentResourceKind.Websocket, false)]
+    [InlineData("https://dsh-market.com/manifest/skins.json", TargetContentResourceKind.Fetch, true)]
+    [InlineData("https://dsh-market.com/assets/skin.webp", TargetContentResourceKind.Image, true)]
+    [InlineData("https://challenges.cloudflare.com/turnstile/v0/api.js", TargetContentResourceKind.Script, true)]
+    [InlineData("https://challenges.cloudflare.com/cdn-cgi/challenge-platform/style.css", TargetContentResourceKind.Stylesheet, true)]
+    [InlineData("data:image/svg+xml,%3Csvg%3E%3C/svg%3E", TargetContentResourceKind.Image, true)]
+    [InlineData("blob:http://192.168.10.20:3080/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", TargetContentResourceKind.Media, true)]
+    [InlineData("ws://192.168.10.20:3080/sidebar/ws/terminal", TargetContentResourceKind.Fetch, false)]
+    [InlineData("https://dsh-market.com/manifest/skins.json", TargetContentResourceKind.Script, false)]
+    [InlineData("https://dsh-market.com/app.js", TargetContentResourceKind.Script, false)]
+    [InlineData("https://dsh-market.com/.webmcp/bridge.js", TargetContentResourceKind.Script, false)]
+    [InlineData("https://dsh-market.com/cdn-cgi/challenge-platform/scripts/jsd/main.js", TargetContentResourceKind.Script, false)]
+    [InlineData("https://dsh-market.com/mcp", TargetContentResourceKind.Fetch, false)]
+    [InlineData("https://dsh-market.com/.webmcp/rpc/call", TargetContentResourceKind.Fetch, false)]
+    [InlineData("https://challenges.cloudflare.com/arbitrary.js", TargetContentResourceKind.Script, false)]
+    [InlineData("https://challenges.cloudflare.com/arbitrary.css", TargetContentResourceKind.Stylesheet, false)]
+    [InlineData("data:text/javascript,alert(1)", TargetContentResourceKind.Script, false)]
+    [InlineData("http://192.168.10.20:3180/assets/app.js", TargetContentResourceKind.Script, false)]
+    [InlineData("http://192.168.10.21:3080/assets/app.js", TargetContentResourceKind.Script, false)]
+    [InlineData("https://192.168.10.20:3080/assets/app.js", TargetContentResourceKind.Script, false)]
+    [InlineData("https://cdn.example.com/app.js", TargetContentResourceKind.Script, false)]
+    [InlineData("https://qt.gtimg.cn/q=sh000001", TargetContentResourceKind.Script, false)]
+    [InlineData("blob:https://example.com/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", TargetContentResourceKind.Media, false)]
+    [InlineData("file:///C:/Windows/win.ini", TargetContentResourceKind.Other, false)]
+    public void SubresourcesUseTheDshWebCompatibilityAllowlist(
         string resource,
+        TargetContentResourceKind resourceKind,
         bool expected)
     {
         Assert.Equal(
             expected,
-            CreatePolicy().AllowsResource(new Uri(resource)));
+            CreatePolicy().AllowsResource(
+                new Uri(resource),
+                resourceKind));
+    }
+
+    [Theory]
+    [InlineData("about:blank", true)]
+    [InlineData("about:srcdoc", false)]
+    [InlineData("http://192.168.10.20:3080/api/skin-center/we/web/token/", true)]
+    [InlineData("http://192.168.10.20:3080/api/skin-center/we/scene-runtime/token", true)]
+    [InlineData("http://192.168.10.20:3080/sidebar/html/token", true)]
+    [InlineData("blob:http://192.168.10.20:3080/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", true)]
+    [InlineData("http://192.168.10.20:3080/api/session", false)]
+    [InlineData("https://dsh-market.com/api/turnstile/challenge", true)]
+    [InlineData("https://dsh-market.com/preview.html", false)]
+    [InlineData("https://challenges.cloudflare.com/turnstile/v0/", true)]
+    [InlineData("https://challenges.cloudflare.com/cdn-cgi/challenge-platform/frame", true)]
+    [InlineData("https://challenges.cloudflare.com/arbitrary", false)]
+    [InlineData("https://example.com/", false)]
+    [InlineData("blob:https://example.com/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", false)]
+    public void FramesUseTheDshWebCompatibilityAllowlist(
+        string destination,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CreatePolicy().AllowsFrameNavigation(new Uri(destination)));
     }
 
     [Theory]

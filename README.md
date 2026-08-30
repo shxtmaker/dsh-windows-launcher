@@ -2,6 +2,16 @@
 
 DSH Windows Launcher 是面向 Windows 的 WPF 桌面入口。它连接局域网内已经运行的 DeepSeek Harness Web UI，不安装、启动或管理 Linux Harness 
 
+## dsh-web 第三方 UI
+
+启动器支持 [zhu1090093659/dsh-web](https://github.com/zhu1090093659/dsh-web) 注入到 Harness 根页面的第三方 UI。Linux profile 当前启用的皮肤、插件导航和服务端组件会由同一 `http://IPv4:port/` 提供，Windows 继续加载该根页面，不维护第二套 UI 选择。
+
+兼容边界包括同源皮肤与 Wallpaper Engine iframe、`data:` 图片、绑定当前目标 origin 的 `blob:` 资源、同源 WebSocket、`dsh-market.com` 创意工坊及 Cloudflare Turnstile。服务端原有 CSP 会被保留。主窗口仍禁止任意外站 iframe、外部脚本、下载、页面权限、DevTools 和原生桥接。
+
+Linux 浏览器的 localStorage 不会复制到 Windows 的逐目标 UDF，因此浏览器本地布局可能不同；Linux 服务端保存的活动皮肤会保持一致。使用 `dsh-remote-web-ui` 时，Windows 启动器当前只处理 Harness `?token=` 配对，不处理该插件的第二套设备配对。目标已由 `dsh-web-lan-access` 和 Harness 会话保护时，应在该插件设置中关闭“局域网访问要求配对”。完整契约见 [dsh-web UI 兼容说明](docs/dsh-web-ui-compatibility.md)。
+
+创意工坊浏览和本机安装不依赖点赞、安装计数的人机验证。当前线上 challenge 的 CSP 存在上游 nonce 组合风险；启动器不通过扩大脚本或 RPC 权限绕过，限制与复核条件见兼容说明。
+
 ## 项目结构
 
 | 项目 | 职责 |

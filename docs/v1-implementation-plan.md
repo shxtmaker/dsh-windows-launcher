@@ -164,7 +164,7 @@ V1 在 Windows 上提供一个独立桌面入口，用于连接局域网内已�
 | ID | 要求 |
 |---|---|
 | `REQ-WEB-001` | 一个目标内容宿主在整个生命周期绑定同一 `targetId`、精确 origin 和稳定 UDF，不得原地切换主机或端口。 |
-| `REQ-WEB-002` | 已配对内容宿主只导航干净 origin。主 WebView 只允许当前精确 `scheme + IP + port`；跨 origin、`file:`、`data:`、`javascript:` 和未知 scheme 一律阻止。 |
+| `REQ-WEB-002` | 已配对内容宿主只导航干净 origin。主文档只允许当前精确 `scheme + IP + port`；跨 origin、`file:`、`data:`、`javascript:` 和未知 scheme 一律阻止。第三方 UI 子资源和 iframe 只能使用后续要求中的显式兼容清单。 |
 | `REQ-WEB-003` | 同 origin 页面路由由 Harness 处理。启动器不得复制 Harness RPC、WebSocket、会话、消息、模型、工具或 Linux 文件业务。 |
 | `REQ-WEB-004` | 全部接管 `NewWindowRequested`。用户触发的同 origin 请求可在当前目标窗口打开；其他 HTTP/HTTPS 链接显示脱敏目标并逐次确认后交给系统浏览器。 |
 | `REQ-WEB-005` | 只允许用户触发的 `mailto:` 在确认后交给系统。其他外部协议和非用户触发请求全部拒绝。 |
@@ -175,6 +175,9 @@ V1 在 Windows 上提供一个独立桌面入口，用于连接局域网内已�
 | `REQ-WEB-010` | 页面内 RPC、WebSocket reconnecting 和业务错误由 Harness 处理。宿主只处理导航、Runtime、UDF、renderer/browser 进程和无响应故障。 |
 | `REQ-WEB-011` | renderer 首次失败可重新加载；重复失败后用同一 UDF 重建 WebView。browser 进程失败时等待资源释放后重建环境。自动恢复有限且去重，最终失败进入原生恢复页。 |
 | `REQ-WEB-012` | 恢复后重新读取 Harness 状态，不自动重放消息、工具调用或图片提交，不清 UDF、不改变默认目标。 |
+| `REQ-WEB-013` | `dsh-web` 兼容清单允许同源皮肤资源、同源 WebSocket、`data:` 图片、绑定当前目标 origin 的 `blob:` 资源，以及 `/api/skin-center/we/web/*`、`/api/skin-center/we/scene-runtime/*`、`/sidebar/html/*` iframe。其他同源 iframe 路径保持拒绝。 |
+| `REQ-WEB-014` | 创意工坊按资源类型与路径只允许 `https://dsh-market.com` 的 API/清单请求、图片与固定 Turnstile challenge 文档，并允许 `https://challenges.cloudflare.com` 的 Turnstile 文档、固定路径脚本与静态资源。WebMCP bridge、RPC、同站 Cloudflare 注入脚本及其他非 UI 必需能力保持拒绝。目标 Document 的 CSP 必须禁止跨 origin 脚本和 Worker。不得因此允许任意 CDN、外部脚本或 better-sidebar 任意外站 iframe。单个被拒绝的可选子资源不得覆盖已就绪的主 UI。 |
+| `REQ-WEB-015` | 服务端原有 CSP 必须逐项保留；启动器只对当前精确目标的 Document 响应追加 CSP，不得改写跨 origin 或静态资源响应。配对与自动连接的临时 WebView 禁止页面脚本，避免第三方 UI 在隐藏视口重复启动。 |
 
 目标内容宿主对 WPF 只暴露小型接口：
 

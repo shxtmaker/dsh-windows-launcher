@@ -4,7 +4,7 @@ using Xunit;
 
 namespace DshLauncher.WebView.Tests;
 
-[Trait("triggerTags", "VFY-06")]
+[Trait("triggerTags", "VFY-06,third-party-ui")]
 public sealed class TargetResponseCspPolicyTests
 {
     private static readonly TargetContentBinding Binding = new(
@@ -13,32 +13,53 @@ public sealed class TargetResponseCspPolicyTests
         @"C:\Users\test\AppData\Local\DshWindowsLauncher\targets\54f02e802c9244d88f7fb0fc118c93fa\udf");
 
     [Fact]
-    public void PolicyLimitsFetchAndWebSocketConnectionsToTheExactAuthority()
+    public void PolicyLimitsConnectionsAndFramesToDshWebDependencies()
     {
         var policy = TargetResponseCspPolicy.CreatePolicy(Binding);
 
         Assert.Contains(
-            "connect-src http://192.168.10.20:3080 ws://192.168.10.20:3080",
+            "connect-src 'self' ws: https://dsh-market.com",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "https://dsh-market.com",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "frame-src 'self' blob: https://dsh-market.com https://challenges.cloudflare.com",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "script-src 'self' 'unsafe-inline' blob:",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "worker-src 'self' blob:",
+            policy,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "script-src 'self' 'unsafe-inline' blob: https:",
             policy,
             StringComparison.Ordinal);
         Assert.DoesNotContain("192.168.10.21", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("192.168.10.20", policy, StringComparison.Ordinal);
         Assert.DoesNotContain("*", policy, StringComparison.Ordinal);
-        Assert.DoesNotContain("https:", policy, StringComparison.Ordinal);
         Assert.DoesNotContain("wss:", policy, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void SameOriginResponseIsFulfilledWithOneEnforcingCspHeader()
+    public void SameOriginDocumentPreservesServerCspAndAddsLauncherCsp()
     {
         const string paused = """
             {
               "requestId": "interception-1",
-              "request": { "url": "http://192.168.10.20:3080/assets/app.js" },
+              "request": { "url": "http://192.168.10.20:3080/" },
+              "resourceType": "Document",
               "responseStatusCode": 200,
               "responseStatusText": "OK",
               "responseHeaders": [
-                { "name": "Content-Type", "value": "application/javascript" },
-                { "name": "Content-Security-Policy", "value": "connect-src *" }
+                { "name": "Content-Type", "value": "text/html" },
+                { "name": "Content-Security-Policy", "value": "sandbox allow-scripts; object-src 'none'" }
               ]
             }
             """;
@@ -61,13 +82,17 @@ public sealed class TargetResponseCspPolicyTests
             .ToArray();
         Assert.Contains(headers, header =>
             header.Name == "Content-Type" &&
-            header.Value == "application/javascript");
-        var csp = Assert.Single(headers, header =>
+            header.Value == "text/html");
+        var cspHeaders = headers.Where(header =>
             string.Equals(
                 header.Name,
                 "Content-Security-Policy",
-                StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(TargetResponseCspPolicy.CreatePolicy(Binding), csp.Value);
+                StringComparison.OrdinalIgnoreCase)).ToArray();
+        Assert.Equal(2, cspHeaders.Length);
+        Assert.Contains(cspHeaders, header =>
+            header.Value == "sandbox allow-scripts; object-src 'none'");
+        Assert.Contains(cspHeaders, header =>
+            header.Value == TargetResponseCspPolicy.CreatePolicy(Binding));
     }
 
     [Theory]
@@ -81,6 +106,7 @@ public sealed class TargetResponseCspPolicyTests
             {
               "requestId": "interception-2",
               "request": { "url": "{{url}}" },
+              "resourceType": "Document",
               "responseStatusCode": 200,
               "responseHeaders": []
             }
@@ -101,7 +127,8 @@ public sealed class TargetResponseCspPolicyTests
         const string paused = """
             {
               "requestId": "interception-3",
-              "request": { "url": "http://192.168.10.20:3080/" }
+              "request": { "url": "http://192.168.10.20:3080/" },
+              "resourceType": "Document"
             }
             """;
 
@@ -114,14 +141,17 @@ public sealed class TargetResponseCspPolicyTests
     }
 
     [Fact]
-    public void FetchIsEnabledOnlyAtTheResponseStage()
+    public void FetchInterceptsOnlyBoundDocumentsAtTheResponseStage()
     {
         using var parameters = JsonDocument.Parse(
-            TargetResponseCspPolicy.CreateEnableParameters());
+            TargetResponseCspPolicy.CreateEnableParameters(Binding));
         var pattern = Assert.Single(
             parameters.RootElement.GetProperty("patterns").EnumerateArray());
 
-        Assert.Equal("*", pattern.GetProperty("urlPattern").GetString());
+        Assert.Equal(
+            "http://192.168.10.20:3080/*",
+            pattern.GetProperty("urlPattern").GetString());
+        Assert.Equal("Document", pattern.GetProperty("resourceType").GetString());
         Assert.Equal("Response", pattern.GetProperty("requestStage").GetString());
         Assert.False(parameters.RootElement
             .GetProperty("handleAuthRequests")
