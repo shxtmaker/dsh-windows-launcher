@@ -1,8 +1,6 @@
 # DSH Windows Launcher
 
-DSH Windows Launcher 是面向 Windows 的 WPF 桌面入口。它连接局域网内已经运行的 DeepSeek Harness Web UI，不安装、启动或管理 Linux Harness 进程。
-
-开发和验收以 [V1 实施方案](docs/v1-implementation-plan.md) 与 [V1 发布检查表](docs/v1-release-checklist.md) 为准。
+DSH Windows Launcher 是面向 Windows 的 WPF 桌面入口。它连接局域网内已经运行的 DeepSeek Harness Web UI，不安装、启动或管理 Linux Harness 
 
 ## 项目结构
 
