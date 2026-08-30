@@ -25,4 +25,6 @@
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>high</NuGetAuditLevel>
   </PropertyGroup>
+
+  <Import Project="eng/launcher-build-identities.props" />
 </Project>

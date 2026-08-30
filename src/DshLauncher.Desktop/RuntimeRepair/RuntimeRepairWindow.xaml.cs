@@ -1,4 +1,5 @@
 using System.Windows;
+using DshLauncher.Core;
 using DshLauncher.Desktop.Resources;
 
 namespace DshLauncher.Desktop.RuntimeRepair;
@@ -18,6 +19,7 @@ public partial class RuntimeRepairWindow : Window, IDisposable
 
         _dependency = dependency;
         InitializeComponent();
+        Title = $"{LauncherBuildIdentity.Current.ProductName} · {Title}";
         DescriptionText.Text = Strings.RuntimeRepairDescription.Replace(
             "{0}",
             WebView2RuntimeDependency.MinimumVersion,

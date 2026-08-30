@@ -1,0 +1,49 @@
+<Project>
+  <PropertyGroup>
+    <LauncherBuildFlavor Condition="'$(LauncherBuildFlavor)' == ''">InternalTest</LauncherBuildFlavor>
+    <BaseOutputPath Condition="'$(BaseOutputPath)' == ''">bin\$(LauncherBuildFlavor)\</BaseOutputPath>
+    <BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">obj\$(LauncherBuildFlavor)\</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\bin\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(LauncherBuildFlavor)' == 'InternalTest'">
+    <LauncherProductName>DSH Windows Launcher (INTERNAL TEST)</LauncherProductName>
+    <LauncherExecutableBaseName>DshWindowsLauncher.InternalTest</LauncherExecutableBaseName>
+    <LauncherApplicationDataId>DshWindowsLauncher.InternalTest</LauncherApplicationDataId>
+    <LauncherSingleInstanceBaseName>DshWindowsLauncher.InternalTest.SingleInstance</LauncherSingleInstanceBaseName>
+    <LauncherInstallerAppId>F3418DD7-58B7-4E0D-B0F7-D77C52FDF91C</LauncherInstallerAppId>
+    <LauncherInstallDirectoryName>DshWindowsLauncher.InternalTest</LauncherInstallDirectoryName>
+    <LauncherDataOwnerId>DshWindowsLauncher.InternalTest:v1</LauncherDataOwnerId>
+    <LauncherInstallOwnerId>DshWindowsLauncher.InternalTest:install:v1</LauncherInstallOwnerId>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(LauncherBuildFlavor)' == 'Official'">
+    <LauncherProductName>DSH Windows Launcher</LauncherProductName>
+    <LauncherExecutableBaseName>DshWindowsLauncher</LauncherExecutableBaseName>
+    <LauncherApplicationDataId>DshWindowsLauncher</LauncherApplicationDataId>
+    <LauncherSingleInstanceBaseName>DshWindowsLauncher.SingleInstance</LauncherSingleInstanceBaseName>
+    <LauncherInstallerAppId>4440FC88-98CA-403E-8E20-3DFEBEF0E609</LauncherInstallerAppId>
+    <LauncherInstallDirectoryName>DshWindowsLauncher</LauncherInstallDirectoryName>
+    <LauncherDataOwnerId>DshWindowsLauncher:v1</LauncherDataOwnerId>
+    <LauncherInstallOwnerId>DshWindowsLauncher:install:v1</LauncherInstallOwnerId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="DshLauncher.BuildFlavor" Value="$(LauncherBuildFlavor)" />
+    <AssemblyMetadata Include="DshLauncher.ProductName" Value="$(LauncherProductName)" />
+    <AssemblyMetadata Include="DshLauncher.ExecutableBaseName" Value="$(LauncherExecutableBaseName)" />
+    <AssemblyMetadata Include="DshLauncher.ApplicationDataId" Value="$(LauncherApplicationDataId)" />
+    <AssemblyMetadata Include="DshLauncher.SingleInstanceBaseName" Value="$(LauncherSingleInstanceBaseName)" />
+    <AssemblyMetadata Include="DshLauncher.InstallerAppId" Value="$(LauncherInstallerAppId)" />
+    <AssemblyMetadata Include="DshLauncher.InstallDirectoryName" Value="$(LauncherInstallDirectoryName)" />
+    <AssemblyMetadata Include="DshLauncher.DataOwnerId" Value="$(LauncherDataOwnerId)" />
+    <AssemblyMetadata Include="DshLauncher.InstallOwnerId" Value="$(LauncherInstallOwnerId)" />
+  </ItemGroup>
+
+  <Target Name="ValidateLauncherBuildIdentity" BeforeTargets="GenerateAssemblyInfo">
+    <Error Condition="'$(LauncherBuildFlavor)' != 'InternalTest' and '$(LauncherBuildFlavor)' != 'Official'"
+           Text="LauncherBuildFlavor must be InternalTest or Official." />
+    <Error Condition="'$(LauncherProductName)' == '' or '$(LauncherExecutableBaseName)' == '' or '$(LauncherApplicationDataId)' == '' or '$(LauncherSingleInstanceBaseName)' == '' or '$(LauncherInstallerAppId)' == '' or '$(LauncherInstallDirectoryName)' == '' or '$(LauncherDataOwnerId)' == '' or '$(LauncherInstallOwnerId)' == ''"
+           Text="The selected launcher build identity is incomplete." />
+  </Target>
+</Project>

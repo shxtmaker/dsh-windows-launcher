@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace DshLauncher.Acceptance.Tests.Release;
@@ -481,6 +482,142 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("installer/maintenance-ipc.ps1", packageScript, StringComparison.Ordinal);
         Assert.Contains("installer/validate-installation.ps1", packageScript, StringComparison.Ordinal);
         Assert.Contains("installer/install-owner.txt", packageScript, StringComparison.Ordinal);
+
+        string internalPackageScript = File.ReadAllText(
+            Path.Combine(root, "eng", "package-internal.ps1"));
+        string internalInstallerScript = File.ReadAllText(
+            Path.Combine(root, "installer", "DshWindowsLauncher.InternalTest.iss"));
+
+        Assert.Contains("releaseStatus -cne 'development'", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("^\\d+\\.\\d+\\.\\d+-internal-test\\.[1-9]\\d*$", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("Get-DshSourceState", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("WorktreeState -cne 'clean'", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("verify-summary.json", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("$verifySummary.source.commit -cne $sourceState.Commit", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("Assert-SignedMicrosoftTool", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.Contains("[StringComparison]::Ordinal", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("-notmatch '(?i)Microsoft'", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("-notmatch '(?i)Pyrsys", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("webView2Runtime.bootstrapper.sha256", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("webView2Runtime.bootstrapper.version", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("function Get-InnoCompilerVersion", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "#pragma message \"DSH_INNO_VERSION=\" + DecodeVer(VER, 4)",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.Contains("$startInfo.ArgumentList.Add('/O-')", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("$innoIdentityVersion -cne $innoCompilerVersion", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "$innoCompilerSignature.SignerThumbprint",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$innoIdentitySignature.SignerThumbprint",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.Contains("innoCompilerVersion = $innoCompilerVersion", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("innoIdentityVersion = $innoIdentityVersion", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "GetVersionInfo($InnoCompilerPath)",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.Contains("-p:LauncherBuildFlavor=InternalTest", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("-p:AssemblyName=", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("-p:Product=DSH Windows Launcher (INTERNAL TEST)", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("'--self-contained', 'true'", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("'-p:PublishTrimmed=false'", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("$applicationVersion.FileVersion -cne $fileVersion", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("FileVersion.StartsWith", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("[regex]::Escape($Version)", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "'(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$'",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("ProductVersion.StartsWith", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("DshWindowsLauncher.InternalTest.exe", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("DshWindowsLauncher.dll", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("SignatureStatus]::NotSigned", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("internal-test-manifest.json", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("SHA256SUMS.txt", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("sbom.spdx.json", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("third-party-licenses.json", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("INTERNAL-TEST-UNSIGNED-NOT-FOR-PRODUCTION-USE", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("NOT FOR DISTRIBUTION", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("applicationDataId = $internalApplicationDataId", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("singleInstanceBaseName = $internalSingleInstanceBaseName", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("installDirectoryName = $internalInstallDirectoryName", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("$finalSourceState.WorktreeState -cne 'clean'", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("eng/package.ps1", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("-FilePath $installerPath", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("-FilePath $WebView2BootstrapperPath", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("-FilePath $stagedBootstrapperPath", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start-Process", internalPackageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("Invoke-Item", internalPackageScript, StringComparison.Ordinal);
+
+        const string version = "1.0.0-internal-test.1";
+        Regex productVersionPattern = new(
+            "^" + Regex.Escape(version) + @"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$",
+            RegexOptions.CultureInvariant);
+        Assert.Matches(productVersionPattern, version);
+        Assert.Matches(productVersionPattern, version + "+0123456789abcdef");
+        Assert.Matches(productVersionPattern, version + "+build.7");
+        Assert.DoesNotMatch(productVersionPattern, "1.0.0-internal-test.10");
+        Assert.DoesNotMatch(productVersionPattern, version + ".0");
+        Assert.DoesNotMatch(productVersionPattern, version + "+");
+
+        int manifestStart = internalPackageScript.IndexOf(
+            "$manifest = [ordered]@{",
+            StringComparison.Ordinal);
+        int manifestEnd = internalPackageScript.IndexOf(
+            "$manifestPath =",
+            manifestStart,
+            StringComparison.Ordinal);
+        Assert.True(manifestStart >= 0 && manifestEnd > manifestStart);
+        string manifestBlock = internalPackageScript[manifestStart..manifestEnd];
+        Assert.DoesNotContain("generatedAt", manifestBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("createdAt", manifestBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("capturedAt", manifestBlock, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(
+            @"(?im)^\s*[A-Za-z0-9_]*path[A-Za-z0-9_]*\s*=",
+            manifestBlock);
+        Assert.DoesNotMatch(@"[A-Za-z]:\\", manifestBlock);
+
+        int checksumEntriesStart = internalPackageScript.IndexOf(
+            "$checksumEntries = @(",
+            StringComparison.Ordinal);
+        int checksumEntriesEnd = internalPackageScript.IndexOf(
+            ") | Sort-Object",
+            checksumEntriesStart,
+            StringComparison.Ordinal);
+        Assert.True(checksumEntriesStart >= 0 && checksumEntriesEnd > checksumEntriesStart);
+        string checksumEntries = internalPackageScript[checksumEntriesStart..checksumEntriesEnd];
+        Assert.Contains("$installerPath", checksumEntries, StringComparison.Ordinal);
+        Assert.Contains("$manifestPath", checksumEntries, StringComparison.Ordinal);
+        Assert.DoesNotContain("$verifySummaryDestination", checksumEntries, StringComparison.Ordinal);
+        Assert.DoesNotContain("$sbomDestination", checksumEntries, StringComparison.Ordinal);
+        Assert.DoesNotContain("$licenseDestination", checksumEntries, StringComparison.Ordinal);
+
+        Assert.Contains("F3418DD7-58B7-4E0D-B0F7-D77C52FDF91C", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("AppId={{F3418DD7-58B7-4E0D-B0F7-D77C52FDF91C}", internalInstallerScript, StringComparison.Ordinal);
+        Assert.Contains("DSH Windows Launcher (INTERNAL TEST)", internalInstallerScript, StringComparison.Ordinal);
+        Assert.Contains("DshWindowsLauncher.InternalTest", internalInstallerScript, StringComparison.Ordinal);
+        Assert.Contains("SignedUninstaller=no", internalInstallerScript, StringComparison.Ordinal);
+        Assert.Contains("DisableDirPage=yes", internalInstallerScript, StringComparison.Ordinal);
+        Assert.Contains("CloseApplications=yes", internalInstallerScript, StringComparison.Ordinal);
+        Assert.Contains("NOT FOR PRODUCTION USE", internalInstallerScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("NOT FOR DISTRIBUTION", internalInstallerScript, StringComparison.Ordinal);
+        Assert.Contains("MicrosoftEdgeWebview2Setup.exe", internalInstallerScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("SyntaxOnly", internalInstallerScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("SignTool=", internalInstallerScript, StringComparison.Ordinal);
     }
 
     [Fact]

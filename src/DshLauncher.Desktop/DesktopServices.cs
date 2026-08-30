@@ -70,7 +70,7 @@ public sealed class DiagnosticExportService : IDiagnosticsExportService
             {
                 await WriteJsonAsync(archive, "product.json", new
                 {
-                    name = Strings.ProductName,
+                    name = LauncherBuildIdentity.Current.ProductName,
                     version = typeof(App).Assembly.GetName().Version?.ToString(),
                 }, cancellationToken).ConfigureAwait(false);
                 await WriteJsonAsync(archive, "os.json", new
@@ -133,7 +133,7 @@ public sealed class DiagnosticExportService : IDiagnosticsExportService
             Filter = "ZIP (*.zip)|*.zip",
             AddExtension = true,
             DefaultExt = ".zip",
-            FileName = $"DshWindowsLauncher-Diagnostics-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip",
+            FileName = $"{LauncherBuildIdentity.Current.ExecutableBaseName}-Diagnostics-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip",
             OverwritePrompt = true,
         };
         return dialog.ShowDialog(_ownerProvider()) == true ? dialog.FileName : null;
@@ -250,7 +250,7 @@ public sealed class UpdatePageService : IUpdatePageService
             () => MessageBox.Show(
                 _ownerProvider(),
                 Strings.UpdateConfirmation,
-                Strings.ProductName,
+                LauncherBuildIdentity.Current.ProductName,
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Information,
                 MessageBoxResult.No) == MessageBoxResult.Yes,

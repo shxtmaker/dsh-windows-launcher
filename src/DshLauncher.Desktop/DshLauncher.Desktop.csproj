@@ -3,8 +3,8 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>DshLauncher.Desktop</RootNamespace>
     <AssemblyName>DshWindowsLauncher</AssemblyName>
-    <Product>DSH Windows Launcher</Product>
-    <Description>DSH Windows Launcher 的 WPF 表示层与组合根。</Description>
+    <Product>$(LauncherProductName)</Product>
+    <Description>$(LauncherProductName) 的 WPF 表示层与组合根。</Description>
     <UseWPF>true</UseWPF>
     <UseAppHost>true</UseAppHost>
     <PublishSingleFile>false</PublishSingleFile>
@@ -22,4 +22,24 @@
     <EmbeddedResource Include="../../eng/release-constants.json"
                       LogicalName="DshLauncher.Desktop.ReleaseConstants.json" />
   </ItemGroup>
+
+  <Target Name="RenameInternalTestBuildAppHost"
+          AfterTargets="Build"
+          Condition="'$(LauncherBuildFlavor)' == 'InternalTest' and Exists('$(TargetDir)$(AssemblyName).exe')">
+    <Move SourceFiles="$(TargetDir)$(AssemblyName).exe"
+          DestinationFiles="$(TargetDir)$(LauncherExecutableBaseName).exe" />
+    <ItemGroup>
+      <FileWrites Include="$(TargetDir)$(LauncherExecutableBaseName).exe" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RenameInternalTestPublishedAppHost"
+          AfterTargets="Publish"
+          Condition="'$(LauncherBuildFlavor)' == 'InternalTest' and Exists('$(PublishDir)$(AssemblyName).exe')">
+    <Move SourceFiles="$(PublishDir)$(AssemblyName).exe"
+          DestinationFiles="$(PublishDir)$(LauncherExecutableBaseName).exe" />
+    <ItemGroup>
+      <FileWrites Include="$(PublishDir)$(LauncherExecutableBaseName).exe" />
+    </ItemGroup>
+  </Target>
 </Project>

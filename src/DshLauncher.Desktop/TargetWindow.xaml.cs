@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using DshLauncher.Core;
 using DshLauncher.Desktop.Resources;
 
 namespace DshLauncher.Desktop;
@@ -19,8 +20,11 @@ public partial class TargetWindow : Window
     public TargetWindow(string title)
     {
         InitializeComponent();
-        Title = title;
+        Title = ComposeTitle(title);
     }
+
+    internal static string ComposeTitle(string title) =>
+        $"{LauncherBuildIdentity.Current.ProductName} · {title}";
 
     public event EventHandler? ReloadRequested;
 

@@ -1,4 +1,5 @@
 using System.Windows;
+using DshLauncher.Core;
 using DshLauncher.Desktop.ViewModels;
 
 namespace DshLauncher.Desktop;
@@ -15,6 +16,7 @@ public partial class TargetCenterWindow : Window
         ArgumentNullException.ThrowIfNull(controller);
         _hasOpenTargetWindows = hasOpenTargetWindows ?? (() => false);
         InitializeComponent();
+        Title = $"{LauncherBuildIdentity.Current.ProductName} · {Title}";
         DataContext = new TargetCenterViewModel(controller);
         Loaded += OnLoaded;
         Closed += OnClosed;

@@ -1,5 +1,6 @@
-using Microsoft.Web.WebView2.Core;
 using System.IO;
+using DshLauncher.Core;
+using Microsoft.Web.WebView2.Core;
 
 namespace DshLauncher.Desktop.RuntimeRepair;
 
@@ -50,10 +51,7 @@ internal sealed class InstalledWebView2RuntimeProbe : IWebView2RuntimeProbe
 
     private static void VerifyStableRuntimeEnvironment()
     {
-        var probeUserDataFolder = Path.Combine(
-            Path.GetTempPath(),
-            "DshWindowsLauncher",
-            $"WebView2RuntimeProbe.{Guid.NewGuid():N}");
+        var probeUserDataFolder = CreateProbeUserDataFolder();
         try
         {
             _ = CoreWebView2Environment.CreateAsync(
@@ -68,6 +66,12 @@ internal sealed class InstalledWebView2RuntimeProbe : IWebView2RuntimeProbe
             TryDeleteProbeDirectory(probeUserDataFolder);
         }
     }
+
+    internal static string CreateProbeUserDataFolder() =>
+        Path.Combine(
+            Path.GetTempPath(),
+            LauncherBuildIdentity.Current.ApplicationDataId,
+            $"WebView2RuntimeProbe.{Guid.NewGuid():N}");
 
     private static CoreWebView2EnvironmentOptions CreateStableOptions() => new()
     {

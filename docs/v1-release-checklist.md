@@ -42,6 +42,21 @@
 
 本流程不要求自托管 CI，不维护 L1–L4 或 P0/P1/P2 分类，不默认采集截图或录像，也不自动上传或公开发布。CI 如存在，只能调用相同脚本。
 
+### 2.1 内部测试安装包不属于发布流程
+
+`eng/package-internal.ps1` 生成的安装包只用于 `releaseStatus=development` 阶段的内部测试。
+它具有独立产品名、EXE 名、Inno Setup `AppId`、安装目录、应用数据根和单实例身份；文件名、
+产品元数据及 manifest 必须同时标记 `INTERNAL TEST` 和 `UNSIGNED`。该入口仍须运行统一
+`verify.ps1`，绑定同一个 clean Git 提交，并验证冻结 WebView2 Bootstrapper 的哈希、版本、
+Microsoft 签名和可信时间戳。
+
+内部测试安装包及其主程序、卸载器均未签名，不得作为正式候选版本，不得运行本检查表第
+2 步或第 3 步，也不得填写人工发布确认。仅在当次获得明确上传授权后，才可作为
+`prerelease=true` 的预发布上传；标题、正文和文件名必须完整保留 `INTERNAL TEST`、
+`UNSIGNED`、`NOT FOR PRODUCTION USE`，且不得设为 latest 或正式发布。内部打包脚本只生成
+安装包、确定性 manifest、校验和、验证摘要和 SBOM，不自动执行安装或卸载。任何内部测试
+结果均不替代正式签名安装包的 `RS-01` 至 `RS-15` 证据。
+
 ## 3. 候选版本输入
 
 开始前必须具备：

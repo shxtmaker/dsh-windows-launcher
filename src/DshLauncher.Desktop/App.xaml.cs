@@ -43,7 +43,9 @@ public partial class App : Application, IDisposable
 
         try
         {
-            var identity = CurrentUserInstanceIdentity.ForCurrentUser();
+            var buildIdentity = LauncherBuildIdentity.Current;
+            var identity = CurrentUserInstanceIdentity.ForCurrentUser(
+                buildIdentity.SingleInstanceBaseName);
             _singleInstance = CurrentUserSingleInstance.TryStart(
                 identity,
                 HandleSingleInstanceRequestAsync);
@@ -99,7 +101,7 @@ public partial class App : Application, IDisposable
             _ready.TrySetException(exception);
             MessageBox.Show(
                 exception.UserMessage,
-                Strings.ProductName,
+                LauncherBuildIdentity.Current.ProductName,
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
@@ -108,7 +110,7 @@ public partial class App : Application, IDisposable
             _ready.TrySetCanceled();
             MessageBox.Show(
                 Strings.UnexpectedError,
-                Strings.ProductName,
+                LauncherBuildIdentity.Current.ProductName,
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             Shutdown(1);
@@ -164,7 +166,7 @@ public partial class App : Application, IDisposable
     {
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "DshWindowsLauncher");
+            LauncherBuildIdentity.Current.ApplicationDataId);
         var layout = new ApplicationDataLayout(root);
         _applicationData = new ApplicationDataStore(layout);
         await _applicationData.InitializeAsync().ConfigureAwait(true);

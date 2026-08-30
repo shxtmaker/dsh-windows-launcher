@@ -1,6 +1,8 @@
 # 工程与发布入口
 
-`eng/` 只公开三个顺序入口。CI 如存在，也只能调用这些脚本，不复制或跳过脚本内门禁。
+`eng/` 的正式发布流程只公开三个顺序入口。CI 如存在，也只能调用这些脚本，不复制或跳过
+脚本内门禁。另有一个与正式身份完全隔离的未签名内部测试打包入口；它不能进入正式发布
+流程。
 
 ## `verify.ps1`
 
@@ -40,6 +42,43 @@ pwsh -File .\eng\package.ps1 `
 脚本先完整运行 `verify.ps1`，再发布自包含、多文件、非裁剪应用，把已冻结 Bootstrapper 固定暂存并安装为 `MicrosoftEdgeWebview2Setup.exe`，签名主程序，编译并签名 Inno 安装器和卸载器。Inno 的安装前置只执行 Standalone；Bootstrapper 只供应用运行时修复页使用。最终安装器、`.sha256`、`package-manifest.json`、验证摘要、SPDX 2.3 SBOM、第三方许可证清单和发行说明输入写入 `artifacts/package/<version>/release/`。安装器 SHA-256 只在全部签名和真实卸载器验证完成后冻结。
 
 签名凭据和私钥不通过脚本参数传递。证书只按公开 thumbprint 从 Windows 证书存储区选择。
+
+## `package-internal.ps1`
+
+内部测试打包只接受形如 `x.y.z-internal-test.n` 的版本，其中 `x.y.z` 必须与发布常量中的
+产品版本一致，`n` 必须为正整数。它还要求：
+
+- `releaseStatus` 精确为 `development`；
+- Git 提交可用且工作树为 clean；
+- 完整运行 `verify.ps1`，且 PASS 摘要绑定相同提交；
+- WebView2 Evergreen Bootstrapper 的版本、SHA-256、Microsoft Authenticode 和可信时间戳
+  全部匹配冻结基线；
+- Inno Setup 编译器具有有效 Pyrsys B.V. Authenticode 和可信时间戳；
+- 发布显式使用 `LauncherBuildFlavor=InternalTest`、自包含、多文件、非裁剪 `win-x64`；
+- 主程序和安装器的 Authenticode 状态均精确为 `NotSigned`。
+
+```powershell
+pwsh -File .\eng\package-internal.ps1 `
+  -Version 1.0.0-internal-test.1 `
+  -WebView2BootstrapperPath C:\internal-inputs\MicrosoftEdgeWebview2Setup.exe `
+  -InnoCompilerPath "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe" `
+  -DotNetPath "$env:LOCALAPPDATA\DshWindowsLauncherDev\dotnet-10.0.400\dotnet.exe"
+```
+
+输出位于 `artifacts/package-internal/<version>/release/`，包含：
+
+- `DSH-Windows-Launcher-INTERNAL-TEST-UNSIGNED-NOT-FOR-PRODUCTION-USE-<version>-win-x64.exe`；
+- `internal-test-manifest.json`；
+- `SHA256SUMS.txt`；
+- `verify-summary.json`；
+- `sbom.spdx.json`；
+- `third-party-licenses.json`。
+
+内部 manifest 不含生成时间或绝对输入路径，固定记录 `releaseEligible=false`、`signed=false`
+及源提交。该脚本不执行安装或卸载。内部安装包不得传给 `release-smoke.ps1`，不得改名为
+正式安装包，也不得作为正式候选或正式 Release。仅在当次获得明确上传授权后，才可作为
+`prerelease=true` 的预发布上传；标题、正文和文件名必须完整保留 `INTERNAL TEST`、
+`UNSIGNED`、`NOT FOR PRODUCTION USE`，且不得设为 latest 或正式发布。
 
 ## `release-smoke.ps1`
 

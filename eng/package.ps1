@@ -298,6 +298,12 @@ try {
 
     $fileVersion = ConvertTo-DshFileVersion -Version $Version
     $desktopProject = Join-Path $repositoryRoot 'src/DshLauncher.Desktop/DshLauncher.Desktop.csproj'
+    Write-Host '[package] locked restore Official 构建身份。'
+    Invoke-DshNative -FilePath $dotnet -WorkingDirectory $repositoryRoot -Arguments @(
+        'restore', $desktopProject,
+        '--locked-mode',
+        '-p:LauncherBuildFlavor=Official'
+    )
     Write-Host '[package] 发布自包含、多文件、非裁剪 win-x64 应用。'
     Invoke-DshNative -FilePath $dotnet -WorkingDirectory $repositoryRoot -Arguments @(
         'publish', $desktopProject,
@@ -308,6 +314,7 @@ try {
         '--output', $publishDirectory,
         '-p:PublishSingleFile=false',
         '-p:PublishTrimmed=false',
+        '-p:LauncherBuildFlavor=Official',
         "-p:Version=$Version",
         "-p:FileVersion=$fileVersion",
         "-p:InformationalVersion=$Version"

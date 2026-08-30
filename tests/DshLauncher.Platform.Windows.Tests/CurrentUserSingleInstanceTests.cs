@@ -6,12 +6,11 @@ namespace DshLauncher.Platform.Windows.Tests;
 [Trait("triggerTags", "VFY-07")]
 public sealed class CurrentUserSingleInstanceTests
 {
+    private const string TestPipeBaseName = "DshWindowsLauncher.Tests.SingleInstance";
+
     [Fact]
     public void ContractKeepsInstallerFacingNamesStable()
     {
-        Assert.Equal(
-            "DshWindowsLauncher.SingleInstance",
-            SingleInstanceContract.BaseName);
         Assert.Equal(
             "--request-maintenance-exit",
             SingleInstanceContract.MaintenanceExitArgument);
@@ -23,18 +22,41 @@ public sealed class CurrentUserSingleInstanceTests
         const string firstSid = "S-1-5-21-111-222-333-1001";
         const string secondSid = "S-1-5-21-111-222-333-1002";
 
-        var first = CurrentUserInstanceIdentity.FromSid(firstSid);
-        var repeated = CurrentUserInstanceIdentity.FromSid(firstSid);
-        var second = CurrentUserInstanceIdentity.FromSid(secondSid);
+        var first = CurrentUserInstanceIdentity.FromSid(firstSid, TestPipeBaseName);
+        var repeated = CurrentUserInstanceIdentity.FromSid(firstSid, TestPipeBaseName);
+        var second = CurrentUserInstanceIdentity.FromSid(secondSid, TestPipeBaseName);
 
         Assert.Equal(first, repeated);
         Assert.NotEqual(first.PipeName, second.PipeName);
         Assert.StartsWith(
-            $"{SingleInstanceContract.BaseName}.",
+            $"{TestPipeBaseName}.",
             first.PipeName,
             StringComparison.Ordinal);
         Assert.DoesNotContain(firstSid, first.PipeName, StringComparison.Ordinal);
         Assert.DoesNotContain("Local\\", first.PipeName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SameUserHasSeparateInternalTestAndOfficialPipeNames()
+    {
+        const string sid = "S-1-5-21-111-222-333-1001";
+
+        var internalTest = CurrentUserInstanceIdentity.FromSid(
+            sid,
+            "DshWindowsLauncher.InternalTest.SingleInstance");
+        var official = CurrentUserInstanceIdentity.FromSid(
+            sid,
+            "DshWindowsLauncher.SingleInstance");
+
+        Assert.NotEqual(internalTest.PipeName, official.PipeName);
+        Assert.StartsWith(
+            "DshWindowsLauncher.InternalTest.SingleInstance.",
+            internalTest.PipeName,
+            StringComparison.Ordinal);
+        Assert.StartsWith(
+            "DshWindowsLauncher.SingleInstance.",
+            official.PipeName,
+            StringComparison.Ordinal);
     }
 
     [Theory]
@@ -101,7 +123,8 @@ public sealed class CurrentUserSingleInstanceTests
     public async Task CurrentUserPipeAcceptsOnePrimaryAndForwardsARequest()
     {
         var identity = CurrentUserInstanceIdentity.FromSid(
-            $"S-1-5-21-111-222-333-{Random.Shared.Next(10000, 99999)}");
+            $"S-1-5-21-111-222-333-{Random.Shared.Next(10000, 99999)}",
+            TestPipeBaseName);
         var received = new TaskCompletionSource<SingleInstanceRequest>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 

@@ -8,7 +8,6 @@ namespace DshLauncher.Platform.Windows;
 
 public static class SingleInstanceContract
 {
-    public const string BaseName = "DshWindowsLauncher.SingleInstance";
     public const string MaintenanceExitArgument =
         "--request-maintenance-exit";
     public const string TimeoutSecondsArgument = "--timeout-seconds";
@@ -61,25 +60,40 @@ public sealed record CurrentUserInstanceIdentity
 
     public string PipeName { get; }
 
-    public static CurrentUserInstanceIdentity ForCurrentUser()
+    public static CurrentUserInstanceIdentity ForCurrentUser(string baseName)
     {
         using var identity = WindowsIdentity.GetCurrent(
             TokenAccessLevels.Query);
         var sid = identity.User?.Value ?? throw new InvalidOperationException(
             "The current Windows user has no security identifier.");
-        return FromSid(sid);
+        return FromSid(sid, baseName);
     }
 
-    public static CurrentUserInstanceIdentity FromSid(string sid)
+    public static CurrentUserInstanceIdentity FromSid(string sid, string baseName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sid);
+        ValidateBaseName(baseName);
         var canonicalSid = new SecurityIdentifier(sid).Value;
         var digest = SHA256.HashData(
             Encoding.UTF8.GetBytes(canonicalSid));
         var userScope = Convert.ToHexString(digest.AsSpan(0, 16))
             .ToLowerInvariant();
         return new CurrentUserInstanceIdentity(
-            $"{SingleInstanceContract.BaseName}.{userScope}");
+            $"{baseName}.{userScope}");
+    }
+
+    private static void ValidateBaseName(string baseName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseName);
+        if (baseName.Length > 128 ||
+            baseName.Any(character =>
+                !char.IsAsciiLetterOrDigit(character) &&
+                character is not ('.' or '-' or '_')))
+        {
+            throw new ArgumentException(
+                "Single-instance base name is not canonical.",
+                nameof(baseName));
+        }
     }
 }
 

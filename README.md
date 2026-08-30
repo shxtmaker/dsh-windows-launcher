@@ -50,3 +50,18 @@ dotnet build .\DshWindowsLauncher.slnx -c Release --no-restore
 ```
 
 `eng/release-constants.json` 当前处于 `development` 状态。正式候选前必须补齐其中的 Runtime、安装器、Publisher、证书和 HTTPS 发布地址，并通过对应 JSON Schema；未知值不能用占位字符串代替。
+
+## 未签名内部测试安装包
+
+`eng/package-internal.ps1` 只在 `releaseStatus=development` 时生成明确标记为
+`INTERNAL TEST`、`UNSIGNED`、`NOT FOR PRODUCTION USE` 的内部测试安装包。它使用独立的
+产品名、EXE 名、Inno Setup `AppId`、安装目录、应用数据根和单实例身份，不得覆盖或升级
+正式安装。
+
+该入口先运行统一 `verify.ps1`，并把 PASS 摘要绑定到同一个 clean Git 提交。它只接受
+匹配冻结版本和 SHA-256、带有效 Microsoft 签名及可信时间戳的 WebView2 Evergreen
+Bootstrapper。内部测试应用、安装器和卸载器保持未签名，不属于正式候选版本，禁止上传到
+正式 Release 或交付给最终用户。仅在当次获得明确上传授权后，才可作为
+`prerelease=true` 的预发布上传；标题、正文和文件名必须完整保留 `INTERNAL TEST`、
+`UNSIGNED`、`NOT FOR PRODUCTION USE`，且不得设为 latest 或正式发布。脚本只生成产物，
+不自动执行安装或卸载。
