@@ -68,6 +68,23 @@
   <data name="TargetWindowRecovering" xml:space="preserve"><value>页面容器正在恢复…</value></data>
   <data name="TargetWindowFailed" xml:space="preserve"><value>无法打开此目标</value></data>
   <data name="TargetWindowDownloadBlocked" xml:space="preserve"><value>V1 不支持从 Harness 下载文件。</value></data>
+  <data name="CompatibilityLimited" xml:space="preserve"><value>此页面正在使用基础兼容模式，部分外部功能受限。</value></data>
+  <data name="CompatibilityReady" xml:space="preserve"><value>页面兼容能力已按当前快照启用。</value></data>
+  <data name="CompatibilityDetailsButton" xml:space="preserve"><value>查看详情</value></data>
+  <data name="CompatibilityStatusButton" xml:space="preserve"><value>兼容状态</value></data>
+  <data name="CompatibilityPanelTitle" xml:space="preserve"><value>页面兼容状态</value></data>
+  <data name="CompatibilityRevokeButton" xml:space="preserve"><value>撤销外部能力确认并重新加载</value></data>
+  <data name="CompatibilityNoExternalPurpose" xml:space="preserve"><value>没有启用外部依赖。</value></data>
+  <data name="CompatibilityLevelLabel" xml:space="preserve"><value>兼容层级</value></data>
+  <data name="CompatibilityReasonLabel" xml:space="preserve"><value>原因码</value></data>
+  <data name="CompatibilityContractLabel" xml:space="preserve"><value>契约版本</value></data>
+  <data name="CompatibilityDescriptorSchemaLabel" xml:space="preserve"><value>描述符 Schema</value></data>
+  <data name="CompatibilityRegistryLabel" xml:space="preserve"><value>注册表版本</value></data>
+  <data name="CompatibilityRulesLabel" xml:space="preserve"><value>命中规则</value></data>
+  <data name="CompatibilityDigestLabel" xml:space="preserve"><value>能力快照摘要</value></data>
+  <data name="CompatibilityPurposeLabel" xml:space="preserve"><value>外部用途</value></data>
+  <data name="CompatibilityConfirmationTitle" xml:space="preserve"><value>确认页面外部依赖</value></data>
+  <data name="CompatibilityConfirmationPrompt" xml:space="preserve"><value>此目标请求使用以下已审核的外部站点和用途。是否允许当前精确能力快照？</value></data>
   <data name="DiagnosticsTitle" xml:space="preserve"><value>导出诊断信息</value></data>
   <data name="DiagnosticsConsent" xml:space="preserve"><value>诊断包可包含规范化私有 IP 和端口，但不包含显示名称、token、Cookie、页面、图片或剪贴板内容。</value></data>
   <data name="UpdateConfirmation" xml:space="preserve"><value>是否使用系统浏览器打开官方发布页面？</value></data>

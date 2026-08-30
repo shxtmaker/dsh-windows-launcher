@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Security.Cryptography;
+using System.Text;
+using DshLauncher.Compatibility;
 using DshLauncher.Core;
 using DshLauncher.Desktop.Resources;
 using DshLauncher.Platform.Windows;
@@ -13,6 +16,9 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
     private readonly ApplicationDataLayout _layout;
     private readonly ITargetExternalNavigationConsent _externalConsent;
     private readonly ITargetExternalUriLauncher _externalLauncher;
+    private readonly IPageCapabilityResolver _capabilityResolver;
+    private readonly IExternalCapabilityConfirmationPort _capabilityConfirmation;
+    private readonly JsonCompatibilityStateStore _compatibilityState;
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<TargetId, TargetWindowEntry> _entries = [];
 
@@ -34,11 +40,20 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
         ApplicationDataLayout layout,
         ITargetExternalNavigationConsent externalConsent,
         ITargetExternalUriLauncher externalLauncher,
+        IPageCapabilityResolver capabilityResolver,
+        IExternalCapabilityConfirmationPort capabilityConfirmation,
+        JsonCompatibilityStateStore compatibilityState,
         Dispatcher dispatcher)
     {
         _layout = layout ?? throw new ArgumentNullException(nameof(layout));
         _externalConsent = externalConsent ?? throw new ArgumentNullException(nameof(externalConsent));
         _externalLauncher = externalLauncher ?? throw new ArgumentNullException(nameof(externalLauncher));
+        _capabilityResolver = capabilityResolver ??
+            throw new ArgumentNullException(nameof(capabilityResolver));
+        _capabilityConfirmation = capabilityConfirmation ??
+            throw new ArgumentNullException(nameof(capabilityConfirmation));
+        _compatibilityState = compatibilityState ??
+            throw new ArgumentNullException(nameof(compatibilityState));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
     }
 
@@ -111,12 +126,20 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
             surface,
             _externalConsent,
             _externalLauncher);
-        var host = new TargetContentHost(binding, runtime);
-        var entry = new TargetWindowEntry(window, host);
+        var host = new TargetContentHost(
+            binding,
+            runtime,
+            _capabilityResolver,
+            _capabilityConfirmation);
+        var entry = new TargetWindowEntry(
+            window,
+            host,
+            CreateRedactedOriginName(binding.Origin));
         _entries.Add(target.TargetId, entry);
 
         host.StateChanged += (_, args) =>
         {
+            QueueCompatibilityDiagnostic(target.TargetId, entry, args);
             var authenticationInvalid =
                 args.Failure?.Kind == TargetContentFailureKind.Authentication &&
                 Interlocked.Exchange(
@@ -128,6 +151,7 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
                     window.SetState(
                         MapState(args.State),
                         FailureDetail(args.Failure));
+                    window.SetCompatibilityStatus(args.CompatibilityStatus);
                     if (authenticationInvalid)
                     {
                         PublishAuthenticationInvalidated(target.TargetId);
@@ -136,6 +160,8 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
                 DispatcherPriority.Background);
         };
         window.ReloadRequested += (_, _) => _ = ReloadSafeAsync(entry);
+        window.CompatibilityConfirmationRevokeRequested += (_, _) =>
+            _ = RevokeCompatibilitySafeAsync(target.TargetId, entry);
         window.Closing += (_, args) => OnWindowClosing(target.TargetId, entry, args);
 
         window.Show();
@@ -200,6 +226,13 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
         {
             await entry.Host.CloseAsync(CancellationToken.None).ConfigureAwait(true);
             await entry.Host.DisposeAsync().ConfigureAwait(true);
+            Task diagnosticWrite;
+            lock (entry.DiagnosticLock)
+            {
+                diagnosticWrite = entry.DiagnosticWriteTask;
+            }
+
+            await diagnosticWrite.ConfigureAwait(true);
             if (entry.Window.IsVisible)
             {
                 entry.Window.Close();
@@ -233,6 +266,28 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
         catch (Exception)
         {
             entry.Window.SetState(TargetWindowState.Failed, Strings.UnexpectedError);
+        }
+    }
+
+    private async Task RevokeCompatibilitySafeAsync(
+        TargetId targetId,
+        TargetWindowEntry entry)
+    {
+        try
+        {
+            await entry.Host.SuspendPageCapabilitiesAsync(
+                CancellationToken.None).ConfigureAwait(true);
+            await _capabilityConfirmation.RevokeAsync(
+                targetId.Value,
+                CancellationToken.None).ConfigureAwait(true);
+            await entry.Host.ReloadAsync(CancellationToken.None)
+                .ConfigureAwait(true);
+        }
+        catch (Exception)
+        {
+            entry.Window.SetState(
+                TargetWindowState.Failed,
+                Strings.UnexpectedError);
         }
     }
 
@@ -334,10 +389,102 @@ public sealed class WindowCoordinator : ITargetWindowCoordinator
         }
     }
 
-    private sealed class TargetWindowEntry(TargetWindow window, ITargetContentHost host)
+    private void QueueCompatibilityDiagnostic(
+        TargetId targetId,
+        TargetWindowEntry entry,
+        TargetContentStateChangedEventArgs args)
+    {
+        if (args.CompatibilityStatus is not { } status)
+        {
+            return;
+        }
+
+        var state = new CompatibilityDiagnosticState(
+            status.ContractVersion,
+            status.DescriptorSchemaVersion,
+            RegistrySchemaVersion: 1,
+            status.RegistryVersion,
+            status.RuleVersions,
+            status.SnapshotSha256,
+            entry.RedactedOriginName,
+            ToStableReasonCode(status.PrimaryReason),
+            MapCompatibilityPhase(args.State));
+        lock (entry.DiagnosticLock)
+        {
+            entry.DiagnosticWriteTask = PersistCompatibilityDiagnosticAsync(
+                entry.DiagnosticWriteTask,
+                targetId,
+                state);
+        }
+    }
+
+    private async Task PersistCompatibilityDiagnosticAsync(
+        Task prior,
+        TargetId targetId,
+        CompatibilityDiagnosticState state)
+    {
+        try
+        {
+            await prior.ConfigureAwait(false);
+            await _compatibilityState.WriteCompatibilityDiagnosticAsync(
+                targetId.Value,
+                state,
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Diagnostic state is non-authoritative and cannot affect the window.
+        }
+    }
+
+    private static CompatibilityLifecyclePhase MapCompatibilityPhase(
+        TargetContentState state) => state switch
+        {
+            TargetContentState.Initializing => CompatibilityLifecyclePhase.Initializing,
+            TargetContentState.Loading => CompatibilityLifecyclePhase.Loading,
+            TargetContentState.Ready => CompatibilityLifecyclePhase.Ready,
+            TargetContentState.Recovering => CompatibilityLifecyclePhase.Recovering,
+            TargetContentState.Blocked => CompatibilityLifecyclePhase.Blocked,
+            TargetContentState.Failed => CompatibilityLifecyclePhase.Failed,
+            _ => CompatibilityLifecyclePhase.Unspecified,
+        };
+
+    private static string ToStableReasonCode(CompatibilityReasonCode reason)
+    {
+        var value = reason.ToString();
+        var builder = new StringBuilder(value.Length + 8);
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (index > 0 && char.IsUpper(character) &&
+                char.IsLower(value[index - 1]))
+            {
+                builder.Append('_');
+            }
+
+            builder.Append(char.ToUpperInvariant(character));
+        }
+
+        return builder.ToString();
+    }
+
+    private static string CreateRedactedOriginName(Uri origin)
+    {
+        var digest = SHA256.HashData(
+            Encoding.UTF8.GetBytes(origin.GetLeftPart(UriPartial.Authority)));
+        return $"target-{Convert.ToHexString(digest.AsSpan(0, 6)).ToLowerInvariant()}";
+    }
+
+    private sealed class TargetWindowEntry(
+        TargetWindow window,
+        ITargetContentHost host,
+        string redactedOriginName)
     {
         public TargetWindow Window { get; } = window;
         public ITargetContentHost Host { get; } = host;
+        public string RedactedOriginName { get; } = redactedOriginName;
+        public object DiagnosticLock { get; } = new();
+        public Task DiagnosticWriteTask { get; set; } = Task.CompletedTask;
         public bool Closing { get; set; }
         public Task? CloseTask { get; set; }
         public int AuthenticationInvalidationPublished;

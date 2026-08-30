@@ -2,38 +2,36 @@
 
 DSH Windows Launcher 是面向 Windows 的 WPF 桌面入口。它连接局域网内已经运行的 DeepSeek Harness Web UI，不安装、启动或管理 Linux Harness 
 
-## dsh-web 第三方 UI
+## 第三方 WebUI 兼容
 
-启动器支持 [zhu1090093659/dsh-web](https://github.com/zhu1090093659/dsh-web) 注入到 Harness 根页面的第三方 UI。Linux profile 当前启用的皮肤、插件导航和服务端组件会由同一 `http://IPv4:port/` 提供，Windows 继续加载该根页面，不维护第二套 UI 选择。
+启动器通过版本化兼容契约和内置只读适配器注册表评估第三方 WebUI。每次打开、刷新或恢复页面时，启动器会先在脚本关闭状态下读取同源描述符，再生成不可变能力快照并应用响应 CSP。描述符缺失、无效或没有精确规则时，页面自动使用基础兼容模式。
 
-兼容边界包括同源皮肤与 Wallpaper Engine iframe、`data:` 图片、绑定当前目标 origin 的 `blob:` 资源、同源 WebSocket、`dsh-market.com` 创意工坊及 Cloudflare Turnstile。服务端原有 CSP 会被保留。主窗口仍禁止任意外站 iframe、外部脚本、下载、页面权限、DevTools 和原生桥接。
+扩展能力只允许精确来源、路径、方法和资源类型。首次使用外部依赖前会显示原生确认，用户可在兼容状态面板撤销确认。下载、页面权限、证书绕过、DevTools、原生桥接、任意外部脚本和未审核外站仍被禁止。服务端已有 CSP 会保留，并与启动器策略共同生效。
 
-Linux 浏览器的 localStorage 不会复制到 Windows 的逐目标 UDF，因此浏览器本地布局可能不同；Linux 服务端保存的活动皮肤会保持一致。使用 `dsh-remote-web-ui` 时，Windows 启动器当前只处理 Harness `?token=` 配对，不处理该插件的第二套设备配对。目标已由 `dsh-web-lan-access` 和 Harness 会话保护时，应在该插件设置中关闭“局域网访问要求配对”。完整契约见 [dsh-web UI 兼容说明](docs/dsh-web-ui-compatibility.md)。
-
-创意工坊浏览和本机安装不依赖点赞、安装计数的人机验证。当前线上 challenge 的 CSP 存在上游 nonce 组合风险；启动器不通过扩大脚本或 RPC 权限绕过，限制与复核条件见兼容说明。
+[dsh-web](https://github.com/zhu1090093659/dsh-web) 是参考提供方，不在产品代码中拥有专用白名单。当前生产注册表没有扩展规则，因此其页面只获得基础兼容能力。契约语义见 [WebUI 兼容契约](docs/webui-compatibility-contract.md)，参考状态见 [dsh-web 参考适配器](docs/reference-adapters/dsh-web.md)。
 
 ## 项目结构
 
 | 项目 | 职责 |
 |---|---|
 | `DshLauncher.Core` | 目标目录、探测、配对、会话和忘记事务；不得引用 WPF、WebView2 或 Windows 适配器。 |
+| `DshLauncher.Compatibility` | 严格解析描述符与内置注册表，生成不可变页面能力快照；不得引用 UI、WebView2 或 Windows 适配器。 |
 | `DshLauncher.WebView` | 绑定单一目标、origin 和 UDF 的受限 WebView2 内容宿主。 |
 | `DshLauncher.Platform.Windows` | 文件系统、网络类别、IPC、剪贴板、Runtime 和系统集成适配器。 |
 | `DshLauncher.Desktop` | WPF 表示层、单实例入口、窗口协调和应用组合根。 |
-| `*.Tests` | Core、WebView、Windows 平台和跨模块验收测试。 |
+| `*.Tests` | Core、Compatibility、WebView、Windows 平台和跨模块验收测试。 |
 
 生产项目依赖方向：
 
 ```text
-DshLauncher.Core
-├── DshLauncher.Platform.Windows
-├── DshLauncher.WebView
-└── DshLauncher.Desktop
-    ├── DshLauncher.Platform.Windows
-    └── DshLauncher.WebView
+DshLauncher.Core                    无项目引用
+DshLauncher.Compatibility           无项目引用
+DshLauncher.Platform.Windows        → Core, Compatibility
+DshLauncher.WebView                 → Core, Compatibility
+DshLauncher.Desktop                 → Core, Compatibility, Platform.Windows, WebView
 ```
 
-箭头按“被依赖项在上、依赖项在下”表达。`Desktop` 是唯一组合根；`Core` 没有项目或第三方包引用。
+`Desktop` 是唯一组合根。`Core` 与 `Compatibility` 都不反向引用 UI、WebView2 或 Windows 适配器。
 
 ## 构建基线
 

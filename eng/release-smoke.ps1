@@ -64,6 +64,27 @@ function Escape-MarkdownCell {
     return $Value.Replace('|', '\|').Replace("`r", ' ').Replace("`n", ' ')
 }
 
+function ConvertTo-DshStructuredSignedArtifact {
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $ManifestArtifact
+    )
+
+    return [ordered]@{
+        fileName = [IO.Path]::GetFileName([string] $ManifestArtifact.path)
+        sha256 = ([string] $ManifestArtifact.sha256).ToLowerInvariant()
+        signatureStatus = [string] $ManifestArtifact.signature.Status
+        signerSubjectSha256 = Get-DshTextSha256 -Text ([string] $ManifestArtifact.signature.SignerSubject)
+        timestampStatus = if ([string]::IsNullOrWhiteSpace(
+                [string] $ManifestArtifact.signature.TimestampSubject)) {
+            'missing'
+        }
+        else {
+            'trusted'
+        }
+    }
+}
+
 function Get-InstalledWebView2RuntimeVersion {
     $clientId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
     $paths = @(
@@ -464,12 +485,13 @@ try {
         throw "安装包文件版本不匹配。实际：$installerVersion；预期：$expectedInstallerVersion"
     }
 
-    $packageManifestPath = Join-Path (Split-Path -Parent $InstallerPath) 'package-manifest.json'
+    $releaseDirectory = Split-Path -Parent $InstallerPath
+    $packageManifestPath = Join-Path $releaseDirectory 'package-manifest.json'
     if (-not (Test-Path -LiteralPath $packageManifestPath -PathType Leaf)) {
         throw "缺少 package-manifest.json：$packageManifestPath"
     }
     $packageManifest = Get-Content -LiteralPath $packageManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 50
-    if ($packageManifest.schemaVersion -ne 1 -or
+    if ($packageManifest.schemaVersion -ne 2 -or
         $packageManifest.installer.sha256 -ne $actualHash -or
         [int64] $packageManifest.installer.size -ne (Get-Item -LiteralPath $InstallerPath).Length -or
         $packageManifest.version -ne $constants.product.version) {
@@ -484,6 +506,58 @@ try {
         $packageManifest.inputs.webView2BootstrapperSha256 -ne
             $constants.dependencyBaseline.webView2Runtime.bootstrapper.sha256.ToUpperInvariant()) {
         throw 'package-manifest.json 中的 WebView2 Bootstrapper 身份与发布常量不一致。'
+    }
+
+    $governanceSummaryPath = Join-Path $releaseDirectory 'webui-governance-summary.json'
+    $compatibilityIdentity = Get-DshWebUiGovernanceIdentity `
+        -RepositoryRoot $repositoryRoot `
+        -SummaryPath $governanceSummaryPath `
+        -Constants $constants
+    Assert-DshWebUiCompatibilityIdentity `
+        -Expected $compatibilityIdentity `
+        -Actual $packageManifest.compatibilityIdentity `
+        -RequireGovernanceSummary
+    if ($packageManifest.governanceSummary.sha256 -cne (Get-DshSha256 -Path $governanceSummaryPath) -or
+        $null -eq $packageManifest.verificationImpact -or
+        @($packageManifest.verificationImpact.requiredRs).Count -eq 0) {
+        throw 'package-manifest.json 未绑定治理摘要或 fail-closed 验证影响证据。'
+    }
+
+    $signedApplicationSet = $packageManifest.signedApplicationSet
+    foreach ($entry in @(
+            @{ Name = 'apphost'; Value = $signedApplicationSet.apphost },
+            @{ Name = 'managed entry assembly'; Value = $signedApplicationSet.managedEntryAssembly },
+            @{ Name = 'uninstaller'; Value = $signedApplicationSet.uninstaller },
+            @{ Name = 'installer'; Value = $signedApplicationSet.installer })) {
+        if ($null -eq $entry.Value -or [string] $entry.Value.sha256 -cnotmatch '^[A-F0-9]{64}$') {
+            throw "签名应用集缺少冻结身份：$($entry.Name)"
+        }
+        Assert-DshRecordedAuthenticodeEvidence `
+            -Evidence $entry.Value.signature `
+            -ExpectedSubject $constants.distribution.signing.certificateSubject `
+            -Description $entry.Name
+    }
+    if ($signedApplicationSet.installer.sha256 -cne $actualHash -or
+        $signedApplicationSet.installer.signature.SignerThumbprint -cne $signature.SignerThumbprint -or
+        $signedApplicationSet.apphost.sha256 -cne $packageManifest.application.sha256 -or
+        $signedApplicationSet.managedEntryAssembly.sha256 -cne $packageManifest.managedEntryAssembly.sha256 -or
+        $signedApplicationSet.uninstaller.signature.SignerThumbprint -cne
+            $packageManifest.uninstaller.signature.SignerThumbprint) {
+        throw '签名应用集与 package-manifest.json 的候选身份不一致。'
+    }
+
+    $managedEntryAssemblyPath = [string] $signedApplicationSet.managedEntryAssembly.path
+    if (-not (Test-Path -LiteralPath $managedEntryAssemblyPath -PathType Leaf) -or
+        (Get-DshSha256 -Path $managedEntryAssemblyPath) -cne $signedApplicationSet.managedEntryAssembly.sha256) {
+        throw '托管主程序集缺失或 SHA-256 与签名应用集不一致。'
+    }
+    $measuredManagedEntryAssemblySignature = Get-DshAuthenticodeEvidence `
+        -Path $managedEntryAssemblyPath `
+        -ExpectedSubject $constants.distribution.signing.certificateSubject `
+        -RequireTimestamp
+    if ($measuredManagedEntryAssemblySignature.SignerThumbprint -cne
+        $signedApplicationSet.managedEntryAssembly.signature.SignerThumbprint) {
+        throw '托管主程序集实测签名与 package-manifest.json 不一致。'
     }
 
     if ($packageManifest.application.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
@@ -519,7 +593,6 @@ try {
         throw '候选 EXE 的名称、版本或 SHA-256 与冻结清单不一致。'
     }
 
-    $releaseDirectory = Split-Path -Parent $InstallerPath
     $sbomPath = Join-Path $releaseDirectory 'sbom.spdx.json'
     $licenseInventoryPath = Join-Path $releaseDirectory 'third-party-licenses.json'
     $releaseNotesPath = Join-Path $releaseDirectory 'release-notes-input.md'
@@ -532,6 +605,17 @@ try {
         $packageManifest.supplyChain.licenseInventorySha256 -ne (Get-DshSha256 -Path $licenseInventoryPath) -or
         $packageManifest.supplyChain.releaseNotesInputSha256 -ne (Get-DshSha256 -Path $releaseNotesPath)) {
         throw 'SBOM、许可证清单或发行说明输入与 package-manifest.json 的冻结哈希不一致。'
+    }
+    Assert-DshSbomCompatibilityIdentity `
+        -Path $sbomPath `
+        -CompatibilityIdentity $compatibilityIdentity
+    $releaseNotes = Get-Content -LiteralPath $releaseNotesPath -Raw -Encoding UTF8
+    foreach ($fragment in @(
+            "WebUI contract: $($compatibilityIdentity.contractVersion) ($($compatibilityIdentity.contractCapabilitiesCanonicalSha256))",
+            "WebUI registry: $($compatibilityIdentity.registryVersion) ($($compatibilityIdentity.registryCanonicalSha256))")) {
+        if (-not $releaseNotes.Contains($fragment, [StringComparison]::Ordinal)) {
+            throw "发行说明输入未绑定 WebUI 兼容身份：$fragment"
+        }
     }
 
     if ([string]::IsNullOrWhiteSpace($VerifySummaryPath)) {
@@ -553,6 +637,14 @@ try {
     if ($packageManifest.verifySummary.sha256 -ne (Get-DshSha256 -Path $VerifySummaryPath)) {
         throw 'verify-summary.json 与 package-manifest.json 记录的哈希不一致。'
     }
+    Assert-DshWebUiCompatibilityIdentity `
+        -Expected $compatibilityIdentity `
+        -Actual $verifySummary.compatibilityIdentity `
+        -RequireGovernanceSummary
+    if ((@($verifySummary.verificationImpact.requiredRs) -join '|') -cne
+        (@($packageManifest.verificationImpact.requiredRs) -join '|')) {
+        throw 'verify-summary.json 与 package-manifest.json 的验证影响集合不一致。'
+    }
 
     $EvidenceDirectory = [IO.Path]::GetFullPath($EvidenceDirectory)
     $null = New-Item -ItemType Directory -Path $EvidenceDirectory -Force
@@ -562,7 +654,10 @@ try {
     }
 
     $matrix = @(Get-DshSmokeMatrix)
-    $requiredIds = @(Get-DshRequiredSmokeIds -ReleaseKind $ReleaseKind -TriggerTags $TriggerTags)
+    $requiredIds = @(@(
+            @(Get-DshRequiredSmokeIds -ReleaseKind $ReleaseKind -TriggerTags $TriggerTags)
+            @($packageManifest.verificationImpact.requiredRs)
+        ) | Sort-Object { [int] ($_ -replace '^RS-', '') } -Unique)
     $selected = @($matrix | Where-Object { $requiredIds -contains $_.Id })
     if ($selected.Count -eq 0) {
         throw '没有选中任何实机冒烟项目。'
@@ -711,7 +806,7 @@ try {
         throw "拒绝覆盖既有结构化发布证据：$structuredEvidencePath"
     }
     $structuredEvidence = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         candidateVersion = $constants.product.version
         commit = $gitCommit
@@ -723,6 +818,14 @@ try {
             sha256 = $actualHash
             fileVersion = $installerVersion
             signature = $signature
+        }
+        compatibilityIdentity = $compatibilityIdentity
+        verificationImpact = $packageManifest.verificationImpact
+        signedApplicationSet = [ordered]@{
+            apphost = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.apphost
+            managedEntryAssembly = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.managedEntryAssembly
+            uninstaller = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.uninstaller
+            installer = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.installer
         }
         host = $hostEvidence
         rs13 = if ($null -eq $rs13Verdict) {
@@ -753,6 +856,7 @@ try {
         [pscustomobject]@{ Path = $sbomPath; Sha256 = Get-DshSha256 -Path $sbomPath },
         [pscustomobject]@{ Path = $licenseInventoryPath; Sha256 = Get-DshSha256 -Path $licenseInventoryPath },
         [pscustomobject]@{ Path = $releaseNotesPath; Sha256 = Get-DshSha256 -Path $releaseNotesPath },
+        [pscustomobject]@{ Path = $governanceSummaryPath; Sha256 = Get-DshSha256 -Path $governanceSummaryPath },
         [pscustomobject]@{ Path = $structuredEvidencePath; Sha256 = Get-DshSha256 -Path $structuredEvidencePath }
         if ($null -ne $rs13RawPath) {
             [pscustomobject]@{ Path = $rs13RawPath; Sha256 = Get-DshSha256 -Path $rs13RawPath }
@@ -768,6 +872,10 @@ try {
     $lines.Add("- Installer file: $InstallerPath")
     $lines.Add("- Installer size: $($installerItem.Length)")
     $lines.Add("- Installer SHA-256: $actualHash")
+    $lines.Add("- WebUI contract: $($compatibilityIdentity.contractVersion); $($compatibilityIdentity.contractCapabilitiesCanonicalSha256)")
+    $lines.Add("- WebUI registry: $($compatibilityIdentity.registryVersion); $($compatibilityIdentity.registryCanonicalSha256)")
+    $lines.Add("- Verification impact map SHA-256: $($compatibilityIdentity.impactMapCanonicalSha256)")
+    $lines.Add("- Required RS: $($requiredIds -join ', ')")
     $lines.Add("- Installer signature subject and timestamp: $($signature.SignerSubject); $($signature.TimestampSubject); timestamp certificate expires $($signature.TimestampNotAfter)")
     $lines.Add("- Current OS/build: $($hostEvidence.Os.ProductName) $($hostEvidence.Os.DisplayVersion); version $($hostEvidence.Os.Version); build $($hostEvidence.Os.BuildNumber).$($hostEvidence.Os.UpdateBuildRevision); $($hostEvidence.Os.Architecture); $($hostEvidence.Os.LogicalProcessorCount) logical processors")
     $lines.Add("- Candidate EXE path, size, version and SHA-256: $($hostEvidence.CandidateExecutable.Path); $($hostEvidence.CandidateExecutable.Size); $($hostEvidence.CandidateExecutable.FileVersion); $($hostEvidence.CandidateExecutable.Sha256)")

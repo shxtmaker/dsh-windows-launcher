@@ -157,6 +157,18 @@ function Get-DshSha256 {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop).Hash.ToUpperInvariant()
 }
 
+function Get-DshTextSha256 {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Text
+    )
+
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Text)
+    return [Convert]::ToHexString(
+        [Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+}
+
 function Get-DshReleaseConstants {
     [CmdletBinding()]
     param(
@@ -337,7 +349,7 @@ function Assert-DshReleaseConstants {
         }
     }
 
-    if ($Constants.schemaVersion -ne 1) {
+    if ($Constants.schemaVersion -ne 2) {
         throw "未知发布常量模式：$($Constants.schemaVersion)"
     }
 
@@ -370,6 +382,28 @@ function Assert-DshReleaseConstants {
         throw '发布常量中的 WebView2 或 Inno Setup 版本偏离 V1 固定基线。'
     }
 
+    $compatibility = $Constants.webUiCompatibility
+    if ($null -eq $compatibility -or
+        $compatibility.contractVersion -cne '1.0.0' -or
+        $compatibility.registryVersion -ne 1) {
+        throw '发布常量中的 WebUI 契约或注册表版本无效。'
+    }
+    foreach ($property in @(
+            'contractCapabilitiesCanonicalSha256',
+            'descriptorSchemaCanonicalSha256',
+            'registryCanonicalSha256',
+            'impactMapCanonicalSha256')) {
+        if ([string] $compatibility.$property -cnotmatch '^[0-9a-f]{64}$') {
+            throw "发布常量中的 WebUI 规范摘要无效：$property"
+        }
+    }
+
+    $baselineCommit = [string] $Constants.verificationBaseline.lastSupportedSignedReleaseCommit
+    if (-not [string]::IsNullOrWhiteSpace($baselineCommit) -and
+        $baselineCommit -cnotmatch '^(?:[0-9a-f]{40}|[0-9a-f]{64})$') {
+        throw '上一正式支持版本提交必须为空或规范小写 Git 对象 ID。'
+    }
+
     $candidateRequired = $RequireCandidate -or $Constants.releaseStatus -eq 'candidate'
     if ($candidateRequired) {
         if ($Constants.releaseStatus -ne 'candidate') {
@@ -388,6 +422,322 @@ function Assert-DshReleaseConstants {
         if ($Constants.distribution.signing.timestampServerUri -notmatch '^https://') {
             throw '时间戳服务必须使用 HTTPS。'
         }
+
+    }
+}
+
+function Get-DshWebUiGovernanceIdentity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepositoryRoot,
+
+        [Parameter(Mandatory)]
+        [string] $SummaryPath,
+
+        [Parameter(Mandatory)]
+        [pscustomobject] $Constants
+    )
+
+    if (-not (Test-Path -LiteralPath $SummaryPath -PathType Leaf)) {
+        throw "缺少 WebUI 治理摘要：$SummaryPath"
+    }
+    $summary = Get-Content -LiteralPath $SummaryPath -Raw -Encoding UTF8 |
+        ConvertFrom-Json -Depth 100
+    if ($summary.schemaVersion -ne 1 -or
+        $summary.result -cne 'PASS' -or
+        $summary.normalization -cne 'RFC8785-JCS-UTF8-NFC-safe-integers') {
+        throw 'WebUI 治理摘要未通过或规范化身份未知。'
+    }
+    if (@($summary.negativeExamples | Where-Object result -cne 'REJECTED').Count -gt 0) {
+        throw 'WebUI 治理摘要包含未被拒绝的负例。'
+    }
+
+    function Get-RequiredGovernanceInput {
+        param([string] $RelativePath)
+
+        $inputMatches = @($summary.inputs | Where-Object path -CEQ $RelativePath)
+        if ($inputMatches.Count -ne 1 -or
+            [string] $inputMatches[0].jcsSha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw "WebUI 治理摘要缺少唯一规范输入：$RelativePath"
+        }
+        return [string] $inputMatches[0].jcsSha256
+    }
+
+    $contractPath = 'compatibility/contracts/webui-contract-capabilities.json'
+    $descriptorSchemaPath = 'schemas/webui-compatibility-descriptor.schema.json'
+    $registryPath = 'compatibility/registry/webui-adapter-registry.json'
+    $impactMapPath = 'eng/verification-impact-map.json'
+    $contract = Get-Content -LiteralPath (Join-Path $RepositoryRoot $contractPath) -Raw -Encoding UTF8 |
+        ConvertFrom-Json -Depth 100
+    $registry = Get-Content -LiteralPath (Join-Path $RepositoryRoot $registryPath) -Raw -Encoding UTF8 |
+        ConvertFrom-Json -Depth 100
+
+    $identity = [pscustomobject][ordered]@{
+        contractVersion = [string] $contract.contractVersion
+        contractCapabilitiesCanonicalSha256 = Get-RequiredGovernanceInput $contractPath
+        descriptorSchemaCanonicalSha256 = Get-RequiredGovernanceInput $descriptorSchemaPath
+        registryVersion = [int64] $registry.registryVersion
+        registryCanonicalSha256 = Get-RequiredGovernanceInput $registryPath
+        impactMapCanonicalSha256 = Get-RequiredGovernanceInput $impactMapPath
+        governanceSummarySha256 = (Get-DshSha256 -Path $SummaryPath).ToLowerInvariant()
+    }
+
+    foreach ($property in @(
+            'contractVersion',
+            'contractCapabilitiesCanonicalSha256',
+            'descriptorSchemaCanonicalSha256',
+            'registryVersion',
+            'registryCanonicalSha256',
+            'impactMapCanonicalSha256')) {
+        if ([string] $identity.$property -cne [string] $Constants.webUiCompatibility.$property) {
+            throw "WebUI 治理身份与发布常量不一致：$property"
+        }
+    }
+    if ([int64] $summary.productionRegistry.registryVersion -ne $identity.registryVersion -or
+        [string] $summary.productionRegistry.jcsSha256 -cne $identity.registryCanonicalSha256) {
+        throw 'WebUI 治理摘要的生产注册表身份不一致。'
+    }
+
+    return $identity
+}
+
+function Assert-DshWebUiCompatibilityIdentity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $Expected,
+
+        [Parameter(Mandatory)]
+        [pscustomobject] $Actual,
+
+        [switch] $RequireGovernanceSummary
+    )
+
+    foreach ($property in @(
+            'contractVersion',
+            'contractCapabilitiesCanonicalSha256',
+            'descriptorSchemaCanonicalSha256',
+            'registryVersion',
+            'registryCanonicalSha256',
+            'impactMapCanonicalSha256')) {
+        if ([string] $Expected.$property -cne [string] $Actual.$property) {
+            throw "WebUI 兼容身份不一致：$property"
+        }
+    }
+    if ($RequireGovernanceSummary) {
+        if ([string] $Expected.governanceSummarySha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            [string] $Expected.governanceSummarySha256 -cne [string] $Actual.governanceSummarySha256) {
+            throw 'WebUI 治理摘要身份不一致。'
+        }
+    }
+}
+
+function Test-DshImpactPathPattern {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path,
+
+        [Parameter(Mandatory)]
+        [string] $Pattern
+    )
+
+    $normalizedPath = $Path.Replace('\', '/').TrimStart('/')
+    $normalizedPattern = $Pattern.Replace('\', '/').TrimStart('/')
+    $expression = [regex]::Escape($normalizedPattern).
+        Replace('\*\*', '.*', [StringComparison]::Ordinal).
+        Replace('\*', '[^/]*', [StringComparison]::Ordinal).
+        Replace('\?', '[^/]', [StringComparison]::Ordinal)
+    return [regex]::IsMatch(
+        $normalizedPath,
+        "^$expression$",
+        [Text.RegularExpressions.RegexOptions]::CultureInvariant -bor
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase,
+        [TimeSpan]::FromSeconds(1))
+}
+
+function Resolve-DshVerificationImpact {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepositoryRoot,
+
+        [string[]] $ChangedPaths = @(),
+
+        [string[]] $ChangedIdentityInputs = @(),
+
+        [switch] $BaselineUnavailable,
+
+        [AllowNull()]
+        [string] $BaselineCommit
+    )
+
+    $mapPath = Join-Path $RepositoryRoot 'eng/verification-impact-map.json'
+    if (-not (Test-Path -LiteralPath $mapPath -PathType Leaf)) {
+        throw "缺少验证影响映射：$mapPath"
+    }
+    $map = Get-Content -LiteralPath $mapPath -Raw -Encoding UTF8 |
+        ConvertFrom-Json -Depth 100
+    if ($map.schemaVersion -ne 1 -or
+        $map.baselinePolicy -cne 'last-supported-signed-release') {
+        throw '验证影响映射模式或基线策略未知。'
+    }
+
+    $triggerTags = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $requiredRs = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $identityInputs = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $mappingIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $unmappedPaths = [Collections.Generic.List[string]]::new()
+    $unknownIdentities = @(
+        $ChangedIdentityInputs |
+            Where-Object { @($map.identityInputs) -cnotcontains $_ } |
+            Sort-Object -Unique
+    )
+
+    foreach ($path in @($ChangedPaths | Sort-Object -Unique)) {
+        $mappingMatches = @(
+            $map.mappings |
+                Where-Object {
+                    $mapping = $_
+                    @($mapping.pathPatterns | Where-Object {
+                            Test-DshImpactPathPattern -Path $path -Pattern $_
+                        }).Count -gt 0
+                }
+        )
+        if ($mappingMatches.Count -eq 0) {
+            $unmappedPaths.Add($path)
+            continue
+        }
+        foreach ($mapping in $mappingMatches) {
+            $null = $mappingIds.Add([string] $mapping.mappingId)
+            foreach ($tag in @($mapping.triggerTags)) { $null = $triggerTags.Add([string] $tag) }
+            foreach ($rs in @($mapping.requiredRs)) { $null = $requiredRs.Add([string] $rs) }
+            foreach ($identity in @($mapping.identityInputs)) { $null = $identityInputs.Add([string] $identity) }
+        }
+    }
+    foreach ($identity in $ChangedIdentityInputs) {
+        $null = $identityInputs.Add($identity)
+    }
+
+    $failClosed = $BaselineUnavailable -or
+        $unmappedPaths.Count -gt 0 -or
+        $unknownIdentities.Count -gt 0
+    if ($failClosed) {
+        foreach ($tag in @($map.unknownInput.triggerTags)) { $null = $triggerTags.Add([string] $tag) }
+        foreach ($rs in @($map.unknownInput.requiredRs)) { $null = $requiredRs.Add([string] $rs) }
+        foreach ($identity in @($map.identityInputs)) { $null = $identityInputs.Add([string] $identity) }
+    }
+
+    return [pscustomobject][ordered]@{
+        schemaVersion = 1
+        baselinePolicy = [string] $map.baselinePolicy
+        baselineAvailable = -not $BaselineUnavailable
+        baselineCommit = if ($BaselineUnavailable) { $null } else { $BaselineCommit }
+        failClosed = $failClosed
+        changedPaths = @($ChangedPaths | Sort-Object -Unique)
+        unmappedPaths = @($unmappedPaths | Sort-Object -Unique)
+        changedIdentityInputs = @($ChangedIdentityInputs | Sort-Object -Unique)
+        unknownIdentityInputs = $unknownIdentities
+        mappingIds = @($mappingIds | Sort-Object)
+        triggerTags = @($triggerTags | Sort-Object)
+        requiredRs = @($requiredRs | Sort-Object { [int] ($_ -replace '^RS-', '') })
+        identityInputs = @($identityInputs | Sort-Object)
+    }
+}
+
+function Get-DshCurrentVerificationImpact {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepositoryRoot,
+
+        [Parameter(Mandatory)]
+        [pscustomobject] $Constants
+    )
+
+    $baselineCommit = [string] $Constants.verificationBaseline.lastSupportedSignedReleaseCommit
+    if ([string]::IsNullOrWhiteSpace($baselineCommit)) {
+        return Resolve-DshVerificationImpact `
+            -RepositoryRoot $RepositoryRoot `
+            -BaselineUnavailable
+    }
+
+    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue
+    if ($null -eq $git) {
+        return Resolve-DshVerificationImpact `
+            -RepositoryRoot $RepositoryRoot `
+            -BaselineUnavailable
+    }
+
+    try {
+        $resolvedBaseline = (Invoke-DshNativeCapture `
+            -FilePath $git.Source `
+            -Arguments @('-C', $RepositoryRoot, 'rev-parse', '--verify', "$baselineCommit^{commit}") `
+            -WorkingDirectory $RepositoryRoot).Trim().ToLowerInvariant()
+        if ($resolvedBaseline -cne $baselineCommit) {
+            throw 'baseline commit mismatch'
+        }
+        Invoke-DshNativeCapture `
+            -FilePath $git.Source `
+            -Arguments @('-C', $RepositoryRoot, 'merge-base', '--is-ancestor', $baselineCommit, 'HEAD') `
+            -WorkingDirectory $RepositoryRoot |
+            Out-Null
+
+        $changed = @(
+            (Invoke-DshNativeCapture `
+                -FilePath $git.Source `
+                -Arguments @('-C', $RepositoryRoot, 'diff', '--name-only', '--diff-filter=ACDMRTUXB', $baselineCommit, '--') `
+                -WorkingDirectory $RepositoryRoot).Split("`n", [StringSplitOptions]::RemoveEmptyEntries)
+            (Invoke-DshNativeCapture `
+                -FilePath $git.Source `
+                -Arguments @('-C', $RepositoryRoot, 'ls-files', '--others', '--exclude-standard') `
+                -WorkingDirectory $RepositoryRoot).Split("`n", [StringSplitOptions]::RemoveEmptyEntries)
+        )
+
+        $baselineConstantsJson = Invoke-DshNativeCapture `
+            -FilePath $git.Source `
+            -Arguments @('-C', $RepositoryRoot, 'show', "$baselineCommit`:eng/release-constants.json") `
+            -WorkingDirectory $RepositoryRoot
+        $baselineConstants = $baselineConstantsJson | ConvertFrom-Json -Depth 100
+        if ($baselineConstants.schemaVersion -ne 2) {
+            throw 'baseline release constants schema is unsupported'
+        }
+        $identityChanges = [Collections.Generic.List[string]]::new()
+        if ($baselineConstants.webUiCompatibility.contractVersion -cne $Constants.webUiCompatibility.contractVersion -or
+            $baselineConstants.webUiCompatibility.contractCapabilitiesCanonicalSha256 -cne $Constants.webUiCompatibility.contractCapabilitiesCanonicalSha256) {
+            $identityChanges.Add('contract')
+        }
+        if ($baselineConstants.webUiCompatibility.descriptorSchemaCanonicalSha256 -cne $Constants.webUiCompatibility.descriptorSchemaCanonicalSha256) {
+            $identityChanges.Add('descriptor-schema')
+        }
+        if ($baselineConstants.webUiCompatibility.registryVersion -ne $Constants.webUiCompatibility.registryVersion -or
+            $baselineConstants.webUiCompatibility.registryCanonicalSha256 -cne $Constants.webUiCompatibility.registryCanonicalSha256) {
+            $identityChanges.Add('registry')
+        }
+        if (($baselineConstants.dependencyBaseline.harness | ConvertTo-Json -Depth 20 -Compress) -cne
+            ($Constants.dependencyBaseline.harness | ConvertTo-Json -Depth 20 -Compress)) {
+            $identityChanges.Add('harness')
+        }
+        if (($baselineConstants.dependencyBaseline.lanPlugin | ConvertTo-Json -Depth 10 -Compress) -cne
+            ($Constants.dependencyBaseline.lanPlugin | ConvertTo-Json -Depth 10 -Compress)) {
+            $identityChanges.Add('lan-plugin')
+        }
+        if (($baselineConstants.dependencyBaseline.webView2Runtime | ConvertTo-Json -Depth 20 -Compress) -cne
+            ($Constants.dependencyBaseline.webView2Runtime | ConvertTo-Json -Depth 20 -Compress)) {
+            $identityChanges.Add('webview2-runtime')
+        }
+
+        return Resolve-DshVerificationImpact `
+            -RepositoryRoot $RepositoryRoot `
+            -ChangedPaths $changed `
+            -ChangedIdentityInputs $identityChanges.ToArray() `
+            -BaselineCommit $baselineCommit
+    }
+    catch {
+        return Resolve-DshVerificationImpact `
+            -RepositoryRoot $RepositoryRoot `
+            -BaselineUnavailable
     }
 }
 
@@ -609,45 +959,63 @@ function Get-DshArchitectureViolations {
     )
 
     $violations = [System.Collections.Generic.List[string]]::new()
-    $coreProject = Join-Path $RepositoryRoot 'src/DshLauncher.Core/DshLauncher.Core.csproj'
-    [xml] $coreXml = Get-Content -LiteralPath $coreProject -Raw -Encoding UTF8
-
-    foreach ($nodeName in @('ProjectReference', 'PackageReference', 'FrameworkReference')) {
-        $nodes = @($coreXml.SelectNodes("//$nodeName"))
-        if ($nodes.Count -gt 0) {
-            $violations.Add("Core 不得包含 $nodeName。")
-        }
+    $pureProjects = [ordered]@{
+        Core = Join-Path $RepositoryRoot 'src/DshLauncher.Core/DshLauncher.Core.csproj'
+        Compatibility = Join-Path $RepositoryRoot 'src/DshLauncher.Compatibility/DshLauncher.Compatibility.csproj'
     }
-
-    if (@($coreXml.SelectNodes('//UseWPF[text()="true"]')).Count -gt 0) {
-        $violations.Add('Core 不得启用 WPF。')
-    }
-
     $forbiddenPatterns = @(
         '(?m)^\s*using\s+System\.Windows(?:\.|;)',
         '(?m)^\s*using\s+Microsoft\.Web\.WebView2(?:\.|;)',
         '(?m)^\s*using\s+DshLauncher\.Platform\.Windows(?:\.|;)',
         '(?m)^\s*using\s+Microsoft\.Win32(?:\.|;)'
     )
-    foreach ($source in Get-ChildItem -LiteralPath (Split-Path -Parent $coreProject) -Filter '*.cs' -File -Recurse -ErrorAction Stop) {
-        if ($source.FullName -match '[\\/](?:bin|obj)[\\/]') {
+    foreach ($entry in $pureProjects.GetEnumerator()) {
+        if (-not (Test-Path -LiteralPath $entry.Value -PathType Leaf)) {
+            $violations.Add("缺少纯领域项目：$($entry.Key)")
             continue
         }
+        [xml] $projectXml = Get-Content -LiteralPath $entry.Value -Raw -Encoding UTF8
+        $forbiddenNodeNames = if ($entry.Key -eq 'Core') {
+            @('ProjectReference', 'PackageReference', 'FrameworkReference')
+        }
+        else {
+            @('ProjectReference', 'FrameworkReference')
+        }
+        foreach ($nodeName in $forbiddenNodeNames) {
+            if (@($projectXml.SelectNodes("//$nodeName")).Count -gt 0) {
+                $violations.Add("$($entry.Key) 不得包含 $nodeName。")
+            }
+        }
+        if ($entry.Key -eq 'Compatibility' -and
+            @($projectXml.SelectNodes('//PackageReference') | Where-Object {
+                    $_.Include -match '^(?:Microsoft\.Web\.WebView2|Microsoft\.WindowsDesktop\.)'
+                }).Count -gt 0) {
+            $violations.Add('Compatibility 不得引用 WebView2 或 WindowsDesktop 包。')
+        }
+        if (@($projectXml.SelectNodes('//UseWPF[text()="true"]')).Count -gt 0) {
+            $violations.Add("$($entry.Key) 不得启用 WPF。")
+        }
 
-        $content = Get-Content -LiteralPath $source.FullName -Raw -Encoding UTF8
-        foreach ($pattern in $forbiddenPatterns) {
-            if ($content -match $pattern) {
-                $relative = [IO.Path]::GetRelativePath($RepositoryRoot, $source.FullName)
-                $violations.Add("Core 源码引用了禁止的 Windows/WPF/WebView 命名空间：$relative")
+        foreach ($source in Get-ChildItem -LiteralPath (Split-Path -Parent $entry.Value) -Filter '*.cs' -File -Recurse -ErrorAction Stop) {
+            if ($source.FullName -match '[\\/](?:bin|obj)[\\/]') {
+                continue
+            }
+            $content = Get-Content -LiteralPath $source.FullName -Raw -Encoding UTF8
+            foreach ($pattern in $forbiddenPatterns) {
+                if ($content -match $pattern) {
+                    $relative = [IO.Path]::GetRelativePath($RepositoryRoot, $source.FullName)
+                    $violations.Add("$($entry.Key) 源码引用了禁止的 Windows/WPF/WebView 命名空间：$relative")
+                }
             }
         }
     }
 
     $expectedReferences = @{
         'DshLauncher.Core'             = @()
-        'DshLauncher.WebView'          = @('DshLauncher.Core')
-        'DshLauncher.Platform.Windows' = @('DshLauncher.Core')
-        'DshLauncher.Desktop'          = @('DshLauncher.Core', 'DshLauncher.Platform.Windows', 'DshLauncher.WebView')
+        'DshLauncher.Compatibility'    = @()
+        'DshLauncher.WebView'          = @('DshLauncher.Compatibility', 'DshLauncher.Core')
+        'DshLauncher.Platform.Windows' = @('DshLauncher.Compatibility', 'DshLauncher.Core')
+        'DshLauncher.Desktop'          = @('DshLauncher.Compatibility', 'DshLauncher.Core', 'DshLauncher.Platform.Windows', 'DshLauncher.WebView')
     }
 
     foreach ($projectName in $expectedReferences.Keys) {
@@ -665,6 +1033,76 @@ function Get-DshArchitectureViolations {
     }
 
     return $violations.ToArray()
+}
+
+function Get-DshLegacyCompatibilityEntryViolations {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepositoryRoot
+    )
+
+    $violations = [Collections.Generic.List[string]]::new()
+    $dedicatedPolicyName = 'DshWebUi' + 'CompatibilityPolicy'
+    $dedicatedPolicyPath = Join-Path $RepositoryRoot "src/DshLauncher.WebView/$dedicatedPolicyName.cs"
+    if (Test-Path -LiteralPath $dedicatedPolicyPath) {
+        $violations.Add("专用兼容策略文件仍存在：src/DshLauncher.WebView/$dedicatedPolicyName.cs")
+    }
+
+    foreach ($file in Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'src'), (Join-Path $RepositoryRoot 'tests') `
+            -File -Recurse -ErrorAction Stop) {
+        $relative = [IO.Path]::GetRelativePath($RepositoryRoot, $file.FullName).Replace('\', '/')
+        if ($relative -match '(^|/)(?:bin|obj|TestResults)/' -or
+            @('.cs', '.csproj', '.xaml') -notcontains $file.Extension.ToLowerInvariant()) {
+            continue
+        }
+        $content = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8
+        if ($content.Contains($dedicatedPolicyName, [StringComparison]::Ordinal)) {
+            $violations.Add("专用兼容策略引用仍存在：$relative")
+        }
+    }
+
+    $legacyFragments = @(
+        ('dsh-' + 'market.com'),
+        ('challenges.cloud' + 'flare.com'),
+        ('/api/skin-' + 'center/we/'),
+        ('/sidebar/' + 'html/'),
+        ('Turn' + 'stile')
+    )
+    $allowedPatterns = @(
+        'README.md',
+        'compatibility/providers/**',
+        'docs/dsh-web-ui-compatibility.md',
+        'docs/reference-adapters/**',
+        'docs/v1-*.md',
+        'eng/fixtures/**',
+        'tests/DshLauncher.Compatibility.Tests/**',
+        'tests/DshLauncher.Platform.Windows.Tests/JsonCompatibilityStateStoreTests.cs',
+        'tests/DshLauncher.WebView.Tests/**'
+    )
+    $extensions = @('.cs', '.csproj', '.json', '.md', '.ps1', '.xaml')
+    foreach ($file in Get-ChildItem -LiteralPath $RepositoryRoot -File -Recurse -ErrorAction Stop) {
+        $relative = [IO.Path]::GetRelativePath($RepositoryRoot, $file.FullName).Replace('\', '/')
+        if ($relative -match '(^|/)(?:\.git|\.scratch|artifacts|bin|obj|TestResults)/' -or
+            $extensions -notcontains $file.Extension.ToLowerInvariant()) {
+            continue
+        }
+        if (@($allowedPatterns | Where-Object {
+                    Test-DshImpactPathPattern -Path $relative -Pattern $_
+                }).Count -gt 0) {
+            continue
+        }
+
+        $content = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8
+        foreach ($fragment in $legacyFragments) {
+            if ($content.IndexOf($fragment, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $violations.Add("专用 WebUI 常量只允许存在于参考 adapter、fixture 或版本化说明：$relative")
+                break
+            }
+        }
+    }
+
+    return @($violations | Sort-Object -Unique)
 }
 
 function Find-DshSecretFindings {
@@ -720,8 +1158,8 @@ function Get-DshLockedPackageInventory {
             -Filter 'packages.lock.json' -File -Recurse |
             Where-Object { $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' }
     )
-    if ($lockFiles.Count -ne 8) {
-        throw "许可证与 SBOM 输入要求 8 个锁文件，实际为 $($lockFiles.Count)。"
+    if ($lockFiles.Count -ne 10) {
+        throw "许可证与 SBOM 输入要求 10 个锁文件，实际为 $($lockFiles.Count)。"
     }
 
     foreach ($lockFile in $lockFiles) {
@@ -884,7 +1322,10 @@ function New-DshSupplyChainArtifacts {
         [string] $ProductName,
 
         [Parameter(Mandatory)]
-        [string] $Version
+        [string] $Version,
+
+        [Parameter(Mandatory)]
+        [pscustomobject] $CompatibilityIdentity
     )
 
     if (-not (Test-DshSemVer -Version $Version)) {
@@ -924,6 +1365,11 @@ function New-DshSupplyChainArtifacts {
         licenseConcluded = 'NOASSERTION'
         licenseDeclared = 'NOASSERTION'
         copyrightText = 'NOASSERTION'
+        comment = 'DSH WebUI compatibility identity: ' +
+            "contractVersion=$($CompatibilityIdentity.contractVersion); " +
+            "contractCapabilitiesCanonicalSha256=$($CompatibilityIdentity.contractCapabilitiesCanonicalSha256); " +
+            "registryVersion=$($CompatibilityIdentity.registryVersion); " +
+            "registryCanonicalSha256=$($CompatibilityIdentity.registryCanonicalSha256)"
     })
     $relationships = [System.Collections.Generic.List[object]]::new()
     foreach ($package in $metadata) {
@@ -977,6 +1423,34 @@ function New-DshSupplyChainArtifacts {
         SbomPath = $sbomPath
         LicenseInventoryPath = $licensePath
         PackageCount = $metadata.Count
+    }
+}
+
+function Assert-DshSbomCompatibilityIdentity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path,
+
+        [Parameter(Mandatory)]
+        [pscustomobject] $CompatibilityIdentity
+    )
+
+    $sbom = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 |
+        ConvertFrom-Json -Depth 100
+    $applicationPackages = @($sbom.packages | Where-Object SPDXID -CEQ 'SPDXRef-Application')
+    if ($sbom.spdxVersion -cne 'SPDX-2.3' -or $applicationPackages.Count -ne 1) {
+        throw 'SBOM 缺少唯一应用包身份。'
+    }
+    $comment = [string] $applicationPackages[0].comment
+    foreach ($fragment in @(
+            "contractVersion=$($CompatibilityIdentity.contractVersion)",
+            "contractCapabilitiesCanonicalSha256=$($CompatibilityIdentity.contractCapabilitiesCanonicalSha256)",
+            "registryVersion=$($CompatibilityIdentity.registryVersion)",
+            "registryCanonicalSha256=$($CompatibilityIdentity.registryCanonicalSha256)")) {
+        if (-not $comment.Contains($fragment, [StringComparison]::Ordinal)) {
+            throw "SBOM 未绑定 WebUI 兼容身份：$fragment"
+        }
     }
 }
 
@@ -1041,6 +1515,37 @@ function Get-DshAuthenticodeEvidence {
         SignerThumbprint = $signature.SignerCertificate.Thumbprint
         TimestampSubject = if ($null -eq $signature.TimeStamperCertificate) { $null } else { $signature.TimeStamperCertificate.Subject }
         TimestampNotAfter = if ($null -eq $signature.TimeStamperCertificate) { $null } else { $signature.TimeStamperCertificate.NotAfter.ToUniversalTime().ToString('O') }
+    }
+}
+
+function Assert-DshRecordedAuthenticodeEvidence {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject] $Evidence,
+
+        [Parameter(Mandatory)]
+        [string] $ExpectedSubject,
+
+        [Parameter(Mandatory)]
+        [string] $Description
+    )
+
+    if ($null -eq $Evidence -or
+        [string] $Evidence.Status -cne 'Valid' -or
+        [string] $Evidence.SignerSubject -cne $ExpectedSubject -or
+        [string] $Evidence.SignerThumbprint -cnotmatch '^[0-9A-Fa-f]{16,}$' -or
+        [string]::IsNullOrWhiteSpace([string] $Evidence.TimestampSubject)) {
+        throw "$Description 缺少有效且匹配的 Authenticode 记录。"
+    }
+    try {
+        $timestampNotAfter = [DateTimeOffset]::Parse([string] $Evidence.TimestampNotAfter)
+    }
+    catch {
+        throw "$Description 的时间戳证书有效期记录无效。"
+    }
+    if ($timestampNotAfter -eq [DateTimeOffset]::MinValue) {
+        throw "$Description 的时间戳证书有效期记录无效。"
     }
 }
 
@@ -1411,7 +1916,7 @@ function Get-DshSmokeMatrix {
         [pscustomobject]@{ Id = 'RS-06'; Frequency = '每次'; TriggerTags = @('every', 'data', 'udf', 'windows'); Success = 'PASS'; Environment = 'Windows 11 实体机 + Linux A/B'; Instructions = '保存四个规定目标，验证端点、唯一默认、窗口去重、逐目标会话隔离、单目标故障隔离及忘记目标继任规则。' },
         [pscustomobject]@{ Id = 'RS-07'; Frequency = '首版或网络/探测/插件变化'; TriggerTags = @('network', 'pairing', 'harness', 'lan-plugin', 'third-party-ui'); Success = 'PASS'; Environment = 'Windows 11 实体机 + 错误服务夹具'; Instructions = '轮换非 HTTP、错误 200、403、旧无认证服务、非 RFC1918 和公用网络；确认拒绝错误服务且不扫描或改连端口。' },
         [pscustomobject]@{ Id = 'RS-08'; Frequency = '首版或配对/数据变化'; TriggerTags = @('data', 'network', 'pairing', 'harness', 'lan-plugin', 'third-party-ui'); Success = 'PASS'; Environment = 'Windows 11 实体机'; Instructions = '验证错误、过期、重复、loopback、跨目标和额外参数链接；确认 token、输入、剪贴板竞态、取消、崩溃恢复和 401 仅影响当前目标。' },
-        [pscustomobject]@{ Id = 'RS-09'; Frequency = '每次'; TriggerTags = @('every', 'harness', 'webview', 'third-party-ui'); Success = 'PASS'; Environment = 'Windows 11 实体机 + Linux A'; Instructions = '在真实 Harness 完成流式回复、持续 WebSocket、空闲恢复、页面复制和 Linux 工作目录浏览；启用 dsh-web 时对照同一 endpoint 的 Edge，核对活动皮肤、插件入口、Wallpaper Engine iframe、创意工坊清单、图片和本机安装入口。验证启动器未阻断 Turnstile 必需资源；若点赞或安装计数仍失败，使用 Edge 对照和响应 CSP 区分上游故障。' },
+        [pscustomobject]@{ Id = 'RS-09'; Frequency = '每次'; TriggerTags = @('every', 'harness', 'webview', 'third-party-ui'); Success = 'PASS'; Environment = 'Windows 11 实体机 + Linux A'; Instructions = '在真实 Harness 完成流式回复、条件 WebSocket、空闲恢复、页面复制和 Linux 工作目录浏览；对照同一 endpoint 的 Edge，分别核对无描述符基础兼容和精确描述符/规则命中的扩展兼容。外部依赖失败必须用 Edge 对照和响应 CSP 区分上游故障。' },
         [pscustomobject]@{ Id = 'RS-10'; Frequency = '每次'; TriggerTags = @('every', 'webview', 'permissions', 'third-party-ui'); Success = 'PASS'; Environment = 'Windows 11 实体机'; Instructions = '验证导航、外链、mailto、下载、弹窗、协议、权限、证书、DevTools、服务端 CSP 和原生桥接策略；检查原生诊断 ZIP 敏感数据排除。' },
         [pscustomobject]@{ Id = 'RS-11'; Frequency = '每次'; TriggerTags = @('every', 'images', 'harness', 'webview', 'third-party-ui'); Success = 'PASS'; Environment = 'Windows 11 实体机 + Linux A/B'; Instructions = '验证单图、多图、截图、文本图片混合、不支持格式及非图片的 Harness 原生结果；确认当前目标 Session 隔离且恢复后不重放。' },
         [pscustomobject]@{ Id = 'RS-12'; Frequency = '首版或 WebView/Runtime/Harness 变化'; TriggerTags = @('webview', 'runtime', 'harness', 'lan-plugin', 'process', 'third-party-ui'); Success = 'PASS'; Environment = 'Windows 11 实体机'; Instructions = '验证网络中断、导航失败、renderer/browser 失败和无响应恢复；确认 UDF 复用、跨目标隔离、默认不变和业务写入不重放。' },

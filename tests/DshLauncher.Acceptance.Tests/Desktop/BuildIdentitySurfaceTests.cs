@@ -35,4 +35,20 @@ public sealed class BuildIdentitySurfaceTests
             Path.GetFileName(probeFolder),
             StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void InternalBuildLoadsTheEmbeddedCompatibilityIdentity()
+    {
+        var resolver = LauncherApplicationIntegrity.LoadCompatibilityResolver(
+            LauncherBuildIdentity.Current);
+
+        Assert.Equal("1.0.0", resolver.ContractVersion);
+        Assert.Equal(
+            "a543d6f2d6bc736b89dbd430a8bae35efb536df2e87bc519e18bca39f491ecbb",
+            resolver.ContractSha256);
+        Assert.Equal(1, resolver.RegistryVersion);
+        Assert.Equal(
+            "7d71067cc626b90f6e7e0ef8df4c3de8417da55e42b4d1f100a5082c498287ad",
+            resolver.RegistrySha256);
+    }
 }

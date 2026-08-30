@@ -83,7 +83,9 @@ public sealed class TargetExternalNavigationCoordinatorTests
         ITargetExternalUriLauncher launcher)
     {
         return new TargetExternalNavigationCoordinator(
-            new TargetContentSecurityPolicy(Binding),
+            new TargetContentSecurityPolicy(
+                Binding,
+                WebViewCompatibilityFixture.CreateBaseSnapshot(Binding.TargetId)),
             consent,
             launcher);
     }

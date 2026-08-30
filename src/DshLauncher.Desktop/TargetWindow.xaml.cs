@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Input;
+using DshLauncher.Compatibility;
 using DshLauncher.Core;
 using DshLauncher.Desktop.Resources;
+using DshLauncher.WebView;
 
 namespace DshLauncher.Desktop;
 
@@ -28,7 +30,54 @@ public partial class TargetWindow : Window
 
     public event EventHandler? ReloadRequested;
 
+    public event EventHandler? CompatibilityConfirmationRevokeRequested;
+
     public void SetHostContent(UIElement content) => HostSurface.Content = content;
+
+    public void SetCompatibilityStatus(CompatibilityStatusDto? status)
+    {
+        if (status is null)
+        {
+            CompatibilityBanner.Visibility = Visibility.Collapsed;
+            CompatibilityStatusButton.Visibility = Visibility.Collapsed;
+            CompatibilityPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var limited = status.Level == CompatibilityLevel.Base &&
+                      status.PrimaryReason != CompatibilityReasonCode.None;
+        CompatibilityBanner.Visibility = limited
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        CompatibilityStatusButton.Visibility = limited
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        CompatibilityBannerText.Text = limited
+            ? Strings.CompatibilityLimited
+            : Strings.CompatibilityReady;
+        var purposeText = status.Purposes.Count == 0
+            ? Strings.CompatibilityNoExternalPurpose
+            : string.Join(Environment.NewLine, status.Purposes.Select(
+                static purpose => $"• {purpose}"));
+        var ruleText = status.RuleVersions.Count == 0
+            ? "-"
+            : string.Join(", ", status.RuleVersions);
+        CompatibilityDetailText.Text = string.Join(
+            Environment.NewLine,
+            $"{Strings.CompatibilityLevelLabel}: {status.Level}",
+            $"{Strings.CompatibilityReasonLabel}: {status.PrimaryReason}",
+            $"{Strings.CompatibilityContractLabel}: {status.ContractVersion}",
+            $"{Strings.CompatibilityDescriptorSchemaLabel}: {status.DescriptorSchemaVersion}",
+            $"{Strings.CompatibilityRegistryLabel}: {status.RegistryVersion}",
+            $"{Strings.CompatibilityRulesLabel}: {ruleText}",
+            $"{Strings.CompatibilityDigestLabel}: {status.SnapshotSha256}",
+            string.Empty,
+            Strings.CompatibilityPurposeLabel,
+            purposeText);
+        RevokeCompatibilityButton.Visibility = status.Purposes.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
 
     public void SetState(TargetWindowState state, string? detail = null)
     {
@@ -60,6 +109,15 @@ public partial class TargetWindow : Window
     private void ReloadClick(object sender, RoutedEventArgs e) => ReloadRequested?.Invoke(this, EventArgs.Empty);
 
     private void CloseClick(object sender, RoutedEventArgs e) => Close();
+
+    private void CompatibilityDetailsClick(object sender, RoutedEventArgs e) =>
+        CompatibilityPanel.Visibility = Visibility.Visible;
+
+    private void CompatibilityPanelCloseClick(object sender, RoutedEventArgs e) =>
+        CompatibilityPanel.Visibility = Visibility.Collapsed;
+
+    private void CompatibilityRevokeClick(object sender, RoutedEventArgs e) =>
+        CompatibilityConfirmationRevokeRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {

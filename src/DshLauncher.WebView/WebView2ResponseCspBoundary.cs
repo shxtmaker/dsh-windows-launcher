@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using DshLauncher.Compatibility;
 using Microsoft.Web.WebView2.Core;
 
 namespace DshLauncher.WebView;
@@ -14,18 +15,82 @@ internal static class TargetResponseCspPolicy
 {
     private const string ContentSecurityPolicyHeader =
         "Content-Security-Policy";
+    private static readonly string[] SelfSource = ["'self'"];
 
-    public static string CreatePolicy(TargetContentBinding binding)
+    public static string CreateTransientPolicy(TargetContentBinding binding)
     {
         ArgumentNullException.ThrowIfNull(binding);
-        return "connect-src 'self' ws: " +
-               $"{DshWebUiCompatibilityPolicy.MarketOrigin}; " +
-               "script-src 'self' 'unsafe-inline' blob:; " +
-               "worker-src 'self' blob:; " +
-               $"frame-src 'self' blob: {DshWebUiCompatibilityPolicy.MarketOrigin} " +
-               $"{DshWebUiCompatibilityPolicy.TurnstileOrigin}; " +
-               "object-src 'none'; base-uri 'self'; " +
-               "form-action 'self'";
+        return "default-src 'none'; connect-src 'self'; script-src 'none'; " +
+               "style-src 'none'; img-src 'none'; media-src 'none'; " +
+               "font-src 'none'; frame-src 'none'; worker-src 'none'; " +
+               "object-src 'none'; base-uri 'none'; form-action 'none'";
+    }
+
+    public static string CreatePolicy(
+        TargetContentBinding binding,
+        PageCapabilitySnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.TargetId != binding.TargetId)
+        {
+            throw new ArgumentException(
+                "The page capability snapshot must belong to the target binding.",
+                nameof(snapshot));
+        }
+
+        var grants = snapshot.BaseCapabilities
+            .Concat(snapshot.ExtensionCapabilities)
+            .ToArray();
+        var imageSources = SourcesFor(grants, WebResourceKind.Image);
+        if (grants.Any(static grant => grant.Kind == CapabilityKind.DataImage))
+        {
+            imageSources.Add("data:");
+        }
+        if (grants.Any(static grant => grant.Kind == CapabilityKind.BlobImage))
+        {
+            imageSources.Add("blob:");
+        }
+
+        var mediaSources = SourcesFor(grants, WebResourceKind.Media);
+        if (grants.Any(static grant => grant.Kind == CapabilityKind.BlobMedia))
+        {
+            mediaSources.Add("blob:");
+        }
+
+        var connectSources = SourcesFor(
+            grants,
+            WebResourceKind.XmlHttpRequest,
+            WebResourceKind.Fetch,
+            WebResourceKind.EventSource,
+            WebResourceKind.WebSocket);
+        var frameSources = grants
+            .Where(static grant => grant.Kind == CapabilityKind.Frame)
+            .Select(static grant => grant.Origin)
+            .Where(static origin => origin is not null)
+            .Cast<string>()
+            .ToHashSet(StringComparer.Ordinal);
+
+        var builder = new StringBuilder();
+        AppendDirective(builder, "default-src", ["'none'"]);
+        AppendDirective(builder, "connect-src", WithSelf(connectSources));
+        AppendDirective(builder, "script-src", ["'self'"]);
+        AppendDirective(
+            builder,
+            "style-src",
+            WithSelf(SourcesFor(grants, WebResourceKind.Stylesheet)));
+        AppendDirective(builder, "img-src", WithSelf(imageSources));
+        AppendDirective(builder, "media-src", WithSelf(mediaSources));
+        AppendDirective(
+            builder,
+            "font-src",
+            WithSelf(SourcesFor(grants, WebResourceKind.Font)));
+        AppendDirective(builder, "frame-src", WithSelf(frameSources));
+        AppendDirective(builder, "worker-src", ["'none'"]);
+        AppendDirective(builder, "object-src", ["'none'"]);
+        AppendDirective(builder, "base-uri", ["'self'"]);
+        AppendDirective(builder, "form-action", ["'self'"]);
+        return builder.ToString();
     }
 
     public static string CreateEnableParameters(TargetContentBinding binding)
@@ -48,10 +113,19 @@ internal static class TargetResponseCspPolicy
 
     public static DevToolsFetchCommand? CreatePausedResponseCommand(
         string parameterObjectJson,
-        TargetContentBinding binding)
+        TargetContentBinding binding,
+        string contentSecurityPolicy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parameterObjectJson);
         ArgumentNullException.ThrowIfNull(binding);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentSecurityPolicy);
+        if (contentSecurityPolicy.Contains('\r') ||
+            contentSecurityPolicy.Contains('\n'))
+        {
+            throw new ArgumentException(
+                "The content security policy must be a single header value.",
+                nameof(contentSecurityPolicy));
+        }
 
         string? requestId = null;
         try
@@ -101,7 +175,7 @@ internal static class TargetResponseCspPolicy
                 headers.Add((name, valueElement.GetString() ?? string.Empty));
             }
 
-            headers.Add((ContentSecurityPolicyHeader, CreatePolicy(binding)));
+            headers.Add((ContentSecurityPolicyHeader, contentSecurityPolicy));
             var responseStatusText = root.TryGetProperty(
                     "responseStatusText",
                     out var statusTextElement) &&
@@ -209,12 +283,50 @@ internal static class TargetResponseCspPolicy
                    StringComparison.OrdinalIgnoreCase) &&
                resource.Port == binding.Origin.Port;
     }
+
+    private static HashSet<string> SourcesFor(
+        IEnumerable<CapabilityGrant> grants,
+        params WebResourceKind[] resourceKinds)
+    {
+        var requested = resourceKinds.ToHashSet();
+        return grants
+            .Where(grant =>
+                grant.Origin is not null &&
+                grant.DocumentScope != CapabilityDocumentScope.CrossOriginFrameOnly &&
+                grant.ResourceKinds.Any(requested.Contains))
+            .Select(static grant => grant.Origin!)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static IEnumerable<string> WithSelf(IEnumerable<string> sources) =>
+        SelfSource
+            .Concat(sources.Order(StringComparer.Ordinal));
+
+    private static void AppendDirective(
+        StringBuilder builder,
+        string name,
+        IEnumerable<string> sources)
+    {
+        if (builder.Length > 0)
+        {
+            builder.Append(' ');
+        }
+
+        builder.Append(name);
+        foreach (var source in sources.Distinct(StringComparer.Ordinal))
+        {
+            builder.Append(' ').Append(source);
+        }
+
+        builder.Append(';');
+    }
 }
 
 internal sealed class WebView2ResponseCspBoundary : IDisposable
 {
     private readonly CoreWebView2 _core;
     private readonly TargetContentBinding _binding;
+    private readonly string _contentSecurityPolicy;
     private readonly Action _failureSink;
     private readonly CoreWebView2DevToolsProtocolEventReceiver _receiver;
     private int _disposed;
@@ -222,10 +334,12 @@ internal sealed class WebView2ResponseCspBoundary : IDisposable
     private WebView2ResponseCspBoundary(
         CoreWebView2 core,
         TargetContentBinding binding,
+        string contentSecurityPolicy,
         Action failureSink)
     {
         _core = core;
         _binding = binding;
+        _contentSecurityPolicy = contentSecurityPolicy;
         _failureSink = failureSink;
         _receiver = core.GetDevToolsProtocolEventReceiver("Fetch.requestPaused");
     }
@@ -233,13 +347,16 @@ internal sealed class WebView2ResponseCspBoundary : IDisposable
     public static async Task<WebView2ResponseCspBoundary> EnableAsync(
         CoreWebView2 core,
         TargetContentBinding binding,
+        string contentSecurityPolicy,
         Action? failureSink = null)
     {
         ArgumentNullException.ThrowIfNull(core);
         ArgumentNullException.ThrowIfNull(binding);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentSecurityPolicy);
         var boundary = new WebView2ResponseCspBoundary(
             core,
             binding,
+            contentSecurityPolicy,
             failureSink ?? (() => { }));
         boundary._receiver.DevToolsProtocolEventReceived +=
             boundary.OnRequestPaused;
@@ -282,7 +399,8 @@ internal sealed class WebView2ResponseCspBoundary : IDisposable
         {
             command = TargetResponseCspPolicy.CreatePausedResponseCommand(
                 args.ParameterObjectAsJson,
-                _binding);
+                _binding,
+                _contentSecurityPolicy);
         }
         catch
         {

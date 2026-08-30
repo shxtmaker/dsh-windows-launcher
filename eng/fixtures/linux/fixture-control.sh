@@ -13,12 +13,18 @@ usage() {
     '  fixture-control.sh status [mode]' \
     '  fixture-control.sh stop-all' \
     '' \
-    'Modes: wrong-200 fence-403 old-unauthenticated redirect-302 notfound-404 non-http timeout'
+    'Optional HTTPS environment: DSHWL_FIXTURE_TLS_CERT and DSHWL_FIXTURE_TLS_KEY' \
+    '' \
+    'Legacy modes: wrong-200 fence-403 old-unauthenticated redirect-302 notfound-404 non-http timeout' \
+    'WebUI modes: descriptor-valid descriptor-missing descriptor-wrong-content-type' \
+    '             descriptor-oversized descriptor-redirect webui-peer'
 }
 
 validate_mode() {
   case "$1" in
-    wrong-200|fence-403|old-unauthenticated|redirect-302|notfound-404|non-http|timeout) ;;
+    wrong-200|fence-403|old-unauthenticated|redirect-302|notfound-404|non-http|timeout|\
+      descriptor-valid|descriptor-missing|descriptor-wrong-content-type|\
+      descriptor-oversized|descriptor-redirect|webui-peer) ;;
     *) printf 'Unknown fixture mode: %s\n' "$1" >&2; exit 2 ;;
   esac
 }
@@ -91,8 +97,28 @@ start_fixture() {
   local port="$3"
   local pid_file
   local existing_pid
+  local -a tls_arguments=()
 
   validate_mode "${mode}"
+  if [[ -n "${DSHWL_FIXTURE_TLS_CERT:-}" || -n "${DSHWL_FIXTURE_TLS_KEY:-}" ]]; then
+    if [[ -z "${DSHWL_FIXTURE_TLS_CERT:-}" || -z "${DSHWL_FIXTURE_TLS_KEY:-}" ]]; then
+      printf 'Both DSHWL_FIXTURE_TLS_CERT and DSHWL_FIXTURE_TLS_KEY are required.\n' >&2
+      return 2
+    fi
+    if [[ "${mode}" == 'non-http' || "${mode}" == 'timeout' ]]; then
+      printf 'TLS is only supported by HTTP fixture modes.\n' >&2
+      return 2
+    fi
+    [[ -r "${DSHWL_FIXTURE_TLS_CERT}" ]] || {
+      printf 'TLS certificate is not readable: %s\n' "${DSHWL_FIXTURE_TLS_CERT}" >&2
+      return 2
+    }
+    [[ -r "${DSHWL_FIXTURE_TLS_KEY}" ]] || {
+      printf 'TLS key is not readable: %s\n' "${DSHWL_FIXTURE_TLS_KEY}" >&2
+      return 2
+    }
+    tls_arguments=(--tls-cert "${DSHWL_FIXTURE_TLS_CERT}" --tls-key "${DSHWL_FIXTURE_TLS_KEY}")
+  fi
   prepare_state_root
   pid_file="$(pid_file_for "${mode}")"
   if [[ -f "${pid_file}" ]]; then
@@ -113,6 +139,7 @@ start_fixture() {
     --mode "${mode}" \
     --bind "${bind_address}" \
     --port "${port}" \
+    "${tls_arguments[@]}" \
     > "${STATE_ROOT}/${mode}.log" 2>&1 &
   local fixture_pid=$!
   printf '%s\n' "${fixture_pid}" > "${pid_file}"
@@ -188,6 +215,8 @@ fixture_status() {
 
 readonly ALL_MODES=(
   wrong-200 fence-403 old-unauthenticated redirect-302 notfound-404 non-http timeout
+  descriptor-valid descriptor-missing descriptor-wrong-content-type
+  descriptor-oversized descriptor-redirect webui-peer
 )
 
 case "${1:-}" in

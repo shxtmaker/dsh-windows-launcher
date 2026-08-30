@@ -8,6 +8,49 @@
         AutomationProperties.Name="{Binding Title, RelativeSource={RelativeSource Self}}">
   <Grid>
     <ContentControl x:Name="HostSurface" />
+    <Border x:Name="CompatibilityBanner" VerticalAlignment="Top"
+            Margin="12" Padding="10,8" CornerRadius="4"
+            Background="{DynamicResource {x:Static SystemColors.InfoBrushKey}}"
+            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+            BorderThickness="1" Visibility="Collapsed">
+      <DockPanel LastChildFill="True">
+        <Button DockPanel.Dock="Right" Margin="12,0,0,0"
+                Content="{x:Static resources:Strings.CompatibilityDetailsButton}"
+                AutomationProperties.Name="{x:Static resources:Strings.CompatibilityDetailsButton}"
+                Click="CompatibilityDetailsClick" />
+        <TextBlock x:Name="CompatibilityBannerText" VerticalAlignment="Center"
+                   Text="{x:Static resources:Strings.CompatibilityLimited}"
+                   TextWrapping="Wrap" />
+      </DockPanel>
+    </Border>
+    <Button x:Name="CompatibilityStatusButton" HorizontalAlignment="Right"
+            VerticalAlignment="Top" Margin="12" Padding="10,5"
+            Content="{x:Static resources:Strings.CompatibilityStatusButton}"
+            AutomationProperties.Name="{x:Static resources:Strings.CompatibilityStatusButton}"
+            Visibility="Collapsed" Click="CompatibilityDetailsClick" />
+    <Border x:Name="CompatibilityPanel" HorizontalAlignment="Right"
+            Width="390" Margin="0" Padding="20"
+            Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+            BorderThickness="1,0,0,0" Visibility="Collapsed">
+      <DockPanel>
+        <Button DockPanel.Dock="Top" HorizontalAlignment="Right"
+                Content="{x:Static resources:Strings.ButtonClose}"
+                AutomationProperties.Name="{x:Static resources:Strings.ButtonClose}"
+                Click="CompatibilityPanelCloseClick" />
+        <StackPanel Margin="0,16,0,0">
+          <TextBlock Text="{x:Static resources:Strings.CompatibilityPanelTitle}"
+                     FontSize="20" FontWeight="SemiBold" />
+          <TextBlock x:Name="CompatibilityDetailText" Margin="0,12,0,0"
+                     TextWrapping="Wrap" />
+          <Button x:Name="RevokeCompatibilityButton" Margin="0,18,0,0"
+                  HorizontalAlignment="Left"
+                  Content="{x:Static resources:Strings.CompatibilityRevokeButton}"
+                  AutomationProperties.Name="{x:Static resources:Strings.CompatibilityRevokeButton}"
+                  Click="CompatibilityRevokeClick" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
     <Border x:Name="StatePanel" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
             Visibility="Visible">
       <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">

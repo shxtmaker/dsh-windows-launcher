@@ -2,6 +2,8 @@
 
 `release-constants.json` 是构建、打包、诊断版本信息和发布证据共同使用的版本化输入。`release-constants.schema.json` 固定字段、V1 常量和正式候选完整性规则。
 
+模式版本 2 增加 `webUiCompatibility` 和 `verificationBaseline`。前者固定契约、描述符 Schema、注册表及影响映射的规范化 SHA-256；后者只接受上一个已支持签名版本的真实 Git 提交。首个正式版本或无法确定基线时保持 `null`，验证影响推导必须 fail-closed 执行全部 VFY 和 RS，不得填写推测提交。
+
 ## 状态规则
 
 - `development` 允许尚未由发布负责人确定的候选输入为 `null`，只能生成开发或内部测试产物。

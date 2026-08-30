@@ -1,0 +1,424 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dshwindowslauncher.invalid/webui-release-evidence.schema.json",
+  "title": "DSH Windows Launcher WebUI release evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "version",
+    "source",
+    "installer",
+    "signedApplicationSet",
+    "dependencyBaseline",
+    "compatibilityIdentity",
+    "collections",
+    "runtimeResults",
+    "fixtureIdentity",
+    "environments",
+    "verification",
+    "smoke",
+    "humanConfirmation",
+    "sensitiveDataExclusion"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "worktreeState"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+        },
+        "worktreeState": {
+          "const": "clean"
+        }
+      }
+    },
+    "installer": {
+      "$ref": "#/$defs/artifactIdentity"
+    },
+    "signedApplicationSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apphost",
+        "managedEntryAssembly",
+        "uninstaller",
+        "installer"
+      ],
+      "properties": {
+        "apphost": {
+          "$ref": "#/$defs/signedArtifact"
+        },
+        "managedEntryAssembly": {
+          "$ref": "#/$defs/signedArtifact"
+        },
+        "uninstaller": {
+          "$ref": "#/$defs/signedArtifact"
+        },
+        "installer": {
+          "$ref": "#/$defs/signedArtifact"
+        }
+      }
+    },
+    "dependencyBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dotnetSdk",
+        "innoSetup",
+        "webView2Sdk",
+        "minimumWebView2Runtime",
+        "harnessCommit",
+        "lanPluginVersion"
+      ],
+      "properties": {
+        "dotnetSdk": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "innoSetup": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "webView2Sdk": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "minimumWebView2Runtime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "harnessCommit": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+        },
+        "lanPluginVersion": {
+          "$ref": "#/$defs/semver"
+        }
+      }
+    },
+    "compatibilityIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "descriptorSchemaSha256",
+        "registryVersion",
+        "registryCanonicalSha256",
+        "activeRuleDigest",
+        "tombstoneDigest",
+        "impactMapSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "$ref": "#/$defs/semver"
+        },
+        "descriptorSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "registryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "registryCanonicalSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "activeRuleDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "tombstoneDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "impactMapSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "collections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "referenceAdapters",
+        "providerSuites",
+        "reviewDecisions",
+        "supportRecords",
+        "pageCapabilitySnapshots"
+      ],
+      "properties": {
+        "referenceAdapters": {
+          "$ref": "#/$defs/collectionIdentity"
+        },
+        "providerSuites": {
+          "$ref": "#/$defs/collectionIdentity"
+        },
+        "reviewDecisions": {
+          "$ref": "#/$defs/collectionIdentity"
+        },
+        "supportRecords": {
+          "$ref": "#/$defs/collectionIdentity"
+        },
+        "pageCapabilitySnapshots": {
+          "$ref": "#/$defs/collectionIdentity"
+        }
+      }
+    },
+    "runtimeResults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimumRuntime",
+        "evergreenRuntime",
+        "sameEndpointEdge"
+      ],
+      "properties": {
+        "minimumRuntime": {
+          "$ref": "#/$defs/evidenceResult"
+        },
+        "evergreenRuntime": {
+          "$ref": "#/$defs/evidenceResult"
+        },
+        "sameEndpointEdge": {
+          "$ref": "#/$defs/evidenceResult"
+        }
+      }
+    },
+    "fixtureIdentity": {
+      "$ref": "#/$defs/sha256"
+    },
+    "environments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windows11Vm",
+        "windows11Physical",
+        "linuxA",
+        "linuxB"
+      ],
+      "properties": {
+        "windows11Vm": {
+          "$ref": "#/$defs/safeReference"
+        },
+        "windows11Physical": {
+          "$ref": "#/$defs/safeReference"
+        },
+        "linuxA": {
+          "$ref": "#/$defs/safeReference"
+        },
+        "linuxB": {
+          "$ref": "#/$defs/safeReference"
+        }
+      }
+    },
+    "verification": {
+      "$ref": "#/$defs/gateRun"
+    },
+    "smoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "executedCases"
+      ],
+      "properties": {
+        "result": {
+          "$ref": "#/$defs/passFail"
+        },
+        "executedCases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "caseId",
+              "result"
+            ],
+            "properties": {
+              "caseId": {
+                "pattern": "^RS-(?:0[1-9]|1[0-5])$"
+              },
+              "result": {
+                "enum": [
+                  "PASS",
+                  "FAIL",
+                  "RECORD"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "humanConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmed",
+        "installerSha256"
+      ],
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "installerSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "sensitiveDataExclusion": {
+      "const": "PASS"
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "safeReference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$"
+    },
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "size",
+        "sha256"
+      ],
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 260,
+          "pattern": "^[^\\\\/:*?\"<>|]+$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "signedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "sha256",
+        "signatureStatus",
+        "signerSubjectSha256",
+        "timestampStatus"
+      ],
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 260,
+          "pattern": "^[^\\\\/:*?\"<>|]+$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "signatureStatus": {
+          "const": "Valid"
+        },
+        "signerSubjectSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "timestampStatus": {
+          "const": "trusted"
+        }
+      }
+    },
+    "collectionIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "canonicalSha256"
+      ],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "canonicalSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "passFail": {
+      "enum": [
+        "PASS",
+        "FAIL"
+      ]
+    },
+    "evidenceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "result"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "result": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "MISSING"
+          ]
+        }
+      }
+    },
+    "gateRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "resultFilesSha256"
+      ],
+      "properties": {
+        "result": {
+          "$ref": "#/$defs/passFail"
+        },
+        "resultFilesSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

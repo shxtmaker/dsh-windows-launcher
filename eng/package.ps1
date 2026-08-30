@@ -262,6 +262,19 @@ try {
         $verifySummary.source.worktreeState -cne $sourceState.WorktreeState) {
         throw '统一验证摘要的源提交或工作树状态与正式打包源不一致。'
     }
+    $governanceSummarySource = Join-Path $verifyArtifacts 'webui-governance/webui-governance-summary.json'
+    $compatibilityIdentity = Get-DshWebUiGovernanceIdentity `
+        -RepositoryRoot $repositoryRoot `
+        -SummaryPath $governanceSummarySource `
+        -Constants $constants
+    Assert-DshWebUiCompatibilityIdentity `
+        -Expected $compatibilityIdentity `
+        -Actual $verifySummary.compatibilityIdentity `
+        -RequireGovernanceSummary
+    if ($null -eq $verifySummary.verificationImpact -or
+        @($verifySummary.verificationImpact.requiredRs).Count -eq 0) {
+        throw '统一验证摘要缺少 fail-closed 验证影响证据。'
+    }
 
     if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
         $OutputDirectory = Join-Path $repositoryRoot "artifacts/package/$Version"
@@ -295,6 +308,9 @@ try {
         }
         Copy-Item -LiteralPath $supplyChainFile.Source -Destination $supplyChainFile.Destination
     }
+    Assert-DshSbomCompatibilityIdentity `
+        -Path $sbomPath `
+        -CompatibilityIdentity $compatibilityIdentity
 
     $fileVersion = ConvertTo-DshFileVersion -Version $Version
     $desktopProject = Join-Path $repositoryRoot 'src/DshLauncher.Desktop/DshLauncher.Desktop.csproj'
@@ -333,11 +349,12 @@ try {
         -RequireTimestamp
 
     $applicationExe = Join-Path $publishDirectory $constants.product.executableName
-    if (-not (Test-Path -LiteralPath $applicationExe -PathType Leaf)) {
-        throw "发布结果缺少主程序：$applicationExe"
+    $managedEntryAssembly = Join-Path $publishDirectory 'DshWindowsLauncher.dll'
+    if (-not (Test-Path -LiteralPath $applicationExe -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $managedEntryAssembly -PathType Leaf)) {
+        throw '发布结果缺少 apphost EXE 或托管主程序集。'
     }
-    if (@(Get-ChildItem -LiteralPath $publishDirectory -File).Count -lt 2 -or
-        -not (Test-Path -LiteralPath (Join-Path $publishDirectory 'DshWindowsLauncher.dll') -PathType Leaf)) {
+    if (@(Get-ChildItem -LiteralPath $publishDirectory -File).Count -lt 2) {
         throw '发布结果不是预期的自包含多文件布局。'
     }
 
@@ -346,7 +363,7 @@ try {
         throw "主程序文件版本不匹配。实际：$publishedVersion；预期：$fileVersion"
     }
 
-    Write-Host '[package] 签名并验证主程序。'
+    Write-Host '[package] 签名并验证 apphost 与托管主程序集。'
     Invoke-SignTool `
         -FilePath $SignToolPath `
         -TargetPath $applicationExe `
@@ -357,6 +374,18 @@ try {
         -WorkingDirectory $repositoryRoot
     $applicationSignature = Get-DshAuthenticodeEvidence `
         -Path $applicationExe `
+        -ExpectedSubject $constants.distribution.signing.certificateSubject `
+        -RequireTimestamp
+    Invoke-SignTool `
+        -FilePath $SignToolPath `
+        -TargetPath $managedEntryAssembly `
+        -Thumbprint $CertificateThumbprint `
+        -TimestampUri $constants.distribution.signing.timestampServerUri `
+        -ProductName $constants.product.name `
+        -ReleaseUri $constants.distribution.officialReleaseUri `
+        -WorkingDirectory $repositoryRoot
+    $managedEntryAssemblySignature = Get-DshAuthenticodeEvidence `
+        -Path $managedEntryAssembly `
         -ExpectedSubject $constants.distribution.signing.certificateSubject `
         -RequireTimestamp
 
@@ -497,6 +526,16 @@ try {
         -ExpectedSubject $constants.distribution.signing.certificateSubject `
         -RequireTimestamp
 
+    $installedManagedEntryAssembly = Join-Path $UninstallerVerificationDirectory 'DshWindowsLauncher.dll'
+    if (-not (Test-Path -LiteralPath $installedManagedEntryAssembly -PathType Leaf) -or
+        (Get-DshSha256 -Path $installedManagedEntryAssembly) -cne (Get-DshSha256 -Path $managedEntryAssembly)) {
+        throw '已安装托管主程序集缺失或与签名发布输入不一致。'
+    }
+    $installedManagedEntryAssemblySignature = Get-DshAuthenticodeEvidence `
+        -Path $installedManagedEntryAssembly `
+        -ExpectedSubject $constants.distribution.signing.certificateSubject `
+        -RequireTimestamp
+
     $installedWebViewBootstrapperPath = Join-Path $UninstallerVerificationDirectory $webViewBootstrapperName
     if (-not (Test-Path -LiteralPath $installedWebViewBootstrapperPath -PathType Leaf) -or
         (Get-DshSha256 -Path $installedWebViewBootstrapperPath) -ne (Get-DshSha256 -Path $stagedWebViewBootstrapperPath)) {
@@ -516,6 +555,7 @@ try {
         -Path $uninstallerPath `
         -ExpectedSubject $constants.distribution.signing.certificateSubject `
         -RequireTimestamp
+    $uninstallerHash = Get-DshSha256 -Path $uninstallerPath
 
     Invoke-DshNative -FilePath $uninstallerPath -WorkingDirectory $UninstallerVerificationDirectory -Arguments @(
         '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
@@ -548,6 +588,11 @@ try {
         "- Included WebView2 repair bootstrapper: $webViewBootstrapperVersion",
         "- Harness baseline: $($constants.dependencyBaseline.harness.version) ($($constants.dependencyBaseline.harness.commit))",
         "- LAN plugin baseline: $($constants.dependencyBaseline.lanPlugin.package) $($constants.dependencyBaseline.lanPlugin.version)",
+        "- WebUI contract: $($compatibilityIdentity.contractVersion) ($($compatibilityIdentity.contractCapabilitiesCanonicalSha256))",
+        "- WebUI descriptor schema SHA-256: $($compatibilityIdentity.descriptorSchemaCanonicalSha256)",
+        "- WebUI registry: $($compatibilityIdentity.registryVersion) ($($compatibilityIdentity.registryCanonicalSha256))",
+        "- Verification impact map SHA-256: $($compatibilityIdentity.impactMapCanonicalSha256)",
+        "- WebUI governance summary SHA-256: $($compatibilityIdentity.governanceSummarySha256)",
         '',
         'Review `sbom.spdx.json`, `third-party-licenses.json`, `verify-summary.json`, and the completed `release-evidence.md` before any separately authorized publication.'
     ) | Set-Content -LiteralPath $releaseNotesPath -Encoding utf8NoBOM
@@ -560,9 +605,11 @@ try {
     }
     $verifySummaryDestination = Join-Path $releaseDirectory 'verify-summary.json'
     Copy-Item -LiteralPath $verifySummarySource -Destination $verifySummaryDestination
+    $governanceSummaryDestination = Join-Path $releaseDirectory 'webui-governance-summary.json'
+    Copy-Item -LiteralPath $governanceSummarySource -Destination $governanceSummaryDestination
 
     $manifest = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         frozenAtUtc = [DateTime]::UtcNow.ToString('O')
         version = $Version
         source = [ordered]@{
@@ -570,6 +617,8 @@ try {
             commit = $sourceState.Commit
             worktreeState = $sourceState.WorktreeState
         }
+        compatibilityIdentity = $compatibilityIdentity
+        verificationImpact = $verifySummary.verificationImpact
         installer = [ordered]@{
             path = $installerPath
             size = (Get-Item -LiteralPath $installerPath).Length
@@ -582,6 +631,13 @@ try {
             signature = $applicationSignature
             verifiedInstalledPath = $installedApplicationSignature.Path
             installedSignature = $installedApplicationSignature
+        }
+        managedEntryAssembly = [ordered]@{
+            path = $managedEntryAssembly
+            sha256 = Get-DshSha256 -Path $managedEntryAssembly
+            signature = $managedEntryAssemblySignature
+            verifiedInstalledPath = $installedManagedEntryAssemblySignature.Path
+            installedSignature = $installedManagedEntryAssemblySignature
         }
         uninstaller = [ordered]@{
             verifiedInstalledPath = $uninstallerSignature.Path
@@ -620,6 +676,32 @@ try {
         verifySummary = [ordered]@{
             path = $verifySummaryDestination
             sha256 = Get-DshSha256 -Path $verifySummaryDestination
+        }
+        governanceSummary = [ordered]@{
+            path = $governanceSummaryDestination
+            sha256 = Get-DshSha256 -Path $governanceSummaryDestination
+        }
+        signedApplicationSet = [ordered]@{
+            apphost = [ordered]@{
+                path = $applicationExe
+                sha256 = Get-DshSha256 -Path $applicationExe
+                signature = $applicationSignature
+            }
+            managedEntryAssembly = [ordered]@{
+                path = $managedEntryAssembly
+                sha256 = Get-DshSha256 -Path $managedEntryAssembly
+                signature = $managedEntryAssemblySignature
+            }
+            uninstaller = [ordered]@{
+                path = $uninstallerSignature.Path
+                sha256 = $uninstallerHash
+                signature = $uninstallerSignature
+            }
+            installer = [ordered]@{
+                path = $installerPath
+                sha256 = $installerHash
+                signature = $installerSignature
+            }
         }
         supplyChain = [ordered]@{
             sbomPath = $sbomPath

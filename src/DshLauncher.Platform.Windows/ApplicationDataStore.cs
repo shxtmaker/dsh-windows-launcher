@@ -38,6 +38,12 @@ public sealed class ApplicationDataLayout
 
     public string TargetsRoot => Path.Combine(RootPath, "targets");
 
+    public string RegistryWatermarkPath =>
+        Path.Combine(RootPath, "compatibility-registry-watermark.json");
+
+    public string RegistryWatermarkBackupPath =>
+        Path.Combine(RootPath, "compatibility-registry-watermark.json.bak");
+
     public string GetTargetRoot(Guid targetId)
     {
         ValidateTargetId(targetId);
@@ -49,6 +55,18 @@ public sealed class ApplicationDataLayout
 
     public string GetTargetOwnershipMarkerPath(Guid targetId) =>
         Path.Combine(GetTargetRoot(targetId), TargetOwnershipMarkerName);
+
+    public string GetExternalCapabilityConfirmationPath(Guid targetId) =>
+        Path.Combine(GetTargetRoot(targetId), "external-capability-confirmation.json");
+
+    public string GetExternalCapabilityConfirmationBackupPath(Guid targetId) =>
+        Path.Combine(GetTargetRoot(targetId), "external-capability-confirmation.json.bak");
+
+    public string GetCompatibilityDiagnosticPath(Guid targetId) =>
+        Path.Combine(GetTargetRoot(targetId), "compatibility-diagnostic.json");
+
+    public string GetCompatibilityDiagnosticBackupPath(Guid targetId) =>
+        Path.Combine(GetTargetRoot(targetId), "compatibility-diagnostic.json.bak");
 
     public static string GetTargetOwnershipMarkerContent(Guid targetId)
     {
@@ -81,6 +99,7 @@ public sealed partial class ApplicationDataStore : IDisposable
     private const int ErrorPathNotFound = 3;
     private const int InitialFinalPathCapacity = 512;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly SemaphoreSlim _compatibilityStateGate = new(1, 1);
 
     public ApplicationDataStore(ApplicationDataLayout layout)
     {
@@ -89,7 +108,13 @@ public sealed partial class ApplicationDataStore : IDisposable
 
     public ApplicationDataLayout Layout { get; }
 
-    public void Dispose() => _writeGate.Dispose();
+    internal SemaphoreSlim CompatibilityStateGate => _compatibilityStateGate;
+
+    public void Dispose()
+    {
+        _compatibilityStateGate.Dispose();
+        _writeGate.Dispose();
+    }
 
     public async ValueTask InitializeAsync(
         CancellationToken cancellationToken = default)
@@ -267,20 +292,40 @@ public sealed partial class ApplicationDataStore : IDisposable
         return new CatalogSnapshots(primary, backup);
     }
 
-    public async ValueTask DeleteTargetDataAsync(
-        Guid targetId,
-        CancellationToken cancellationToken = default)
+    internal async ValueTask<ApplicationStateSnapshots> ReadApplicationStateSnapshotsAsync(
+        string primaryFileName,
+        string backupFileName,
+        int maximumBytes,
+        CancellationToken cancellationToken)
     {
+        ValidateSnapshotArguments(primaryFileName, backupFileName, maximumBytes);
         var applicationRootFinalPath = await VerifyApplicationOwnershipAsync(
-            cancellationToken)
-            .ConfigureAwait(false);
+            cancellationToken).ConfigureAwait(false);
+        return await ReadStateSnapshotsAsync(
+            Layout.RootPath,
+            applicationRootFinalPath,
+            primaryFileName,
+            backupFileName,
+            maximumBytes,
+            cancellationToken).ConfigureAwait(false);
+    }
 
+    internal async ValueTask<ApplicationStateSnapshots> ReadTargetStateSnapshotsAsync(
+        Guid targetId,
+        string primaryFileName,
+        string backupFileName,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        ValidateSnapshotArguments(primaryFileName, backupFileName, maximumBytes);
+        var applicationRootFinalPath = await VerifyApplicationOwnershipAsync(
+            cancellationToken).ConfigureAwait(false);
         if (!TryInspectTargetRoot(
                 targetId,
                 applicationRootFinalPath,
                 out var targetRootInspection))
         {
-            return;
+            return new ApplicationStateSnapshots(null, null);
         }
 
         await VerifyMarkerAsync(
@@ -288,15 +333,174 @@ public sealed partial class ApplicationDataStore : IDisposable
             ApplicationDataLayout.GetTargetOwnershipMarkerContent(targetId),
             targetRootInspection.FinalPath,
             cancellationToken).ConfigureAwait(false);
-
-        DeleteDirectoryWithoutFollowingReparsePoints(
+        return await ReadStateSnapshotsAsync(
             Layout.GetTargetRoot(targetId),
             targetRootInspection.FinalPath,
-            cancellationToken);
+            primaryFileName,
+            backupFileName,
+            maximumBytes,
+            cancellationToken).ConfigureAwait(false);
+    }
 
-        if (Directory.Exists(Layout.GetTargetRoot(targetId)))
+    internal async ValueTask WriteApplicationStateSnapshotAsync(
+        string primaryFileName,
+        string backupFileName,
+        ReadOnlyMemory<byte> snapshot,
+        int maximumBytes,
+        bool preserveExistingBackup,
+        CancellationToken cancellationToken)
+    {
+        ValidateSnapshotArguments(primaryFileName, backupFileName, maximumBytes);
+        ValidateSnapshotContent(snapshot, maximumBytes);
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            throw new IOException("Target data could not be completely removed.");
+            var applicationRootFinalPath = await VerifyApplicationOwnershipAsync(
+                cancellationToken).ConfigureAwait(false);
+            await WriteStateSnapshotCoreAsync(
+                Layout.RootPath,
+                applicationRootFinalPath,
+                primaryFileName,
+                backupFileName,
+                snapshot,
+                preserveExistingBackup,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    internal async ValueTask WriteTargetStateSnapshotAsync(
+        Guid targetId,
+        string primaryFileName,
+        string backupFileName,
+        ReadOnlyMemory<byte> snapshot,
+        int maximumBytes,
+        bool preserveExistingBackup,
+        CancellationToken cancellationToken)
+    {
+        ValidateSnapshotArguments(primaryFileName, backupFileName, maximumBytes);
+        ValidateSnapshotContent(snapshot, maximumBytes);
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await PrepareTargetDataAsync(targetId, cancellationToken).ConfigureAwait(false);
+            var applicationRootFinalPath = await VerifyApplicationOwnershipAsync(
+                cancellationToken).ConfigureAwait(false);
+            if (!TryInspectTargetRoot(
+                    targetId,
+                    applicationRootFinalPath,
+                    out var targetRootInspection))
+            {
+                throw new ApplicationDataOwnershipException(
+                    "Target data root disappeared before the state write.");
+            }
+
+            await VerifyMarkerAsync(
+                Layout.GetTargetOwnershipMarkerPath(targetId),
+                ApplicationDataLayout.GetTargetOwnershipMarkerContent(targetId),
+                targetRootInspection.FinalPath,
+                cancellationToken).ConfigureAwait(false);
+            await WriteStateSnapshotCoreAsync(
+                Layout.GetTargetRoot(targetId),
+                targetRootInspection.FinalPath,
+                primaryFileName,
+                backupFileName,
+                snapshot,
+                preserveExistingBackup,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    internal async ValueTask DeleteTargetStateSnapshotsAsync(
+        Guid targetId,
+        string primaryFileName,
+        string backupFileName,
+        CancellationToken cancellationToken)
+    {
+        ValidateSnapshotFilePair(primaryFileName, backupFileName);
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var applicationRootFinalPath = await VerifyApplicationOwnershipAsync(
+                cancellationToken).ConfigureAwait(false);
+            if (!TryInspectTargetRoot(
+                    targetId,
+                    applicationRootFinalPath,
+                    out var targetRootInspection))
+            {
+                return;
+            }
+
+            await VerifyMarkerAsync(
+                Layout.GetTargetOwnershipMarkerPath(targetId),
+                ApplicationDataLayout.GetTargetOwnershipMarkerContent(targetId),
+                targetRootInspection.FinalPath,
+                cancellationToken).ConfigureAwait(false);
+            DeleteStateSnapshotsCore(
+                Layout.GetTargetRoot(targetId),
+                targetRootInspection.FinalPath,
+                primaryFileName,
+                backupFileName);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    public async ValueTask DeleteTargetDataAsync(
+        Guid targetId,
+        CancellationToken cancellationToken = default)
+    {
+        await _compatibilityStateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var applicationRootFinalPath = await VerifyApplicationOwnershipAsync(
+                    cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!TryInspectTargetRoot(
+                        targetId,
+                        applicationRootFinalPath,
+                        out var targetRootInspection))
+                {
+                    return;
+                }
+
+                await VerifyMarkerAsync(
+                    Layout.GetTargetOwnershipMarkerPath(targetId),
+                    ApplicationDataLayout.GetTargetOwnershipMarkerContent(targetId),
+                    targetRootInspection.FinalPath,
+                    cancellationToken).ConfigureAwait(false);
+
+                DeleteDirectoryWithoutFollowingReparsePoints(
+                    Layout.GetTargetRoot(targetId),
+                    targetRootInspection.FinalPath,
+                    cancellationToken);
+
+                if (Directory.Exists(Layout.GetTargetRoot(targetId)))
+                {
+                    throw new IOException("Target data could not be completely removed.");
+                }
+            }
+            finally
+            {
+                _writeGate.Release();
+            }
+        }
+        finally
+        {
+            _compatibilityStateGate.Release();
         }
     }
 
@@ -444,6 +648,238 @@ public sealed partial class ApplicationDataStore : IDisposable
         await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         stream.Flush(flushToDisk: true);
+    }
+
+    private static async ValueTask<ApplicationStateSnapshots> ReadStateSnapshotsAsync(
+        string directory,
+        string directoryFinalPath,
+        string primaryFileName,
+        string backupFileName,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        var primary = await ReadBoundedStateFileIfPresentAsync(
+            Path.Combine(directory, primaryFileName),
+            directoryFinalPath,
+            primaryFileName,
+            maximumBytes,
+            cancellationToken).ConfigureAwait(false);
+        var backup = await ReadBoundedStateFileIfPresentAsync(
+            Path.Combine(directory, backupFileName),
+            directoryFinalPath,
+            backupFileName,
+            maximumBytes,
+            cancellationToken).ConfigureAwait(false);
+        return new ApplicationStateSnapshots(primary, backup);
+    }
+
+    private static async ValueTask<byte[]?> ReadBoundedStateFileIfPresentAsync(
+        string path,
+        string expectedParentFinalPath,
+        string expectedName,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        if (!TryInspectRegularFileNoFollow(path, out var inspection))
+        {
+            return null;
+        }
+
+        EnsureImmediateFinalChild(
+            inspection.FinalPath,
+            expectedParentFinalPath,
+            expectedName);
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            16 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (stream.Length is <= 0 || stream.Length > maximumBytes)
+        {
+            return new byte[maximumBytes + 1];
+        }
+
+        var content = new byte[checked((int)stream.Length)];
+        await stream.ReadExactlyAsync(content, cancellationToken).ConfigureAwait(false);
+        if (stream.ReadByte() != -1)
+        {
+            return new byte[maximumBytes + 1];
+        }
+
+        return content;
+    }
+
+    private static async ValueTask WriteStateSnapshotCoreAsync(
+        string directory,
+        string directoryFinalPath,
+        string primaryFileName,
+        string backupFileName,
+        ReadOnlyMemory<byte> snapshot,
+        bool preserveExistingBackup,
+        CancellationToken cancellationToken)
+    {
+        var primaryPath = Path.Combine(directory, primaryFileName);
+        var backupPath = Path.Combine(directory, backupFileName);
+        if (TryInspectRegularFileNoFollow(primaryPath, out var primaryInspection))
+        {
+            EnsureImmediateFinalChild(
+                primaryInspection.FinalPath,
+                directoryFinalPath,
+                primaryFileName);
+        }
+
+        if (TryInspectRegularFileNoFollow(backupPath, out var backupInspection))
+        {
+            EnsureImmediateFinalChild(
+                backupInspection.FinalPath,
+                directoryFinalPath,
+                backupFileName);
+        }
+
+        var temporaryFileName = $".{primaryFileName}.{Guid.NewGuid():N}.tmp";
+        var temporaryPath = Path.Combine(directory, temporaryFileName);
+        try
+        {
+            await WriteThroughAsync(
+                temporaryPath,
+                snapshot,
+                cancellationToken).ConfigureAwait(false);
+            var temporaryInspection = InspectRequiredRegularFileNoFollow(temporaryPath);
+            EnsureImmediateFinalChild(
+                temporaryInspection.FinalPath,
+                directoryFinalPath,
+                temporaryFileName);
+
+            if (File.Exists(primaryPath))
+            {
+                File.Replace(
+                    temporaryPath,
+                    primaryPath,
+                    preserveExistingBackup ? null : backupPath,
+                    ignoreMetadataErrors: true);
+            }
+            else
+            {
+                File.Move(temporaryPath, primaryPath);
+            }
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                var temporaryInspection = InspectRequiredRegularFileNoFollow(temporaryPath);
+                EnsureImmediateFinalChild(
+                    temporaryInspection.FinalPath,
+                    directoryFinalPath,
+                    temporaryFileName);
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    private static void DeleteStateSnapshotsCore(
+        string directory,
+        string directoryFinalPath,
+        string primaryFileName,
+        string backupFileName)
+    {
+        var primaryPath = Path.Combine(directory, primaryFileName);
+        var backupPath = Path.Combine(directory, backupFileName);
+        var primaryExists = TryInspectRegularFileNoFollow(
+            primaryPath,
+            out var primaryInspection);
+        if (primaryExists)
+        {
+            EnsureImmediateFinalChild(
+                primaryInspection.FinalPath,
+                directoryFinalPath,
+                primaryFileName);
+        }
+
+        var backupExists = TryInspectRegularFileNoFollow(
+            backupPath,
+            out var backupInspection);
+        if (backupExists)
+        {
+            EnsureImmediateFinalChild(
+                backupInspection.FinalPath,
+                directoryFinalPath,
+                backupFileName);
+        }
+
+        // Delete the older decision first so an interrupted revocation never
+        // resurrects it as an automatic backup recovery.
+        if (backupExists)
+        {
+            File.Delete(backupPath);
+        }
+
+        if (primaryExists)
+        {
+            File.Delete(primaryPath);
+        }
+
+        if (TryInspectPathNoFollow(primaryPath, out _) ||
+            TryInspectPathNoFollow(backupPath, out _))
+        {
+            throw new IOException("Target state files could not be completely removed.");
+        }
+    }
+
+    private static InspectedPath InspectRequiredRegularFileNoFollow(string path)
+    {
+        if (!TryInspectRegularFileNoFollow(path, out var inspection))
+        {
+            throw new ApplicationDataOwnershipException(
+                "Required application data file is missing.");
+        }
+
+        return inspection;
+    }
+
+    private static void ValidateSnapshotArguments(
+        string primaryFileName,
+        string backupFileName,
+        int maximumBytes)
+    {
+        ValidateSnapshotFilePair(primaryFileName, backupFileName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumBytes);
+    }
+
+    private static void ValidateSnapshotFilePair(
+        string primaryFileName,
+        string backupFileName)
+    {
+        ValidateSnapshotFileName(primaryFileName, nameof(primaryFileName));
+        ValidateSnapshotFileName(backupFileName, nameof(backupFileName));
+        if (string.Equals(primaryFileName, backupFileName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Primary and backup state files must be distinct.");
+        }
+    }
+
+    private static void ValidateSnapshotFileName(string fileName, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName, parameterName);
+        if (!string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal) ||
+            fileName is "." or "..")
+        {
+            throw new ArgumentException(
+                "State snapshot file name must be a leaf name.",
+                parameterName);
+        }
+    }
+
+    private static void ValidateSnapshotContent(
+        ReadOnlyMemory<byte> snapshot,
+        int maximumBytes)
+    {
+        if (snapshot.IsEmpty || snapshot.Length > maximumBytes)
+        {
+            throw new InvalidDataException("Application state snapshot size is invalid.");
+        }
     }
 
     private static async ValueTask<byte[]?> ReadBoundedRegularFileIfPresentAsync(
@@ -805,6 +1241,8 @@ public sealed partial class ApplicationDataStore : IDisposable
 }
 
 public sealed record CatalogSnapshots(byte[]? Primary, byte[]? Backup);
+
+internal sealed record ApplicationStateSnapshots(byte[]? Primary, byte[]? Backup);
 
 public sealed class ApplicationDataOwnershipException : InvalidOperationException
 {

@@ -325,6 +325,19 @@ try {
         $verifySummary.source.worktreeState -cne $sourceState.WorktreeState) {
         throw '统一验证摘要未绑定当前 clean 提交。'
     }
+    $governanceSummarySource = Join-Path $verifyDirectory 'webui-governance/webui-governance-summary.json'
+    $compatibilityIdentity = Get-DshWebUiGovernanceIdentity `
+        -RepositoryRoot $repositoryRoot `
+        -SummaryPath $governanceSummarySource `
+        -Constants $constants
+    Assert-DshWebUiCompatibilityIdentity `
+        -Expected $compatibilityIdentity `
+        -Actual $verifySummary.compatibilityIdentity `
+        -RequireGovernanceSummary
+    if ($null -eq $verifySummary.verificationImpact -or
+        @($verifySummary.verificationImpact.requiredRs).Count -eq 0) {
+        throw '统一验证摘要缺少 fail-closed 验证影响证据。'
+    }
 
     $fileVersion = ConvertTo-DshFileVersion -Version $Version
     $desktopProject = Join-Path $repositoryRoot 'src/DshLauncher.Desktop/DshLauncher.Desktop.csproj'
@@ -366,6 +379,7 @@ try {
         throw '内部测试主程序 ProductVersion 不匹配。'
     }
     Assert-Unsigned -Path $applicationExe -Description '内部测试主程序'
+    Assert-Unsigned -Path $applicationDll -Description '内部测试托管主程序集'
 
     $bootstrapperName = 'MicrosoftEdgeWebview2Setup.exe'
     $stagedBootstrapperPath = Join-Path $publishDirectory $bootstrapperName
@@ -407,19 +421,24 @@ try {
     $verifySummaryDestination = Join-Path $releaseDirectory 'verify-summary.json'
     $sbomDestination = Join-Path $releaseDirectory 'sbom.spdx.json'
     $licenseDestination = Join-Path $releaseDirectory 'third-party-licenses.json'
+    $governanceSummaryDestination = Join-Path $releaseDirectory 'webui-governance-summary.json'
     foreach ($evidence in @(
             @{ Source = $verifySummarySource; Destination = $verifySummaryDestination },
             @{ Source = Join-Path $verifyDirectory 'sbom.spdx.json'; Destination = $sbomDestination },
-            @{ Source = Join-Path $verifyDirectory 'third-party-licenses.json'; Destination = $licenseDestination })) {
+            @{ Source = Join-Path $verifyDirectory 'third-party-licenses.json'; Destination = $licenseDestination },
+            @{ Source = $governanceSummarySource; Destination = $governanceSummaryDestination })) {
         if (-not (Test-Path -LiteralPath $evidence.Source -PathType Leaf)) {
             throw '统一验证缺少内部测试包所需证据文件。'
         }
         Copy-Item -LiteralPath $evidence.Source -Destination $evidence.Destination
     }
+    Assert-DshSbomCompatibilityIdentity `
+        -Path $sbomDestination `
+        -CompatibilityIdentity $compatibilityIdentity
 
     $installerHash = Get-DshSha256 -Path $installerPath
     $manifest = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         packageKind = 'internal-test'
         releaseEligible = $false
         signed = $false
@@ -429,6 +448,8 @@ try {
             commit = $sourceState.Commit
             worktreeState = $sourceState.WorktreeState
         }
+        compatibilityIdentity = $compatibilityIdentity
+        verificationImpact = $verifySummary.verificationImpact
         identity = [ordered]@{
             appId = $internalAppId
             productName = $internalProductName
@@ -470,6 +491,7 @@ try {
         }
         evidence = [ordered]@{
             verifySummary = 'verify-summary.json'
+            webUiGovernanceSummary = 'webui-governance-summary.json'
             sbom = 'sbom.spdx.json'
             thirdPartyLicenses = 'third-party-licenses.json'
         }

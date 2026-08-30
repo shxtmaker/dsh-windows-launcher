@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dshwindowslauncher.invalid/webui-contract-capabilities.schema.json",
+  "title": "DSH Windows Launcher WebUI contract capability catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contractVersion",
+    "descriptorSchemaId",
+    "limits",
+    "methodCeilings",
+    "baseCapabilities",
+    "extensionCapabilities",
+    "conditionalCapabilities",
+    "permanentlyForbiddenCapabilities",
+    "globalCspDebt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "contractVersion": {
+      "$ref": "#/$defs/semver"
+    },
+    "descriptorSchemaId": {
+      "type": "string",
+      "const": "https://schemas.dshwindowslauncher.invalid/webui-compatibility-descriptor.schema.json"
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "descriptorBytes",
+        "descriptorComponents",
+        "jsonDepth"
+      ],
+      "properties": {
+        "descriptorBytes": {
+          "type": "integer",
+          "const": 65536
+        },
+        "descriptorComponents": {
+          "type": "integer",
+          "const": 64
+        },
+        "jsonDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        }
+      }
+    },
+    "methodCeilings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "passiveResource",
+        "reviewedApi"
+      ],
+      "properties": {
+        "passiveResource": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "GET",
+              "HEAD"
+            ]
+          }
+        },
+        "reviewedApi": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "GET",
+              "POST",
+              "OPTIONS"
+            ]
+          }
+        }
+      }
+    },
+    "baseCapabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/baseCapability"
+      }
+    },
+    "extensionCapabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/extensionCapability"
+      }
+    },
+    "conditionalCapabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/conditionalCapability"
+      }
+    },
+    "permanentlyForbiddenCapabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/capabilityId"
+      }
+    },
+    "globalCspDebt": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/cspDebt"
+      }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "capabilityId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "baseCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilityId",
+        "description"
+      ],
+      "properties": {
+        "capabilityId": {
+          "$ref": "#/$defs/capabilityId"
+        },
+        "description": {
+          "$ref": "#/$defs/description"
+        }
+      }
+    },
+    "conditionalCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilityId",
+        "status",
+        "requiredEvidence"
+      ],
+      "properties": {
+        "capabilityId": {
+          "$ref": "#/$defs/capabilityId"
+        },
+        "status": {
+          "const": "not-authorized"
+        },
+        "requiredEvidence": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "minimum-runtime",
+              "evergreen-runtime",
+              "same-endpoint-edge",
+              "negative-arrival-count",
+              "recovery",
+              "signed-candidate"
+            ]
+          }
+        }
+      }
+    },
+    "extensionCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilityId",
+        "description",
+        "methodCeiling",
+        "resourceTypes",
+        "mainDocumentScriptAllowed"
+      ],
+      "properties": {
+        "capabilityId": {
+          "$ref": "#/$defs/capabilityId"
+        },
+        "description": {
+          "$ref": "#/$defs/description"
+        },
+        "methodCeiling": {
+          "enum": [
+            "passiveResource",
+            "reviewedApi"
+          ]
+        },
+        "resourceTypes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "document",
+              "frame",
+              "stylesheet",
+              "image",
+              "media",
+              "font",
+              "script",
+              "fetch",
+              "xhr"
+            ]
+          }
+        },
+        "mainDocumentScriptAllowed": {
+          "const": false
+        }
+      }
+    },
+    "cspDebt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilityId",
+        "status",
+        "description"
+      ],
+      "properties": {
+        "capabilityId": {
+          "$ref": "#/$defs/capabilityId"
+        },
+        "status": {
+          "const": "blocked-pending-evidence"
+        },
+        "description": {
+          "$ref": "#/$defs/description"
+        }
+      }
+    }
+  }
+}

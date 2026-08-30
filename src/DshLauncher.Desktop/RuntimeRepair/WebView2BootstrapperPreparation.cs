@@ -20,6 +20,13 @@ internal readonly record struct WebView2AuthenticodeEvidence(
     bool IsMicrosoftSigner,
     bool HasTrustedTimestamp);
 
+internal readonly record struct AuthenticodeSignerEvidence(
+    bool IsSignatureValid,
+    string? Subject,
+    string? SimpleName,
+    string? Thumbprint,
+    bool HasTrustedTimestamp);
+
 internal interface IWebView2AuthenticodeVerifier
 {
     WebView2AuthenticodeEvidence Inspect(

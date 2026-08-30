@@ -94,6 +94,28 @@ public sealed class ApplicationDataStoreTests : IAsyncLifetime
                 "54f02e802c9244d88f7fb0fc118c93fa"),
             targetRoot);
         Assert.Equal(Path.Combine(targetRoot, "udf"), layout.GetUdfPath(targetId));
+        Assert.Equal(
+            Path.Combine(targetRoot, "external-capability-confirmation.json"),
+            layout.GetExternalCapabilityConfirmationPath(targetId));
+        Assert.Equal(
+            Path.Combine(targetRoot, "external-capability-confirmation.json.bak"),
+            layout.GetExternalCapabilityConfirmationBackupPath(targetId));
+        Assert.Equal(
+            Path.Combine(targetRoot, "compatibility-diagnostic.json"),
+            layout.GetCompatibilityDiagnosticPath(targetId));
+        Assert.Equal(
+            Path.Combine(targetRoot, "compatibility-diagnostic.json.bak"),
+            layout.GetCompatibilityDiagnosticBackupPath(targetId));
+        Assert.Equal(
+            Path.Combine(
+                Path.GetFullPath(_testRoot),
+                "compatibility-registry-watermark.json"),
+            layout.RegistryWatermarkPath);
+        Assert.Equal(
+            Path.Combine(
+                Path.GetFullPath(_testRoot),
+                "compatibility-registry-watermark.json.bak"),
+            layout.RegistryWatermarkBackupPath);
     }
 
     [Fact]

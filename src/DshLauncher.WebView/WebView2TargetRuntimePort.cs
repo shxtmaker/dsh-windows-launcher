@@ -719,6 +719,8 @@ internal sealed class WebView2TargetBrowserSession : ITargetBrowserSession
                 PairingDiagnosticOutcome.Started).ConfigureAwait(true);
             await webView.EnsureCoreWebView2Async(environment)
                 .ConfigureAwait(true);
+            await WebView2PersistentContentBoundary.ClearProhibitedDataAsync(
+                webView.CoreWebView2).ConfigureAwait(true);
             await ReportPairingAsync(
                 pairingDiagnostics,
                 PairingDiagnosticStage.BrowserControllerInitialize,
@@ -877,6 +879,25 @@ internal sealed class WebView2TargetBrowserSession : ITargetBrowserSession
         CancellationToken cancellationToken)
     {
         _dispatcher.VerifyAccess();
+        await ReportPairingAsync(
+            PairingDiagnosticStage.ResponseCspBoundary,
+            PairingDiagnosticOutcome.Started).ConfigureAwait(true);
+        try
+        {
+            await EnsureResponseCspBoundaryAsync().ConfigureAwait(true);
+            await ReportPairingAsync(
+                PairingDiagnosticStage.ResponseCspBoundary,
+                PairingDiagnosticOutcome.Succeeded).ConfigureAwait(true);
+        }
+        catch
+        {
+            await ReportPairingAsync(
+                PairingDiagnosticStage.ResponseCspBoundary,
+                PairingDiagnosticOutcome.Failed,
+                PairingFailureCategory.BrowserInitialization).ConfigureAwait(true);
+            throw;
+        }
+
         var tokenUrl = CreateTokenUrl(encodedToken.Span);
         int? tokenStatus = null;
         await ReportPairingAsync(
@@ -969,25 +990,6 @@ internal sealed class WebView2TargetBrowserSession : ITargetBrowserSession
                 tokenStatus,
                 NotAttempted(),
                 NotAttempted());
-        }
-
-        await ReportPairingAsync(
-            PairingDiagnosticStage.ResponseCspBoundary,
-            PairingDiagnosticOutcome.Started).ConfigureAwait(true);
-        try
-        {
-            await EnsureResponseCspBoundaryAsync().ConfigureAwait(true);
-            await ReportPairingAsync(
-                PairingDiagnosticStage.ResponseCspBoundary,
-                PairingDiagnosticOutcome.Succeeded).ConfigureAwait(true);
-        }
-        catch
-        {
-            await ReportPairingAsync(
-                PairingDiagnosticStage.ResponseCspBoundary,
-                PairingDiagnosticOutcome.Failed,
-                PairingFailureCategory.BrowserInitialization).ConfigureAwait(true);
-            throw;
         }
 
         var root = await ObservePairingNavigationStageAsync(
@@ -1255,7 +1257,9 @@ internal sealed class WebView2TargetBrowserSession : ITargetBrowserSession
             _context.UserDataFolder);
         _responseCspBoundary = await WebView2ResponseCspBoundary.EnableAsync(
             _webView.CoreWebView2,
-            binding).ConfigureAwait(true);
+            binding,
+            TargetResponseCspPolicy.CreateTransientPolicy(binding))
+            .ConfigureAwait(true);
     }
 
     private void SubscribeSecurity(CoreWebView2 core)

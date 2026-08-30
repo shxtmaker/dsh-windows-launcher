@@ -169,18 +169,23 @@
           "xunit.v3.runner.common": "[4.0.0]"
         }
       },
+      "dshlauncher.compatibility": {
+        "type": "Project"
+      },
       "dshlauncher.core": {
         "type": "Project"
       },
       "dshlauncher.platform.windows": {
         "type": "Project",
         "dependencies": {
+          "DshLauncher.Compatibility": "[1.0.0, )",
           "DshLauncher.Core": "[1.0.0, )"
         }
       },
       "dshlauncher.webview": {
         "type": "Project",
         "dependencies": {
+          "DshLauncher.Compatibility": "[1.0.0, )",
           "DshLauncher.Core": "[1.0.0, )",
           "Microsoft.Web.WebView2": "[1.0.4129.50, )"
         }
@@ -188,6 +193,7 @@
       "DshWindowsLauncher": {
         "type": "Project",
         "dependencies": {
+          "DshLauncher.Compatibility": "[1.0.0, )",
           "DshLauncher.Core": "[1.0.0, )",
           "DshLauncher.Platform.Windows": "[1.0.0, )",
           "DshLauncher.WebView": "[1.0.0, )"

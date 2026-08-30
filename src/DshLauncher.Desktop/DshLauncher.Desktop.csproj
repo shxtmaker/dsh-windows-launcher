@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../DshLauncher.Compatibility/DshLauncher.Compatibility.csproj" />
     <ProjectReference Include="../DshLauncher.Core/DshLauncher.Core.csproj" />
     <ProjectReference Include="../DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
     <ProjectReference Include="../DshLauncher.WebView/DshLauncher.WebView.csproj" />
@@ -21,6 +22,10 @@
   <ItemGroup>
     <EmbeddedResource Include="../../eng/release-constants.json"
                       LogicalName="DshLauncher.Desktop.ReleaseConstants.json" />
+    <EmbeddedResource Include="../../compatibility/contracts/webui-contract-capabilities.json"
+                      LogicalName="DshLauncher.Desktop.WebUiContractCapabilities.json" />
+    <EmbeddedResource Include="../../compatibility/registry/webui-adapter-registry.json"
+                      LogicalName="DshLauncher.Desktop.WebUiAdapterRegistry.json" />
   </ItemGroup>
 
   <Target Name="RenameInternalTestBuildAppHost"

@@ -1,3 +1,5 @@
+using DshLauncher.Compatibility;
+
 namespace DshLauncher.WebView;
 
 public interface ITargetContentHost : IAsyncDisposable
@@ -8,11 +10,16 @@ public interface ITargetContentHost : IAsyncDisposable
 
     TargetContentFailure? Failure { get; }
 
+    CompatibilityStatusDto? CompatibilityStatus { get; }
+
     event EventHandler<TargetContentStateChangedEventArgs>? StateChanged;
 
     ValueTask OpenAsync(CancellationToken cancellationToken = default);
 
     ValueTask ReloadAsync(CancellationToken cancellationToken = default);
+
+    ValueTask SuspendPageCapabilitiesAsync(
+        CancellationToken cancellationToken = default);
 
     ValueTask CloseAsync(CancellationToken cancellationToken = default);
 }
@@ -21,13 +28,19 @@ public interface ITargetContentRuntime : IAsyncDisposable
 {
     ValueTask InitializeAsync(
         TargetContentBinding binding,
-        TargetContentSecurityPolicy policy,
         Func<TargetRuntimeSignal, CancellationToken, ValueTask> signalSink,
         CancellationToken cancellationToken);
 
-    ValueTask NavigateToRootAsync(CancellationToken cancellationToken);
+    ValueTask<BoundedDescriptorResponse> BeginPageCapabilityCycleAsync(
+        CancellationToken cancellationToken);
 
-    ValueTask ReloadAsync(CancellationToken cancellationToken);
+    ValueTask SuspendPageCapabilitiesAsync(CancellationToken cancellationToken);
+
+    ValueTask ActivatePageCapabilityAsync(
+        PageCapabilitySnapshot snapshot,
+        CancellationToken cancellationToken);
+
+    ValueTask NavigateToRootAsync(CancellationToken cancellationToken);
 
     ValueTask RecreateWebViewAsync(CancellationToken cancellationToken);
 
@@ -42,10 +55,12 @@ public sealed class TargetContentHost : ITargetContentHost
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _signalGate = new(1, 1);
     private readonly ITargetContentRuntime _runtime;
-    private readonly TargetContentSecurityPolicy _securityPolicy;
+    private readonly IPageCapabilityResolver _resolver;
+    private readonly IExternalCapabilityConfirmationPort _confirmation;
     private readonly TargetContentRecoveryPolicy _recoveryPolicy;
     private TargetContentState _state = TargetContentState.Created;
     private TargetContentFailure? _failure;
+    private CompatibilityStatusDto? _compatibilityStatus;
     private int _rendererFailureCount;
     private int _browserFailureCount;
     private int _disposed;
@@ -53,11 +68,14 @@ public sealed class TargetContentHost : ITargetContentHost
     public TargetContentHost(
         TargetContentBinding binding,
         ITargetContentRuntime runtime,
+        IPageCapabilityResolver resolver,
+        IExternalCapabilityConfirmationPort confirmation,
         TargetContentRecoveryPolicy? recoveryPolicy = null)
     {
         Binding = binding ?? throw new ArgumentNullException(nameof(binding));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
-        _securityPolicy = new TargetContentSecurityPolicy(binding);
+        _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
+        _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _recoveryPolicy = recoveryPolicy ?? TargetContentRecoveryPolicy.Default;
     }
 
@@ -81,6 +99,17 @@ public sealed class TargetContentHost : ITargetContentHost
             lock (_stateLock)
             {
                 return _failure;
+            }
+        }
+    }
+
+    public CompatibilityStatusDto? CompatibilityStatus
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _compatibilityStatus;
             }
         }
     }
@@ -110,12 +139,11 @@ public sealed class TargetContentHost : ITargetContentHost
             {
                 await _runtime.InitializeAsync(
                     Binding,
-                    _securityPolicy,
                     HandleRuntimeSignalAsync,
                     cancellationToken).ConfigureAwait(false);
 
                 PublishState(TargetContentState.Loading);
-                await _runtime.NavigateToRootAsync(cancellationToken)
+                await RunPageCapabilityCycleAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -150,7 +178,8 @@ public sealed class TargetContentHost : ITargetContentHost
             PublishState(TargetContentState.Loading);
             try
             {
-                await _runtime.ReloadAsync(cancellationToken).ConfigureAwait(false);
+                await RunPageCapabilityCycleAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -160,6 +189,29 @@ public sealed class TargetContentHost : ITargetContentHost
             {
                 PublishFailure(TargetContentFailureKind.Navigation);
             }
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    public async ValueTask SuspendPageCapabilitiesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (State is TargetContentState.Created or TargetContentState.Closed)
+            {
+                throw new InvalidOperationException(
+                    "Only an opened target content host can be suspended.");
+            }
+
+            PublishState(TargetContentState.Loading);
+            await _runtime.SuspendPageCapabilitiesAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -224,6 +276,7 @@ public sealed class TargetContentHost : ITargetContentHost
         CancellationToken cancellationToken)
     {
         TargetRecoveryAction? recoveryAction = null;
+        var pageCapabilityCycleRequested = false;
 
         await _signalGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -261,6 +314,10 @@ public sealed class TargetContentHost : ITargetContentHost
                 case TargetRuntimeSignalKind.AuthenticationInvalid:
                     PublishFailure(TargetContentFailureKind.Authentication);
                     break;
+                case TargetRuntimeSignalKind.PageCapabilityCycleRequested:
+                    PublishState(TargetContentState.Loading);
+                    pageCapabilityCycleRequested = true;
+                    break;
                 case TargetRuntimeSignalKind.ProcessFailed:
                     recoveryAction = PlanRecovery(signal.ProcessFailureKind);
                     break;
@@ -276,10 +333,65 @@ public sealed class TargetContentHost : ITargetContentHost
 
         if (recoveryAction is not null)
         {
-            await ExecuteRecoveryAsync(
+            await ExecuteRecoverySerializedAsync(
                 recoveryAction.Value,
                 signal.ProcessFailureKind,
                 cancellationToken).ConfigureAwait(false);
+        }
+        else if (pageCapabilityCycleRequested)
+        {
+            await ExecutePageCapabilityCycleSerializedAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask ExecutePageCapabilityCycleSerializedAsync(
+        CancellationToken cancellationToken)
+    {
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (State == TargetContentState.Closed)
+            {
+                return;
+            }
+
+            await RunPageCapabilityCycleAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            PublishFailure(TargetContentFailureKind.Navigation);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    private async ValueTask ExecuteRecoverySerializedAsync(
+        TargetRecoveryAction action,
+        TargetProcessFailureKind failureKind,
+        CancellationToken cancellationToken)
+    {
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (State == TargetContentState.Closed)
+            {
+                return;
+            }
+
+            await ExecuteRecoveryAsync(action, failureKind, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
         }
     }
 
@@ -318,15 +430,19 @@ public sealed class TargetContentHost : ITargetContentHost
             switch (action)
             {
                 case TargetRecoveryAction.Reload:
-                    await _runtime.ReloadAsync(cancellationToken)
+                    await RunPageCapabilityCycleAsync(cancellationToken)
                         .ConfigureAwait(false);
                     break;
                 case TargetRecoveryAction.RecreateWebView:
                     await _runtime.RecreateWebViewAsync(cancellationToken)
                         .ConfigureAwait(false);
+                    await RunPageCapabilityCycleAsync(cancellationToken)
+                        .ConfigureAwait(false);
                     break;
                 case TargetRecoveryAction.RecreateEnvironment:
                     await _runtime.RecreateEnvironmentAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    await RunPageCapabilityCycleAsync(cancellationToken)
                         .ConfigureAwait(false);
                     break;
                 default:
@@ -351,14 +467,96 @@ public sealed class TargetContentHost : ITargetContentHost
             new TargetContentFailure(kind));
     }
 
+    private async ValueTask RunPageCapabilityCycleAsync(
+        CancellationToken cancellationToken)
+    {
+        var descriptor = await _runtime.BeginPageCapabilityCycleAsync(
+            cancellationToken).ConfigureAwait(false);
+        var resolution = _resolver.Resolve(Binding.TargetId, descriptor);
+        var effectiveSnapshot = resolution.Snapshot;
+        var effectiveLevel = resolution.Level;
+        var reasons = resolution.Reasons.ToList();
+        var candidateUses = resolution.Snapshot.ExtensionCapabilities
+            .Where(static grant => grant.Origin is not null)
+            .Select(static grant => new ExternalCapabilityUse(
+                new Uri(grant.Origin!, UriKind.Absolute)
+                    .GetLeftPart(UriPartial.Authority),
+                grant.Purpose,
+                grant.Kind))
+            .Distinct()
+            .ToArray();
+
+        if (resolution.Level == CompatibilityLevel.Extended &&
+            candidateUses.Length > 0)
+        {
+            ExternalCapabilityDecision decision;
+            try
+            {
+                decision = await _confirmation.ConfirmAsync(
+                    new ExternalCapabilityConfirmationRequest(
+                        Binding.TargetId,
+                        resolution.Snapshot.Sha256,
+                        candidateUses),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                decision = ExternalCapabilityDecision.Rejected;
+                reasons.Add(
+                    CompatibilityReasonCode.ExternalCapabilityConfirmationFailed);
+            }
+
+            if (decision != ExternalCapabilityDecision.Accepted)
+            {
+                effectiveSnapshot = resolution.BaseSnapshot;
+                effectiveLevel = CompatibilityLevel.Base;
+                reasons.Add(decision == ExternalCapabilityDecision.RegistryRollbackBlocked
+                    ? CompatibilityReasonCode.RegistryRollbackBlocked
+                    : CompatibilityReasonCode.ExternalCapabilityRejected);
+            }
+        }
+
+        await _runtime.ActivatePageCapabilityAsync(
+            effectiveSnapshot,
+            cancellationToken).ConfigureAwait(false);
+        PublishCompatibility(new CompatibilityStatusDto(
+            effectiveLevel,
+            reasons.LastOrDefault(resolution.PrimaryReason),
+            reasons,
+            effectiveSnapshot.ContractVersion,
+            resolution.DescriptorIdentity?.SchemaVersion ?? 1,
+            effectiveSnapshot.RegistryVersion,
+            effectiveSnapshot.Sha256,
+            candidateUses.Select(static use => use.Purpose),
+            effectiveSnapshot.MatchedRules.Select(static rule =>
+                $"{rule.RuleId}@{rule.RuleVersion}")));
+        await _runtime.NavigateToRootAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private void PublishCompatibility(CompatibilityStatusDto status)
+    {
+        lock (_stateLock)
+        {
+            _compatibilityStatus = status;
+        }
+
+        PublishState(State, Failure, force: true);
+    }
+
     private void PublishState(
         TargetContentState next,
-        TargetContentFailure? failure = null)
+        TargetContentFailure? failure = null,
+        bool force = false)
     {
         EventHandler<TargetContentStateChangedEventArgs>? handler;
         lock (_stateLock)
         {
-            if (_state == next && Equals(_failure, failure))
+            if (!force && _state == next && Equals(_failure, failure))
             {
                 return;
             }
@@ -373,7 +571,10 @@ public sealed class TargetContentHost : ITargetContentHost
             return;
         }
 
-        var args = new TargetContentStateChangedEventArgs(next, failure);
+        var args = new TargetContentStateChangedEventArgs(
+            next,
+            failure,
+            CompatibilityStatus);
         foreach (EventHandler<TargetContentStateChangedEventArgs> subscriber in
                  handler.GetInvocationList())
         {
@@ -443,15 +644,19 @@ public sealed class TargetContentStateChangedEventArgs : EventArgs
 {
     public TargetContentStateChangedEventArgs(
         TargetContentState state,
-        TargetContentFailure? failure)
+        TargetContentFailure? failure,
+        CompatibilityStatusDto? compatibilityStatus)
     {
         State = state;
         Failure = failure;
+        CompatibilityStatus = compatibilityStatus;
     }
 
     public TargetContentState State { get; }
 
     public TargetContentFailure? Failure { get; }
+
+    public CompatibilityStatusDto? CompatibilityStatus { get; }
 }
 
 public sealed record TargetRuntimeSignal(
@@ -476,6 +681,11 @@ public sealed record TargetRuntimeSignal(
     public static TargetRuntimeSignal AuthenticationInvalid() =>
         new(TargetRuntimeSignalKind.AuthenticationInvalid, TargetProcessFailureKind.Other);
 
+    public static TargetRuntimeSignal PageCapabilityCycleRequested() =>
+        new(
+            TargetRuntimeSignalKind.PageCapabilityCycleRequested,
+            TargetProcessFailureKind.Other);
+
     public static TargetRuntimeSignal RendererFailed() =>
         new(TargetRuntimeSignalKind.ProcessFailed, TargetProcessFailureKind.Renderer);
 
@@ -494,5 +704,6 @@ public enum TargetRuntimeSignalKind
     DownloadBlocked,
     NavigationFailed,
     AuthenticationInvalid,
+    PageCapabilityCycleRequested,
     ProcessFailed
 }

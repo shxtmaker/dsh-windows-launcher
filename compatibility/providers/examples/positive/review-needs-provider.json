@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "decisionId": "org.example.decision-one",
+  "intakeIdentity": {
+    "intakeId": "org.example.intake-one",
+    "intakeRevision": 1,
+    "canonicalSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "reviewUnitId": "org.example.review-unit-one",
+  "ruleCandidateSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+  "contractVersion": "1.0.0",
+  "descriptorSchemaSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+  "globalCeilingResult": "undetermined",
+  "spoofingAnalysisRef": "analysis.spoofing-one",
+  "requiredGates": [
+    "VFY-06",
+    "VFY-08",
+    "provider-suite"
+  ],
+  "risks": [
+    "Provider evidence is incomplete."
+  ],
+  "reasonCodes": [
+    "INCOMPLETE_IDENTITY"
+  ],
+  "decision": "NeedsProvider",
+  "windowsCompatibilityMaintainer": {
+    "reviewerRef": "role.windows-compatibility-maintainer",
+    "result": "needs-information"
+  },
+  "securityMaintainer": {
+    "reviewerRef": "role.security-maintainer",
+    "result": "needs-information"
+  },
+  "decidedAt": "2026-08-31T00:00:00Z"
+}

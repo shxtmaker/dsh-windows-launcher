@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "1.0.0",
+  "components": [
+    {
+      "uiId": "org.example.webui",
+      "uiVersion": "1.0.0",
+      "adapterKeys": [
+        "example.catalog"
+      ],
+      "externalOrigins": [
+        "https://not-authorized.example:443"
+      ]
+    }
+  ]
+}

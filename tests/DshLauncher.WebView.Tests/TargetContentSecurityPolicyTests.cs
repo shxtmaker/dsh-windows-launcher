@@ -6,15 +6,10 @@ namespace DshLauncher.WebView.Tests;
 [Trait("triggerTags", "VFY-06,third-party-ui")]
 public sealed class TargetContentSecurityPolicyTests
 {
-    private static readonly Guid TargetId =
-        Guid.Parse("54f02e80-2c92-44d8-8f7f-b0fc118c93fa");
-
     [Fact]
     public void SameOriginRoutesRemainInsideTheTargetContentHost()
     {
-        var policy = CreatePolicy();
-
-        var decision = policy.EvaluateNavigation(
+        var decision = CreateBasePolicy().EvaluateNavigation(
             new Uri("http://192.168.10.20:3080/session/42?view=chat"),
             isUserInitiated: false);
 
@@ -29,9 +24,7 @@ public sealed class TargetContentSecurityPolicyTests
     public void ExactOriginChangesNeverNavigateInsideTheTargetContentHost(
         string destination)
     {
-        var policy = CreatePolicy();
-
-        var decision = policy.EvaluateNavigation(
+        var decision = CreateBasePolicy().EvaluateNavigation(
             new Uri(destination),
             isUserInitiated: false);
 
@@ -39,69 +32,95 @@ public sealed class TargetContentSecurityPolicyTests
     }
 
     [Theory]
-    [InlineData("http://192.168.10.20:3080/assets/app.js", TargetContentResourceKind.Script, true)]
-    [InlineData("http://192.168.10.20:3080/api/session", TargetContentResourceKind.Fetch, true)]
-    [InlineData("ws://192.168.10.20:3080/sidebar/ws/terminal", TargetContentResourceKind.Websocket, true)]
-    [InlineData("ws://192.168.10.20:3180/sidebar/ws/terminal", TargetContentResourceKind.Websocket, false)]
-    [InlineData("ws://192.168.10.21:3080/sidebar/ws/terminal", TargetContentResourceKind.Websocket, false)]
-    [InlineData("wss://192.168.10.20:3080/sidebar/ws/terminal", TargetContentResourceKind.Websocket, false)]
-    [InlineData("https://dsh-market.com/manifest/skins.json", TargetContentResourceKind.Fetch, true)]
-    [InlineData("https://dsh-market.com/assets/skin.webp", TargetContentResourceKind.Image, true)]
-    [InlineData("https://challenges.cloudflare.com/turnstile/v0/api.js", TargetContentResourceKind.Script, true)]
-    [InlineData("https://challenges.cloudflare.com/cdn-cgi/challenge-platform/style.css", TargetContentResourceKind.Stylesheet, true)]
-    [InlineData("data:image/svg+xml,%3Csvg%3E%3C/svg%3E", TargetContentResourceKind.Image, true)]
-    [InlineData("blob:http://192.168.10.20:3080/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", TargetContentResourceKind.Media, true)]
-    [InlineData("ws://192.168.10.20:3080/sidebar/ws/terminal", TargetContentResourceKind.Fetch, false)]
-    [InlineData("https://dsh-market.com/manifest/skins.json", TargetContentResourceKind.Script, false)]
-    [InlineData("https://dsh-market.com/app.js", TargetContentResourceKind.Script, false)]
-    [InlineData("https://dsh-market.com/.webmcp/bridge.js", TargetContentResourceKind.Script, false)]
-    [InlineData("https://dsh-market.com/cdn-cgi/challenge-platform/scripts/jsd/main.js", TargetContentResourceKind.Script, false)]
-    [InlineData("https://dsh-market.com/mcp", TargetContentResourceKind.Fetch, false)]
-    [InlineData("https://dsh-market.com/.webmcp/rpc/call", TargetContentResourceKind.Fetch, false)]
-    [InlineData("https://challenges.cloudflare.com/arbitrary.js", TargetContentResourceKind.Script, false)]
-    [InlineData("https://challenges.cloudflare.com/arbitrary.css", TargetContentResourceKind.Stylesheet, false)]
-    [InlineData("data:text/javascript,alert(1)", TargetContentResourceKind.Script, false)]
-    [InlineData("http://192.168.10.20:3180/assets/app.js", TargetContentResourceKind.Script, false)]
-    [InlineData("http://192.168.10.21:3080/assets/app.js", TargetContentResourceKind.Script, false)]
-    [InlineData("https://192.168.10.20:3080/assets/app.js", TargetContentResourceKind.Script, false)]
-    [InlineData("https://cdn.example.com/app.js", TargetContentResourceKind.Script, false)]
-    [InlineData("https://qt.gtimg.cn/q=sh000001", TargetContentResourceKind.Script, false)]
-    [InlineData("blob:https://example.com/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", TargetContentResourceKind.Media, false)]
-    [InlineData("file:///C:/Windows/win.ini", TargetContentResourceKind.Other, false)]
-    public void SubresourcesUseTheDshWebCompatibilityAllowlist(
+    [InlineData("http://192.168.10.20:3080/assets/app.js", TargetContentResourceKind.Script, "GET", true)]
+    [InlineData("http://192.168.10.20:3080/api/session", TargetContentResourceKind.Fetch, "POST", true)]
+    [InlineData("ws://192.168.10.20:3080/socket", TargetContentResourceKind.Websocket, "GET", false)]
+    [InlineData("data:image/png;base64,AA==", TargetContentResourceKind.Image, "GET", true)]
+    [InlineData("data:text/javascript,alert(1)", TargetContentResourceKind.Script, "GET", false)]
+    [InlineData("blob:http://192.168.10.20:3080/id", TargetContentResourceKind.Image, "GET", true)]
+    [InlineData("blob:http://192.168.10.20:3080/id", TargetContentResourceKind.Media, "GET", true)]
+    [InlineData("blob:http://192.168.10.20:3080/id", TargetContentResourceKind.Fetch, "GET", true)]
+    [InlineData("blob:http://192.168.10.20:3080/id", TargetContentResourceKind.Script, "GET", false)]
+    [InlineData("blob:https://example.com/id", TargetContentResourceKind.Media, "GET", false)]
+    [InlineData("file:///C:/Windows/win.ini", TargetContentResourceKind.Other, "GET", false)]
+    public void BaseSnapshotEnforcesOnlyContractCapabilities(
         string resource,
         TargetContentResourceKind resourceKind,
+        string method,
         bool expected)
     {
         Assert.Equal(
             expected,
-            CreatePolicy().AllowsResource(
+            CreateBasePolicy().AllowsResource(
                 new Uri(resource),
-                resourceKind));
+                resourceKind,
+                method));
+    }
+
+    [Theory]
+    [InlineData("https://assets.example/theme/main.css", TargetContentResourceKind.Stylesheet, "GET", true)]
+    [InlineData("https://assets.example/theme/icon.png", TargetContentResourceKind.Image, "HEAD", true)]
+    [InlineData("https://assets.example/theme", TargetContentResourceKind.Image, "GET", false)]
+    [InlineData("https://assets.example/theme2/icon.png", TargetContentResourceKind.Image, "GET", false)]
+    [InlineData("https://assets.example/theme/%252e%252e/secret", TargetContentResourceKind.Image, "GET", false)]
+    [InlineData("https://assets.example/theme/app.js", TargetContentResourceKind.Script, "GET", false)]
+    [InlineData("https://assets.example/theme/icon.png", TargetContentResourceKind.Image, "POST", false)]
+    [InlineData("https://api.example/v1/items", TargetContentResourceKind.Fetch, "POST", true)]
+    [InlineData("https://api.example/v1/items", TargetContentResourceKind.XmlHttpRequest, "OPTIONS", true)]
+    [InlineData("https://api.example/v1/items?cursor=1&mode=full", TargetContentResourceKind.Fetch, "GET", true)]
+    [InlineData("https://api.example/v1/items?unknown=1", TargetContentResourceKind.Fetch, "GET", false)]
+    [InlineData("https://api.example/v1/items?cursor=1&cursor=2", TargetContentResourceKind.Fetch, "GET", false)]
+    [InlineData("https://api.example/v1/items?cursor", TargetContentResourceKind.Fetch, "GET", false)]
+    [InlineData("https://api.example/v1/items?%63ursor=1", TargetContentResourceKind.Fetch, "GET", false)]
+    [InlineData("https://api.example/v1/items#fragment", TargetContentResourceKind.Fetch, "GET", false)]
+    [InlineData("https://api.example/v2/items", TargetContentResourceKind.Fetch, "GET", false)]
+    [InlineData("https://assets.example/theme/icon.png?size=2", TargetContentResourceKind.Image, "GET", false)]
+    [InlineData("https://frame.example/challenge", TargetContentResourceKind.Document, "GET", true)]
+    public void ExtendedSnapshotEnforcesExactOriginPathMethodAndResourceKind(
+        string resource,
+        TargetContentResourceKind resourceKind,
+        string method,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CreateExtendedPolicy().AllowsResource(
+                new Uri(resource),
+                resourceKind,
+                method));
     }
 
     [Theory]
     [InlineData("about:blank", true)]
     [InlineData("about:srcdoc", false)]
-    [InlineData("http://192.168.10.20:3080/api/skin-center/we/web/token/", true)]
-    [InlineData("http://192.168.10.20:3080/api/skin-center/we/scene-runtime/token", true)]
-    [InlineData("http://192.168.10.20:3080/sidebar/html/token", true)]
-    [InlineData("blob:http://192.168.10.20:3080/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", true)]
-    [InlineData("http://192.168.10.20:3080/api/session", false)]
-    [InlineData("https://dsh-market.com/api/turnstile/challenge", true)]
-    [InlineData("https://dsh-market.com/preview.html", false)]
-    [InlineData("https://challenges.cloudflare.com/turnstile/v0/", true)]
-    [InlineData("https://challenges.cloudflare.com/cdn-cgi/challenge-platform/frame", true)]
-    [InlineData("https://challenges.cloudflare.com/arbitrary", false)]
+    [InlineData("http://192.168.10.20:3080/frame", true)]
+    [InlineData("https://frame.example/challenge", true)]
+    [InlineData("https://frame.example/challenge/child", false)]
     [InlineData("https://example.com/", false)]
-    [InlineData("blob:https://example.com/0d5d28f2-8081-4203-a80f-25a8f51ebaf5", false)]
-    public void FramesUseTheDshWebCompatibilityAllowlist(
+    public void FramesConsumeOnlyTheActivatedSnapshot(
         string destination,
         bool expected)
     {
         Assert.Equal(
             expected,
-            CreatePolicy().AllowsFrameNavigation(new Uri(destination)));
+            CreateExtendedPolicy().AllowsFrameNavigation(new Uri(destination)));
+    }
+
+    [Theory]
+    [InlineData("http://192.168.10.20:3080/", "https://frame.example/challenge", true)]
+    [InlineData("https://outer.example/", "https://frame.example/challenge", false)]
+    [InlineData("https://outer.example/", "http://192.168.10.20:3080/frame", false)]
+    [InlineData("https://outer.example/", "about:blank", false)]
+    public void FrameGrantsRequireTheActualCommittedParentOrigin(
+        string parent,
+        string destination,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CreateExtendedPolicy().AllowsFrameNavigation(
+                new Uri(destination),
+                new Uri(parent)));
     }
 
     [Theory]
@@ -111,9 +130,7 @@ public sealed class TargetContentSecurityPolicyTests
         string destination,
         TargetExternalNavigationKind expectedKind)
     {
-        var policy = CreatePolicy();
-
-        var decision = policy.EvaluateNavigation(
+        var decision = CreateBasePolicy().EvaluateNavigation(
             new Uri(destination),
             isUserInitiated: true);
 
@@ -133,9 +150,7 @@ public sealed class TargetContentSecurityPolicyTests
     public void NonUserInitiatedOrUnsupportedDestinationsAreBlocked(
         string destination)
     {
-        var policy = CreatePolicy();
-
-        var decision = policy.EvaluateNavigation(
+        var decision = CreateBasePolicy().EvaluateNavigation(
             new Uri(destination),
             isUserInitiated: false);
 
@@ -143,9 +158,9 @@ public sealed class TargetContentSecurityPolicyTests
     }
 
     [Fact]
-    public void PublishedRuntimePolicyDeniesEveryNativeCapability()
+    public void RuntimePolicyComesFromTheBaseCapabilitySnapshot()
     {
-        var runtime = CreatePolicy().RuntimePolicy;
+        var runtime = CreateBasePolicy().RuntimePolicy;
 
         Assert.False(runtime.AllowDownloads);
         Assert.False(runtime.AllowPermissions);
@@ -164,7 +179,7 @@ public sealed class TargetContentSecurityPolicyTests
     public void TargetBindingRequiresAStableAbsoluteUserDataFolder()
     {
         Assert.Throws<ArgumentException>(() => new TargetContentBinding(
-            TargetId,
+            WebViewCompatibilityFixture.TargetId,
             new Uri("http://192.168.10.20:3080/"),
             "relative\\udf"));
     }
@@ -176,18 +191,16 @@ public sealed class TargetContentSecurityPolicyTests
     public void TargetBindingRejectsOriginsOutsideRfc1918(string origin)
     {
         Assert.Throws<ArgumentException>(() => new TargetContentBinding(
-            TargetId,
+            WebViewCompatibilityFixture.TargetId,
             new Uri(origin),
             @"C:\Users\test\AppData\Local\DshWindowsLauncher\targets\54f02e802c9244d88f7fb0fc118c93fa\udf"));
     }
 
-    private static TargetContentSecurityPolicy CreatePolicy()
-    {
-        var binding = new TargetContentBinding(
-            TargetId,
-            new Uri("http://192.168.10.20:3080/"),
-            @"C:\Users\test\AppData\Local\DshWindowsLauncher\targets\54f02e802c9244d88f7fb0fc118c93fa\udf");
+    private static TargetContentSecurityPolicy CreateBasePolicy() => new(
+        WebViewCompatibilityFixture.CreateBinding(),
+        WebViewCompatibilityFixture.CreateBaseSnapshot());
 
-        return new TargetContentSecurityPolicy(binding);
-    }
+    private static TargetContentSecurityPolicy CreateExtendedPolicy() => new(
+        WebViewCompatibilityFixture.CreateBinding(),
+        WebViewCompatibilityFixture.CreateExtendedResolution().Snapshot);
 }

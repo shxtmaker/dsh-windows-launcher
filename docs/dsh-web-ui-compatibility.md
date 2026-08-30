@@ -1,5 +1,7 @@
 # dsh-web UI 兼容说明
 
+> 状态：迁移前现行专用实现的行为基线，仅用于 P4/P5 对照。通用兼容目标以[第三方 WebUI 通用兼容契约](webui-compatibility-contract.md)为准，dsh-web 的迁移与完成门禁见[参考适配器实施说明](reference-adapters/dsh-web.md)。原子切换完成后，本文件退出规范地位并由参考适配器说明取代。
+
 ## 1. 目标与基线
 
 Windows 启动器显示 Linux Harness 当前提供的同一套 UI，不复制、重写或选择另一套前端。兼容基线为 `zhu1090093659/dsh-web` 的根页面注入模型：Harness 继续提供 `/`，插件客户端、皮肤样式和资源由同一目标 origin 提供。

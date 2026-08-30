@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dshwindowslauncher.invalid/verification-impact-map.schema.json",
+  "title": "DSH Windows Launcher verification impact map",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "baselinePolicy",
+    "unknownInput",
+    "identityInputs",
+    "mappings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "baselinePolicy": {
+      "const": "last-supported-signed-release"
+    },
+    "unknownInput": {
+      "$ref": "#/$defs/impact"
+    },
+    "identityInputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "contract",
+          "descriptor-schema",
+          "registry",
+          "harness",
+          "lan-plugin",
+          "webview2-runtime",
+          "csp-debt",
+          "provider-identity",
+          "support-record"
+        ]
+      }
+    },
+    "mappings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 512,
+      "items": {
+        "$ref": "#/$defs/mapping"
+      }
+    }
+  },
+  "$defs": {
+    "triggerTag": {
+      "type": "string",
+      "pattern": "^(?:VFY-0[1-8]|RS-(?:0[1-9]|1[0-5])|[a-z][a-z0-9-]*)$"
+    },
+    "rsId": {
+      "type": "string",
+      "pattern": "^RS-(?:0[1-9]|1[0-5])$"
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "triggerTags",
+        "requiredRs"
+      ],
+      "properties": {
+        "triggerTags": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/triggerTag"
+          }
+        },
+        "requiredRs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/rsId"
+          }
+        }
+      }
+    },
+    "mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mappingId",
+        "pathPatterns",
+        "triggerTags",
+        "requiredRs",
+        "identityInputs"
+      ],
+      "properties": {
+        "mappingId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$"
+        },
+        "pathPatterns": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "pattern": "^[A-Za-z0-9_.*?/-]+$"
+          }
+        },
+        "triggerTags": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/triggerTag"
+          }
+        },
+        "requiredRs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/rsId"
+          }
+        },
+        "identityInputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "contract",
+              "descriptor-schema",
+              "registry",
+              "harness",
+              "lan-plugin",
+              "webview2-runtime",
+              "csp-debt",
+              "provider-identity",
+              "support-record"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

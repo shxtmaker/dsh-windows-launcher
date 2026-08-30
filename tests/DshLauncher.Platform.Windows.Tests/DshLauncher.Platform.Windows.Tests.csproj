@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/DshLauncher.Compatibility/DshLauncher.Compatibility.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Core/DshLauncher.Core.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
   </ItemGroup>

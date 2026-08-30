@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Threading;
+using DshLauncher.Compatibility;
 using DshLauncher.Core;
 using DshLauncher.Desktop.Resources;
 using DshLauncher.Desktop.RuntimeRepair;
@@ -84,6 +85,9 @@ public partial class App : Application, IDisposable
                 return;
             }
 
+            var capabilityResolver =
+                LauncherApplicationIntegrity.LoadCompatibilityResolver(
+                    buildIdentity);
             if (!EnsureWebView2Runtime())
             {
                 _ready.TrySetCanceled();
@@ -91,7 +95,8 @@ public partial class App : Application, IDisposable
                 return;
             }
 
-            await InitializeApplicationAsync().ConfigureAwait(true);
+            await InitializeApplicationAsync(capabilityResolver)
+                .ConfigureAwait(true);
             _ready.TrySetResult(true);
             await _controller!.ApplyStartupPolicyAsync(CancellationToken.None).ConfigureAwait(true);
             await _targetCenter!.RefreshAsync().ConfigureAwait(true);
@@ -162,14 +167,29 @@ public partial class App : Application, IDisposable
         }
     }
 
-    private async ValueTask InitializeApplicationAsync()
+    private async ValueTask InitializeApplicationAsync(
+        PageCapabilityResolver capabilityResolver)
     {
+        ArgumentNullException.ThrowIfNull(capabilityResolver);
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             LauncherBuildIdentity.Current.ApplicationDataId);
         var layout = new ApplicationDataLayout(root);
         _applicationData = new ApplicationDataStore(layout);
         await _applicationData.InitializeAsync().ConfigureAwait(true);
+        var compatibilityState = new JsonCompatibilityStateStore(
+            _applicationData);
+        var watermark = await compatibilityState.ReadRegistryWatermarkAsync(
+            capabilityResolver.RegistryVersion).ConfigureAwait(true);
+        var extendedCompatibilityAllowed = watermark.Status is
+            CompatibilityStateReadStatus.Missing or
+            CompatibilityStateReadStatus.Loaded or
+            CompatibilityStateReadStatus.RecoveredFromBackup;
+        if (extendedCompatibilityAllowed)
+        {
+            await compatibilityState.AdvanceRegistryWatermarkAsync(
+                capabilityResolver.RegistryVersion).ConfigureAwait(true);
+        }
 
         _log = new RollingDiagnosticLog(layout);
         await _log.WriteAsync(DiagnosticRecord.Create(
@@ -206,10 +226,18 @@ public partial class App : Application, IDisposable
         Func<Window?> ownerProvider = () => _targetCenter;
         var externalLauncher = new SystemTargetExternalUriLauncher();
         var externalConsent = new WpfTargetExternalNavigationConsent(ownerProvider, Dispatcher);
+        var capabilityConfirmation = new WpfExternalCapabilityConfirmationPort(
+            compatibilityState,
+            ownerProvider,
+            Dispatcher,
+            extendedCompatibilityAllowed);
         _windowCoordinator = new WindowCoordinator(
             layout,
             externalConsent,
             externalLauncher,
+            capabilityResolver,
+            capabilityConfirmation,
+            compatibilityState,
             Dispatcher);
         _windowCoordinator.AllTargetWindowsClosed += (_, _) =>
         {

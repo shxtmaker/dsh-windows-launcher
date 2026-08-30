@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/DshLauncher.Compatibility/DshLauncher.Compatibility.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Core/DshLauncher.Core.csproj" />
     <ProjectReference Include="../../src/DshLauncher.WebView/DshLauncher.WebView.csproj" />
   </ItemGroup>
@@ -16,5 +17,11 @@
     <PackageReference Include="coverlet.collector" PrivateAssets="all" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../compatibility/contracts/webui-contract-capabilities.json"
+          Link="WebUiContractCapabilities.json"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

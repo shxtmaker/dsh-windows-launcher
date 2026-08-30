@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "1.0.0",
+  "registryVersion": 2,
+  "activeRules": [
+    {
+      "ruleId": "org.example.rule-a",
+      "ruleVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "evidenceBaseline": {
+        "harnessCommit": "cd5ef8148158c3a752a658978873241fdf8e2bbc",
+        "lanPluginVersion": "1.2.1",
+        "routeVersion": "example-route-1"
+      },
+      "match": {
+        "uiId": "org.example.webui",
+        "minimumUiVersion": "1.0.0",
+        "maximumUiVersion": "2.0.0",
+        "adapterKey": "example.catalog"
+      },
+      "purpose": {
+        "displayName": "Example catalog images",
+        "diagnosticName": "example-catalog"
+      },
+      "grants": [
+        {
+          "capabilityId": "external-reviewed-passive-resource",
+          "origin": "https://assets.example.test:443",
+          "path": {
+            "kind": "segment-prefix",
+            "value": "/catalog/images/"
+          },
+          "methods": [
+            "GET",
+            "HEAD"
+          ],
+          "resourceTypes": [
+            "image"
+          ],
+          "redirectPolicy": "none"
+        }
+      ]
+    },
+    {
+      "ruleId": "org.example.rule-b",
+      "ruleVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "evidenceBaseline": {
+        "harnessCommit": "cd5ef8148158c3a752a658978873241fdf8e2bbc",
+        "lanPluginVersion": "1.2.1",
+        "routeVersion": "example-route-1"
+      },
+      "match": {
+        "uiId": "org.example.webui",
+        "minimumUiVersion": "1.5.0",
+        "maximumUiVersion": "3.0.0",
+        "adapterKey": "example.catalog"
+      },
+      "purpose": {
+        "displayName": "Overlapping example catalog images",
+        "diagnosticName": "overlap-catalog"
+      },
+      "grants": [
+        {
+          "capabilityId": "external-reviewed-passive-resource",
+          "origin": "https://assets.example.test:443",
+          "path": {
+            "kind": "segment-prefix",
+            "value": "/catalog/images/"
+          },
+          "methods": [
+            "GET",
+            "HEAD"
+          ],
+          "resourceTypes": [
+            "image"
+          ],
+          "redirectPolicy": "none"
+        }
+      ]
+    }
+  ],
+  "tombstones": []
+}

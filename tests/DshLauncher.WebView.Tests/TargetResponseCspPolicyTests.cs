@@ -7,44 +7,62 @@ namespace DshLauncher.WebView.Tests;
 [Trait("triggerTags", "VFY-06,third-party-ui")]
 public sealed class TargetResponseCspPolicyTests
 {
-    private static readonly TargetContentBinding Binding = new(
-        Guid.Parse("54f02e80-2c92-44d8-8f7f-b0fc118c93fa"),
-        new Uri("http://192.168.10.20:3080/"),
-        @"C:\Users\test\AppData\Local\DshWindowsLauncher\targets\54f02e802c9244d88f7fb0fc118c93fa\udf");
+    private static readonly TargetContentBinding Binding =
+        WebViewCompatibilityFixture.CreateBinding();
 
     [Fact]
-    public void PolicyLimitsConnectionsAndFramesToDshWebDependencies()
+    public void BasePolicyContainsNoConditionalNetworkCapability()
     {
-        var policy = TargetResponseCspPolicy.CreatePolicy(Binding);
+        var policy = TargetResponseCspPolicy.CreatePolicy(
+            Binding,
+            WebViewCompatibilityFixture.CreateBaseSnapshot());
+
+        Assert.Contains("connect-src 'self';", policy, StringComparison.Ordinal);
+        Assert.Contains("script-src 'self';", policy, StringComparison.Ordinal);
+        Assert.Contains("img-src 'self' blob: data:;", policy, StringComparison.Ordinal);
+        Assert.Contains("media-src 'self' blob:;", policy, StringComparison.Ordinal);
+        Assert.Contains("frame-src 'self';", policy, StringComparison.Ordinal);
+        Assert.Contains("worker-src 'none';", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("ws:", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("wss:", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("https:", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("*", policy, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExtendedPolicyContainsOnlyOriginsFromTheActivatedSnapshot()
+    {
+        var policy = TargetResponseCspPolicy.CreatePolicy(
+            Binding,
+            WebViewCompatibilityFixture.CreateExtendedResolution().Snapshot);
 
         Assert.Contains(
-            "connect-src 'self' ws: https://dsh-market.com",
+            "connect-src 'self' https://api.example:443;",
             policy,
             StringComparison.Ordinal);
         Assert.Contains(
-            "https://dsh-market.com",
+            "style-src 'self' https://assets.example:443;",
             policy,
             StringComparison.Ordinal);
         Assert.Contains(
-            "frame-src 'self' blob: https://dsh-market.com https://challenges.cloudflare.com",
-            policy,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "script-src 'self' 'unsafe-inline' blob:",
-            policy,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "worker-src 'self' blob:",
+            "frame-src 'self' https://frame.example:443;",
             policy,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
-            "script-src 'self' 'unsafe-inline' blob: https:",
+            "script-src 'self' https://",
             policy,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("192.168.10.21", policy, StringComparison.Ordinal);
-        Assert.DoesNotContain("192.168.10.20", policy, StringComparison.Ordinal);
-        Assert.DoesNotContain("*", policy, StringComparison.Ordinal);
-        Assert.DoesNotContain("wss:", policy, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TransientPolicyDisablesPageScriptAndAllPassiveResources()
+    {
+        var policy = TargetResponseCspPolicy.CreateTransientPolicy(Binding);
+
+        Assert.Contains("default-src 'none'", policy, StringComparison.Ordinal);
+        Assert.Contains("script-src 'none'", policy, StringComparison.Ordinal);
+        Assert.Contains("img-src 'none'", policy, StringComparison.Ordinal);
+        Assert.Contains("frame-src 'none'", policy, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -63,10 +81,14 @@ public sealed class TargetResponseCspPolicyTests
               ]
             }
             """;
+        var launcherCsp = TargetResponseCspPolicy.CreatePolicy(
+            Binding,
+            WebViewCompatibilityFixture.CreateBaseSnapshot());
 
         var command = TargetResponseCspPolicy.CreatePausedResponseCommand(
             paused,
-            Binding);
+            Binding,
+            launcherCsp);
 
         Assert.NotNull(command);
         Assert.Equal("Fetch.fulfillRequest", command.Method);
@@ -80,9 +102,6 @@ public sealed class TargetResponseCspPolicyTests
                 Name: header.GetProperty("name").GetString(),
                 Value: header.GetProperty("value").GetString()))
             .ToArray();
-        Assert.Contains(headers, header =>
-            header.Name == "Content-Type" &&
-            header.Value == "text/html");
         var cspHeaders = headers.Where(header =>
             string.Equals(
                 header.Name,
@@ -91,8 +110,7 @@ public sealed class TargetResponseCspPolicyTests
         Assert.Equal(2, cspHeaders.Length);
         Assert.Contains(cspHeaders, header =>
             header.Value == "sandbox allow-scripts; object-src 'none'");
-        Assert.Contains(cspHeaders, header =>
-            header.Value == TargetResponseCspPolicy.CreatePolicy(Binding));
+        Assert.Contains(cspHeaders, header => header.Value == launcherCsp);
     }
 
     [Theory]
@@ -114,11 +132,15 @@ public sealed class TargetResponseCspPolicyTests
 
         var command = TargetResponseCspPolicy.CreatePausedResponseCommand(
             paused,
-            Binding);
+            Binding,
+            TargetResponseCspPolicy.CreateTransientPolicy(Binding));
 
         Assert.NotNull(command);
         Assert.Equal("Fetch.failRequest", command.Method);
-        Assert.Contains("BlockedByClient", command.ParametersJson, StringComparison.Ordinal);
+        Assert.Contains(
+            "BlockedByClient",
+            command.ParametersJson,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -134,7 +156,8 @@ public sealed class TargetResponseCspPolicyTests
 
         var command = TargetResponseCspPolicy.CreatePausedResponseCommand(
             paused,
-            Binding);
+            Binding,
+            TargetResponseCspPolicy.CreateTransientPolicy(Binding));
 
         Assert.NotNull(command);
         Assert.Equal("Fetch.failRequest", command.Method);

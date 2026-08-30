@@ -20,6 +20,20 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
         string path,
         SafeFileHandle fileHandle)
     {
+        var evidence = InspectSigner(path, fileHandle);
+        return new WebView2AuthenticodeEvidence(
+            evidence.IsSignatureValid,
+            string.Equals(
+                evidence.SimpleName,
+                "Microsoft Corporation",
+                StringComparison.OrdinalIgnoreCase),
+            evidence.HasTrustedTimestamp);
+    }
+
+    internal static AuthenticodeSignerEvidence InspectSigner(
+        string path,
+        SafeFileHandle fileHandle)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(fileHandle);
         if (fileHandle.IsInvalid || fileHandle.IsClosed)
@@ -68,9 +82,11 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
                 trustData.StateData);
             if (providerData == 0)
             {
-                return new WebView2AuthenticodeEvidence(
+                return new AuthenticodeSignerEvidence(
                     IsSignatureValid: true,
-                    IsMicrosoftSigner: false,
+                    Subject: null,
+                    SimpleName: null,
+                    Thumbprint: null,
                     HasTrustedTimestamp: false);
             }
 
@@ -81,22 +97,27 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
                 counterSignerIndex: 0);
             if (signerPointer == 0)
             {
-                return new WebView2AuthenticodeEvidence(
+                return new AuthenticodeSignerEvidence(
                     IsSignatureValid: true,
-                    IsMicrosoftSigner: false,
+                    Subject: null,
+                    SimpleName: null,
+                    Thumbprint: null,
                     HasTrustedTimestamp: false);
             }
 
             var signer = Marshal.PtrToStructure<CryptProviderSigner>(
                 signerPointer);
-            var isMicrosoftSigner = signer.Error == 0 &&
-                                    IsMicrosoftCertificate(signer);
+            var certificate = signer.Error == 0
+                ? GetCertificateIdentity(signer)
+                : null;
             var hasTrustedTimestamp = HasTrustedTimestamp(
                 providerData,
                 signer);
-            return new WebView2AuthenticodeEvidence(
+            return new AuthenticodeSignerEvidence(
                 IsSignatureValid: true,
-                isMicrosoftSigner,
+                certificate?.Subject,
+                certificate?.SimpleName,
+                certificate?.Thumbprint,
                 hasTrustedTimestamp);
         }
         catch (Exception)
@@ -153,11 +174,12 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
                timestampSigner.CertificateChain != 0;
     }
 
-    private static bool IsMicrosoftCertificate(CryptProviderSigner signer)
+    private static CertificateIdentity? GetCertificateIdentity(
+        CryptProviderSigner signer)
     {
         if (signer.CertificateChainCount == 0 || signer.CertificateChain == 0)
         {
-            return false;
+            return null;
         }
 
         var providerCertificate =
@@ -165,7 +187,7 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
                 signer.CertificateChain);
         if (providerCertificate.CertificateContext == 0)
         {
-            return false;
+            return null;
         }
 
         var certificateContext = Marshal.PtrToStructure<CertificateContext>(
@@ -174,7 +196,7 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
             certificateContext.EncodedCertificateSize == 0 ||
             certificateContext.EncodedCertificateSize > 1024 * 1024)
         {
-            return false;
+            return null;
         }
 
         var encoded = new byte[certificateContext.EncodedCertificateSize];
@@ -184,10 +206,10 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
             startIndex: 0,
             encoded.Length);
         using var certificate = X509CertificateLoader.LoadCertificate(encoded);
-        return string.Equals(
+        return new CertificateIdentity(
+            certificate.Subject,
             certificate.GetNameInfo(X509NameType.SimpleName, forIssuer: false),
-            "Microsoft Corporation",
-            StringComparison.OrdinalIgnoreCase);
+            certificate.Thumbprint);
     }
 
     [LibraryImport("wintrust.dll", EntryPoint = "WinVerifyTrust")]
@@ -266,4 +288,9 @@ internal sealed partial class WindowsWebView2AuthenticodeVerifier
 
     [StructLayout(LayoutKind.Sequential)]
     private readonly record struct FileTime(uint LowDateTime, uint HighDateTime);
+
+    private sealed record CertificateIdentity(
+        string Subject,
+        string SimpleName,
+        string Thumbprint);
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "./release-constants.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "releaseStatus": "development",
   "product": {
     "name": "DSH Windows Launcher",
@@ -22,6 +22,17 @@
     "selfContained": true,
     "singleFile": false,
     "trimmed": false
+  },
+  "webUiCompatibility": {
+    "contractVersion": "1.0.0",
+    "contractCapabilitiesCanonicalSha256": "a543d6f2d6bc736b89dbd430a8bae35efb536df2e87bc519e18bca39f491ecbb",
+    "descriptorSchemaCanonicalSha256": "921dac157e0a4d0a0f634051ecd5c97cd14ad3eee60cec942508bb4563381cad",
+    "registryVersion": 1,
+    "registryCanonicalSha256": "7d71067cc626b90f6e7e0ef8df4c3de8417da55e42b4d1f100a5082c498287ad",
+    "impactMapCanonicalSha256": "9a4d265de42abc97aef1ed594d3583eb958c7c9070883c51d9ab979687ffd8e8"
+  },
+  "verificationBaseline": {
+    "lastSupportedSignedReleaseCommit": null
   },
   "dependencyBaseline": {
     "harness": {
