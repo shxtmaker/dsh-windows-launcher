@@ -92,6 +92,7 @@ public sealed class WebView2TargetRuntimePort : ITargetRuntimePort
         TimeSpan.FromMilliseconds(400),
         TimeSpan.FromMilliseconds(800),
         TimeSpan.FromMilliseconds(1_600),
+        TimeSpan.FromMilliseconds(3_200),
     ];
 
     private readonly ITargetBrowserDataStore _dataStore;

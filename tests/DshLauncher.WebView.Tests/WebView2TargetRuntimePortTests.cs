@@ -500,6 +500,26 @@ public sealed class WebView2TargetRuntimePortTests
         Assert.Equal(2, data.Calls.Count(call => call == "delete"));
     }
 
+    [Fact]
+    public async Task DeleteSessionDataWaitsForASeventhTransientBrowserDataLock()
+    {
+        var data = new FakeBrowserDataStore
+        {
+            Exists = true,
+            TransientDeleteFailuresRemaining = 7,
+        };
+        var runtime = new WebView2TargetRuntimePort(
+            data,
+            new FakeBrowserSessionFactory());
+
+        await runtime.DeleteSessionDataAsync(
+            TargetId,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(data.Exists);
+        Assert.Equal(8, data.Calls.Count(call => call == "delete"));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("bad%ZZ")]
