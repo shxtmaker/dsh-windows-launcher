@@ -228,9 +228,13 @@ public sealed class UpdatePageService : IUpdatePageService
         ITargetExternalUriLauncher launcher)
     {
         if (releaseUri is not null &&
-            (!releaseUri.IsAbsoluteUri || releaseUri.Scheme != Uri.UriSchemeHttps))
+            (!releaseUri.IsAbsoluteUri ||
+             (releaseUri.Scheme != Uri.UriSchemeHttp &&
+              releaseUri.Scheme != Uri.UriSchemeHttps)))
         {
-            throw new ArgumentException("Release URI must be an absolute HTTPS URI.", nameof(releaseUri));
+            throw new ArgumentException(
+                "Release URI must be an absolute HTTP or HTTPS URI.",
+                nameof(releaseUri));
         }
 
         _releaseUri = releaseUri;

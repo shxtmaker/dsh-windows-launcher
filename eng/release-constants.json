@@ -8,7 +8,7 @@
     "applicationDataId": "DshWindowsLauncher",
     "applicationDataRoot": "%LOCALAPPDATA%\\DshWindowsLauncher",
     "defaultInstallRoot": "%LOCALAPPDATA%\\Programs\\DshWindowsLauncher",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "platform": {
     "supportedWindows": "Windows 11 25H2+ x64",
@@ -107,7 +107,7 @@
       "certificateSubject": null,
       "timestampServerUri": null
     },
-    "officialReleaseUri": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v1.0.0"
+    "officialReleaseUri": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v1.0.1"
   },
   "limits": {
     "defaultTargetPort": 3080,

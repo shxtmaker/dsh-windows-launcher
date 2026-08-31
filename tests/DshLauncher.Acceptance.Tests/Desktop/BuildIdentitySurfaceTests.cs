@@ -1,7 +1,10 @@
 using System.IO;
+using System.Text.Json;
+using System.Windows.Threading;
 using DshLauncher.Core;
 using DshLauncher.Desktop;
 using DshLauncher.Desktop.RuntimeRepair;
+using DshLauncher.WebView;
 using Xunit;
 
 namespace DshLauncher.Acceptance.Tests.Desktop;
@@ -50,5 +53,33 @@ public sealed class BuildIdentitySurfaceTests
         Assert.Equal(
             "0c5949d0cb6566e2f39bb37a617f4e686906e001046b0f49ca440e5c3aa621d8",
             resolver.RegistrySha256);
+    }
+
+    [Fact]
+    public void EmbeddedOfficialReleaseUriCanInitializeTheUpdateService()
+    {
+        using var stream = typeof(App).Assembly.GetManifestResourceStream(
+            "DshLauncher.Desktop.ReleaseConstants.json");
+        Assert.NotNull(stream);
+        using var document = JsonDocument.Parse(stream);
+        var value = document.RootElement
+            .GetProperty("distribution")
+            .GetProperty("officialReleaseUri")
+            .GetString();
+        Assert.NotNull(value);
+
+        var service = new UpdatePageService(
+            new Uri(value),
+            () => null,
+            Dispatcher.CurrentDispatcher,
+            new UnusedExternalUriLauncher());
+
+        Assert.NotNull(service);
+    }
+
+    private sealed class UnusedExternalUriLauncher : ITargetExternalUriLauncher
+    {
+        public ValueTask OpenAsync(Uri destination, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }
