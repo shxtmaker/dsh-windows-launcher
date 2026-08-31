@@ -696,8 +696,8 @@ function Assert-ContractCapabilities {
     )
 
     $root = $File.Document.RootElement
-    if ((Get-RequiredJsonProperty -Element $root -Name 'contractVersion' -Path '$').GetString() -ne '1.0.0') {
-        New-GovernanceFailure -Code 'CONTRACT_VERSION' -Message 'P0 只允许 contractVersion=1.0.0。'
+    if ((Get-RequiredJsonProperty -Element $root -Name 'contractVersion' -Path '$').GetString() -ne '1.1.0') {
+        New-GovernanceFailure -Code 'CONTRACT_VERSION' -Message '当前实现只允许 contractVersion=1.1.0。'
     }
 
     $allCapabilityIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -802,10 +802,6 @@ function Assert-Registry {
 
     $activeRules = Get-RequiredJsonProperty -Element $root -Name 'activeRules' -Path '$'
     $tombstones = Get-RequiredJsonProperty -Element $root -Name 'tombstones' -Path '$'
-    if (-not $AllowCandidateRules -and $activeRules.GetArrayLength() -ne 0) {
-        New-GovernanceFailure -Code 'PRODUCTION_RULE_EVIDENCE_REQUIRED' -Message 'P0 生产注册表不得包含缺少正式证据的活动规则。'
-    }
-
     Assert-SortedUniqueObjectKeys -Array $activeRules -KeyNames @('ruleId', 'ruleVersion') -Path '$/activeRules'
     Assert-SortedUniqueObjectKeys -Array $tombstones -KeyNames @('ruleId', 'revokedFromRegistryVersion') -Path '$/tombstones'
 
@@ -833,12 +829,31 @@ function Assert-Registry {
         if ((Compare-SemVer -Left $minimum -Right $maximum) -gt 0) {
             New-GovernanceFailure -Code 'REGISTRY_VERSION_RANGE' -Message "规则版本范围反转：$ruleId"
         }
+        $sourceRevision = Get-JsonProperty -Element $match -Name 'sourceRev'
+        if (-not $AllowCandidateRules -and
+            ($minimum -cne $maximum -or $null -eq $sourceRevision)) {
+            New-GovernanceFailure `
+                -Code 'PRODUCTION_RULE_EVIDENCE_REQUIRED' `
+                -Message "生产活动规则必须绑定精确版本和不可变 sourceRev：$ruleId"
+        }
 
         $grants = Get-RequiredJsonProperty -Element $rule -Name 'grants' -Path '$/activeRules'
         foreach ($grant in $grants.EnumerateArray()) {
             $capabilityId = (Get-RequiredJsonProperty -Element $grant -Name 'capabilityId' -Path '$/activeRules/grants').GetString()
             if (-not $allowedExtensionIds.Contains($capabilityId)) {
                 New-GovernanceFailure -Code 'REGISTRY_OUTSIDE_CEILING' -Message "规则请求未授权扩展能力：$capabilityId"
+            }
+            if ($capabilityId -ceq 'reviewed-inline-script-sha256') {
+                $digest = (Get-RequiredJsonProperty `
+                    -Element $grant `
+                    -Name 'scriptSha256' `
+                    -Path '$/activeRules/grants').GetString()
+                if ($digest -cnotmatch '^[A-Za-z0-9+/]{43}=$') {
+                    New-GovernanceFailure `
+                        -Code 'REGISTRY_SCRIPT_DIGEST' `
+                        -Message "内联脚本 SHA-256 不是规范 Base64：$ruleId"
+                }
+                continue
             }
             Assert-SortedUniqueStrings `
                 -Array (Get-RequiredJsonProperty -Element $grant -Name 'methods' -Path '$/activeRules/grants') `
@@ -1206,6 +1221,7 @@ try {
     }
 
     $capabilitiesFile = $null
+    $registryFile = $null
     foreach ($relativePath in $productionDefinitions.Keys) {
         $path = Join-Path $RepositoryRoot $relativePath
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -1222,6 +1238,9 @@ try {
         Assert-SensitiveDataFree -File $file
         if ($kind -eq 'contract') {
             $capabilitiesFile = $file
+        }
+        elseif ($kind -eq 'registry') {
+            $registryFile = $file
         }
         Invoke-DomainValidation -Kind $kind -File $file -Capabilities $capabilitiesFile
         $inputEvidence.Add([ordered]@{
@@ -1297,14 +1316,26 @@ try {
     if ($null -eq $registryEvidence) {
         New-GovernanceFailure -Code 'REGISTRY_EVIDENCE_MISSING' -Message '缺少生产注册表摘要。'
     }
+    if ($null -eq $registryFile) {
+        New-GovernanceFailure -Code 'REGISTRY_INPUT_MISSING' -Message '缺少已校验的生产注册表。'
+    }
+    $registryRoot = $registryFile.Document.RootElement
+    $productionRegistryVersion =
+        (Get-RequiredJsonProperty -Element $registryRoot -Name 'registryVersion' -Path '$').GetInt64()
+    $productionActiveRuleCount =
+        (Get-RequiredJsonProperty -Element $registryRoot -Name 'activeRules' -Path '$').GetArrayLength()
+    $productionTombstoneCount =
+        (Get-RequiredJsonProperty -Element $registryRoot -Name 'tombstones' -Path '$').GetArrayLength()
+    $productionContractVersion =
+        (Get-RequiredJsonProperty -Element $registryRoot -Name 'contractVersion' -Path '$').GetString()
     $summary = [ordered]@{
         schemaVersion = 1
         result = 'PASS'
         normalization = 'RFC8785-JCS-UTF8-NFC-safe-integers'
         productionRegistry = [ordered]@{
-            registryVersion = 1
-            activeRuleCount = 0
-            tombstoneCount = 0
+            registryVersion = $productionRegistryVersion
+            activeRuleCount = $productionActiveRuleCount
+            tombstoneCount = $productionTombstoneCount
             jcsSha256 = [string] $registryEvidence['jcsSha256']
         }
         inputs = $orderedInputs
@@ -1323,15 +1354,15 @@ try {
         '# WebUI governance summary',
         '',
         '- Result: PASS',
-        '- Contract version: 1.0.0',
-        '- Registry version: 1',
-        '- Production active rules: 0',
-        '- Production tombstones: 0',
+        "- Contract version: $productionContractVersion",
+        "- Registry version: $productionRegistryVersion",
+        "- Production active rules: $productionActiveRuleCount",
+        "- Production tombstones: $productionTombstoneCount",
         "- Validated machine inputs: $($orderedInputs.Count)",
         "- Rejected negative examples: $($orderedNegatives.Count)",
         "- Structured summary SHA-256: $summarySha256",
         '',
-        'No production extended-compatibility support is declared.'
+        'Only exact, reviewed production compatibility rules are declared.'
     )
     $markdownPath = Join-Path $OutputDirectory 'webui-governance-summary.md'
     [IO.File]::WriteAllText(

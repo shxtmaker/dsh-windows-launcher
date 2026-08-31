@@ -48,6 +48,7 @@ internal sealed record GrantDefinition(
     IReadOnlyList<WebResourceKind> ResourceKinds,
     IReadOnlyList<string> QueryKeys,
     CapabilityDocumentScope DocumentScope,
+    string? ScriptSha256,
     string Purpose)
 {
     public string ScopeKey => string.Join(
@@ -57,7 +58,8 @@ internal sealed record GrantDefinition(
         ParentOrigin ?? string.Empty,
         Path ?? string.Empty,
         PathMatch,
-        DocumentScope);
+        DocumentScope,
+        ScriptSha256 ?? string.Empty);
 
     public string FullKey => string.Join(
         '|',
@@ -77,6 +79,7 @@ internal sealed record GrantDefinition(
         ResourceKinds,
         QueryKeys,
         DocumentScope,
+        ScriptSha256,
         Purpose);
 }
 

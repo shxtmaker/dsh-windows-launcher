@@ -9,7 +9,7 @@ internal static class CompatibilityFixture
         """
         {
           "schemaVersion": 1,
-          "contractVersion": "1.0.0",
+          "contractVersion": "1.1.0",
           "descriptorSchemaId": "https://schemas.dshwindowslauncher.invalid/webui-compatibility-descriptor.schema.json",
           "limits": {
             "descriptorBytes": 65536,
@@ -62,6 +62,20 @@ internal static class CompatibilityFixture
               "methodCeiling":"passiveResource",
               "resourceTypes":["font","image","media","stylesheet"],
               "mainDocumentScriptAllowed":false
+            },
+            {
+              "capabilityId":"reviewed-inline-script-sha256",
+              "description":"Reviewed inline script.",
+              "methodCeiling":"passiveResource",
+              "resourceTypes":["script"],
+              "mainDocumentScriptAllowed":true
+            },
+            {
+              "capabilityId":"target-websocket",
+              "description":"Reviewed target WebSocket.",
+              "methodCeiling":"passiveResource",
+              "resourceTypes":["websocket"],
+              "mainDocumentScriptAllowed":false
             }
           ],
           "conditionalCapabilities": [
@@ -86,7 +100,7 @@ internal static class CompatibilityFixture
         {
           "schemaVersion": 1,
           "registryVersion": {{registryVersion}},
-          "contractVersion": "1.0.0",
+          "contractVersion": "1.1.0",
           "activeRules": [{{rules}}],
           "tombstones": [{{tombstones}}]
         }
@@ -106,7 +120,7 @@ internal static class CompatibilityFixture
         {
           "ruleId": "{{ruleId}}",
           "ruleVersion": "{{ruleVersion}}",
-          "contractVersion": "1.0.0",
+          "contractVersion": "1.1.0",
           "evidenceBaseline": {
             "harnessCommit": "0123456789abcdef0123456789abcdef01234567",
             "lanPluginVersion": "1.2.1",
@@ -194,9 +208,35 @@ internal static class CompatibilityFixture
         }
         """;
 
+    public static string ReviewedInlineScriptCapability(
+        string digest = "mXHaYLlSQVyeSOfzqV5XdTPGPqz5QzoV1XVjJm6ZROw=") =>
+        $$"""
+        {
+          "capabilityId": "reviewed-inline-script-sha256",
+          "scriptSha256": "{{digest}}"
+        }
+        """;
+
+    public static string TargetWebSocketCapability(
+        string path = "/remote/api/remote.mux",
+        string pathMatch = "exact",
+        string methods = "\"GET\"",
+        string resourceKinds = "\"websocket\"",
+        string queryKeys = "\"device\"") =>
+        $$"""
+        {
+          "capabilityId": "target-websocket",
+          "path": {"kind":"{{pathMatch}}","value":"{{path}}"},
+          "methods": [{{methods}}],
+          "resourceTypes": [{{resourceKinds}}],
+          "redirectPolicy": "none",
+          "queryKeys": [{{queryKeys}}]
+        }
+        """;
+
     public static byte[] Descriptor(
         string components,
-        string contractVersion = "1.0.0",
+        string contractVersion = "1.1.0",
         int schemaVersion = 1,
         string extraProperty = "") => Utf8(
         $$"""

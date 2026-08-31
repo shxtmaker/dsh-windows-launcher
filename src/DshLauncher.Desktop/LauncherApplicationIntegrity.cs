@@ -89,6 +89,16 @@ internal static class LauncherApplicationIntegrity
 
         var distribution = RequiredObject(releaseConstants, "distribution");
         var signing = RequiredObject(distribution, "signing");
+        var signingPolicy = RequiredString(signing, "policy");
+        if (string.Equals(signingPolicy, "optional", StringComparison.Ordinal))
+        {
+            return;
+        }
+        if (!string.Equals(signingPolicy, "required", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The release signing policy is unsupported.");
+        }
         var expectedSubject = RequiredString(signing, "certificateSubject");
         var path = assembly.Location;
         if (string.IsNullOrWhiteSpace(path))

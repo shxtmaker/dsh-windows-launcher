@@ -76,6 +76,8 @@ public enum CapabilityKind
     Redirect = 19,
     BlobData = 20,
     CdpFetch = 21,
+    ReviewedInlineScriptSha256 = 22,
+    TargetWebSocket = 23,
 }
 
 public enum HttpMethodKind
@@ -239,6 +241,7 @@ public sealed class CapabilityGrant
         IEnumerable<WebResourceKind> resourceKinds,
         IEnumerable<string> queryKeys,
         CapabilityDocumentScope documentScope,
+        string? scriptSha256,
         string purpose)
     {
         Kind = kind;
@@ -254,6 +257,7 @@ public sealed class CapabilityGrant
                 .Order(StringComparer.Ordinal)
                 .ToArray());
         DocumentScope = documentScope;
+        ScriptSha256 = scriptSha256;
         Purpose = purpose;
     }
 
@@ -282,6 +286,12 @@ public sealed class CapabilityGrant
     public IReadOnlyList<string> QueryKeys { get; }
 
     public CapabilityDocumentScope DocumentScope { get; }
+
+    /// <summary>
+    /// Gets the canonical Base64 SHA-256 digest for a reviewed inline script.
+    /// Null for every non-script-hash grant.
+    /// </summary>
+    public string? ScriptSha256 { get; }
 
     public string Purpose { get; }
 }

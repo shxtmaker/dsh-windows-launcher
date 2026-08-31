@@ -255,6 +255,7 @@ public sealed class PageCapabilityResolver : IPageCapabilityResolver
                     .Order(StringComparer.Ordinal)
                     .ToArray()),
                 first.DocumentScope,
+                first.ScriptSha256,
                 first.Purpose));
         }
 
@@ -325,6 +326,7 @@ public sealed class PageCapabilityResolver : IPageCapabilityResolver
             resources,
             queryKeys: [],
             CapabilityDocumentScope.TargetDocument,
+            scriptSha256: null,
             $"base.{kind.ToString().ToLowerInvariant()}");
     }
 

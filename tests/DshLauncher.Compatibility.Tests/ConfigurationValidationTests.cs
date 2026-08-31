@@ -12,13 +12,13 @@ public sealed class ConfigurationValidationTests
         var first = CompatibilityFixture.CreateResolver();
         var secondRegistry = CompatibilityFixture.Utf8(
             $$"""
-            {"tombstones":[],"activeRules":[{{CompatibilityFixture.Rule()}}],"contractVersion":"1.0.0","registryVersion":1,"schemaVersion":1}
+            {"tombstones":[],"activeRules":[{{CompatibilityFixture.Rule()}}],"contractVersion":"1.1.0","registryVersion":1,"schemaVersion":1}
             """);
         var second = PageCapabilityResolver.Create(
             CompatibilityFixture.Contract(),
             secondRegistry);
 
-        Assert.Equal("1.0.0", first.ContractVersion);
+        Assert.Equal("1.1.0", first.ContractVersion);
         Assert.Equal(1, first.RegistryVersion);
         Assert.Equal(first.ContractSha256, second.ContractSha256);
         Assert.Equal(first.RegistrySha256, second.RegistrySha256);
@@ -36,11 +36,57 @@ public sealed class ConfigurationValidationTests
                 "compatibility/registry/webui-adapter-registry.json")));
 
         Assert.Equal(
-            "a543d6f2d6bc736b89dbd430a8bae35efb536df2e87bc519e18bca39f491ecbb",
+            "4fe5ce356b3745c0bbca4bbe76e303d326355d8cf51b27546c91801b1669fe64",
             resolver.ContractSha256);
         Assert.Equal(
-            "7d71067cc626b90f6e7e0ef8df4c3de8417da55e42b4d1f100a5082c498287ad",
+            "0c5949d0cb6566e2f39bb37a617f4e686906e001046b0f49ca440e5c3aa621d8",
             resolver.RegistrySha256);
+    }
+
+    [Fact]
+    public void ProductionRemoteUiIdentityActivatesOnlyItsSixReviewedGrants()
+    {
+        var resolver = PageCapabilityResolver.Create(
+            File.ReadAllBytes(FindRepositoryFile(
+                "compatibility/contracts/webui-contract-capabilities.json")),
+            File.ReadAllBytes(FindRepositoryFile(
+                "compatibility/registry/webui-adapter-registry.json")));
+        var descriptor = CompatibilityFixture.Utf8(
+            """
+            {
+              "schemaVersion": 1,
+              "contractVersion": "1.1.0",
+              "components": [
+                {
+                  "uiId": "io.github.zhu1090093659.dsh-remote-web-ui",
+                  "uiVersion": "0.3.10",
+                  "sourceRev": "bb3bc6f283a8d956e8e8b19ec1c16caaa2b6a4631143643fef0f06000cc226ce",
+                  "adapterKeys": ["dsh-remote-web-ui.lan-pairing"]
+                }
+              ]
+            }
+            """);
+
+        var resolution = resolver.Resolve(
+            Guid.Parse("9766444b-5cc0-4c68-bc93-d39d17bc01f1"),
+            CompatibilityFixture.Response(descriptor));
+
+        Assert.Equal(CompatibilityLevel.Extended, resolution.Level);
+        Assert.Equal(3, resolution.Snapshot.RegistryVersion);
+        Assert.Equal(6, resolution.Snapshot.ExtensionCapabilities.Count);
+        Assert.Equal(
+            2,
+            resolution.Snapshot.ExtensionCapabilities.Count(static grant =>
+                grant.Kind == CapabilityKind.ReviewedInlineScriptSha256));
+        Assert.Equal(
+            4,
+            resolution.Snapshot.ExtensionCapabilities.Count(static grant =>
+                grant.Kind == CapabilityKind.TargetWebSocket));
+        var rule = Assert.Single(resolution.Snapshot.MatchedRules);
+        Assert.Equal(
+            "io.github.zhu1090093659.dsh-remote-web-ui.lan-pairing",
+            rule.RuleId);
+        Assert.Equal("1.0.1", rule.RuleVersion);
     }
 
     [Theory]
@@ -83,6 +129,47 @@ public sealed class ConfigurationValidationTests
             CompatibilityFixture.CreateResolver(
                 rules: CompatibilityFixture.Rule(
                     capabilities: CompatibilityFixture.WebSocketCapability())));
+
+        Assert.Equal(CompatibilityReasonCode.RegistryInvalidCapability, exception.ReasonCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-base64")]
+    [InlineData("YWJjZA==")]
+    [InlineData("mXHaYLlSQVyeSOfzqV5XdTPGPqz5QzoV1XVjJm6ZROx=")]
+    public void CreateRejectsNonCanonicalInlineScriptDigest(string digest)
+    {
+        var exception = Assert.Throws<CompatibilityConfigurationException>(() =>
+            CompatibilityFixture.CreateResolver(
+                rules: CompatibilityFixture.Rule(
+                    capabilities:
+                    CompatibilityFixture.ReviewedInlineScriptCapability(digest))));
+
+        Assert.Equal(CompatibilityReasonCode.RegistryInvalidCapability, exception.ReasonCode);
+    }
+
+    [Theory]
+    [InlineData("/remote/", "segment-prefix", "\"GET\"", "\"websocket\"", "\"device\"")]
+    [InlineData("/remote/api/remote.mux", "exact", "\"HEAD\"", "\"websocket\"", "\"device\"")]
+    [InlineData("/remote/api/remote.mux", "exact", "\"GET\"", "\"fetch\"", "\"device\"")]
+    [InlineData("/remote/api/remote.mux", "exact", "\"GET\"", "\"websocket\"", "\"token\"")]
+    public void CreateRejectsBroadOrMisShapedTargetWebSocket(
+        string path,
+        string pathMatch,
+        string methods,
+        string resources,
+        string queryKeys)
+    {
+        var exception = Assert.Throws<CompatibilityConfigurationException>(() =>
+            CompatibilityFixture.CreateResolver(
+                rules: CompatibilityFixture.Rule(
+                    capabilities: CompatibilityFixture.TargetWebSocketCapability(
+                        path,
+                        pathMatch,
+                        methods,
+                        resources,
+                        queryKeys))));
 
         Assert.Equal(CompatibilityReasonCode.RegistryInvalidCapability, exception.ReasonCode);
     }

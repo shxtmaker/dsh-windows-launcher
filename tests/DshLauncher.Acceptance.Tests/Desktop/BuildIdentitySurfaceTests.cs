@@ -42,13 +42,13 @@ public sealed class BuildIdentitySurfaceTests
         var resolver = LauncherApplicationIntegrity.LoadCompatibilityResolver(
             LauncherBuildIdentity.Current);
 
-        Assert.Equal("1.0.0", resolver.ContractVersion);
+        Assert.Equal("1.1.0", resolver.ContractVersion);
         Assert.Equal(
-            "a543d6f2d6bc736b89dbd430a8bae35efb536df2e87bc519e18bca39f491ecbb",
+            "4fe5ce356b3745c0bbca4bbe76e303d326355d8cf51b27546c91801b1669fe64",
             resolver.ContractSha256);
-        Assert.Equal(1, resolver.RegistryVersion);
+        Assert.Equal(3, resolver.RegistryVersion);
         Assert.Equal(
-            "7d71067cc626b90f6e7e0ef8df4c3de8417da55e42b4d1f100a5082c498287ad",
+            "0c5949d0cb6566e2f39bb37a617f4e686906e001046b0f49ca440e5c3aa621d8",
             resolver.RegistrySha256);
     }
 }

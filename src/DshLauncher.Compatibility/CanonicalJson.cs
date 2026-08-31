@@ -152,6 +152,10 @@ internal static class CanonicalJson
 
         writer.WriteString("pathMatch", grant.PathMatch.ToString());
         writer.WriteString("purpose", grant.Purpose);
+        if (grant.ScriptSha256 is not null)
+        {
+            writer.WriteString("scriptSha256", grant.ScriptSha256);
+        }
         writer.WritePropertyName("queryKeys");
         writer.WriteStartArray();
         foreach (var queryKey in grant.QueryKeys.Order(StringComparer.Ordinal))
@@ -203,6 +207,7 @@ internal static class CanonicalJson
         grant.Path ?? string.Empty,
         grant.PathMatch,
         grant.DocumentScope,
+        grant.ScriptSha256 ?? string.Empty,
         string.Join(',', grant.Methods),
         string.Join(',', grant.ResourceKinds),
         string.Join(',', grant.QueryKeys),

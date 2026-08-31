@@ -8,7 +8,7 @@
   },
   "reviewUnitId": "org.example.review-unit-one",
   "ruleCandidateSha256": "5555555555555555555555555555555555555555555555555555555555555555",
-  "contractVersion": "1.0.0",
+  "contractVersion": "1.1.0",
   "descriptorSchemaSha256": "6666666666666666666666666666666666666666666666666666666666666666",
   "globalCeilingResult": "undetermined",
   "spoofingAnalysisRef": "analysis.spoofing-one",

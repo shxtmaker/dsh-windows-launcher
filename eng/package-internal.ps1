@@ -10,7 +10,9 @@ param(
 
     [string] $DotNetPath,
 
-    [string] $OutputDirectory
+    [string] $OutputDirectory,
+
+    [switch] $OfficialUnsignedRelease
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +29,12 @@ $internalApplicationDataId = 'DshWindowsLauncher.InternalTest'
 $internalSingleInstanceBaseName = 'DshWindowsLauncher.InternalTest.SingleInstance'
 $internalInstallDirectoryName = 'DshWindowsLauncher.InternalTest'
 $internalAppId = 'F3418DD7-58B7-4E0D-B0F7-D77C52FDF91C'
+$officialProductName = 'DSH Windows Launcher'
+$officialExecutableName = 'DshWindowsLauncher.exe'
+$officialApplicationDataId = 'DshWindowsLauncher'
+$officialSingleInstanceBaseName = 'DshWindowsLauncher.SingleInstance'
+$officialInstallDirectoryName = 'DshWindowsLauncher'
+$officialAppId = '4440FC88-98CA-403E-8E20-3DFEBEF0E609'
 $allowedMicrosoftSignerSubjects = @(
     'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US'
 )
@@ -190,22 +198,35 @@ function New-IsppStringDefine {
 }
 
 try {
-    if (-not (Test-DshSemVer -Version $Version) -or
-        $Version -cnotmatch $internalVersionPattern) {
-        throw "-Version 必须符合 x.y.z-internal-test.n，且 n 必须为正整数：$Version"
-    }
-
     $constants = Get-DshReleaseConstants -RepositoryRoot $repositoryRoot
-    Assert-DshReleaseConstants -RepositoryRoot $repositoryRoot -Constants $constants
-    if ($constants.releaseStatus -cne 'development') {
-        throw "内部测试包只允许 releaseStatus=development，当前值为 $($constants.releaseStatus)。"
+    if ($OfficialUnsignedRelease) {
+        if (-not (Test-DshSemVer -Version $Version) -or $Version.Contains('-', [StringComparison]::Ordinal)) {
+            throw "正式未签名版本必须是无预发布后缀的 SemVer：$Version"
+        }
+        Assert-DshReleaseConstants -RepositoryRoot $repositoryRoot -Constants $constants -RequireCandidate
+        if ($Version -cne $constants.product.version) {
+            throw "正式版本必须与发布常量一致。参数：$Version；常量：$($constants.product.version)"
+        }
+        if ($constants.distribution.signing.policy -cne 'optional') {
+            throw '正式未签名包要求 distribution.signing.policy=optional。'
+        }
     }
+    else {
+        if (-not (Test-DshSemVer -Version $Version) -or
+            $Version -cnotmatch $internalVersionPattern) {
+            throw "-Version 必须符合 x.y.z-internal-test.n，且 n 必须为正整数：$Version"
+        }
+        Assert-DshReleaseConstants -RepositoryRoot $repositoryRoot -Constants $constants
+        if ($constants.releaseStatus -cne 'development') {
+            throw "内部测试包只允许 releaseStatus=development，当前值为 $($constants.releaseStatus)。"
+        }
 
-    $baseVersion = $Version.Substring(
-        0,
-        $Version.IndexOf('-internal-test.', [StringComparison]::Ordinal))
-    if ($baseVersion -cne $constants.product.version) {
-        throw "内部测试版本的 x.y.z 必须与发布常量一致。参数：$baseVersion；常量：$($constants.product.version)"
+        $baseVersion = $Version.Substring(
+            0,
+            $Version.IndexOf('-internal-test.', [StringComparison]::Ordinal))
+        if ($baseVersion -cne $constants.product.version) {
+            throw "内部测试版本的 x.y.z 必须与发布常量一致。参数：$baseVersion；常量：$($constants.product.version)"
+        }
     }
 
     if (-not (Test-Path -LiteralPath $WebView2BootstrapperPath -PathType Leaf)) {
@@ -270,11 +291,12 @@ try {
     if (-not $sourceState.Available -or
         $sourceState.Commit -cnotmatch '^(?:[0-9a-f]{40}|[0-9a-f]{64})$' -or
         $sourceState.WorktreeState -cne 'clean') {
-        throw '内部测试打包只接受可用、提交 ID 有效且工作树为 clean 的 Git 源状态。'
+        throw '打包只接受可用、提交 ID 有效且工作树为 clean 的 Git 源状态。'
     }
 
     if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-        $OutputDirectory = Join-Path $repositoryRoot "artifacts/package-internal/$Version"
+        $packageRoot = if ($OfficialUnsignedRelease) { 'artifacts/package' } else { 'artifacts/package-internal' }
+        $OutputDirectory = Join-Path $repositoryRoot "$packageRoot/$Version"
     }
     $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
     if (Test-Path -LiteralPath $OutputDirectory) {
@@ -302,7 +324,7 @@ try {
     if (-not (Test-Path -LiteralPath $pwshExecutable -PathType Leaf)) {
         $pwshExecutable = (Get-Command -Name pwsh -CommandType Application -ErrorAction Stop).Source
     }
-    Write-Host '[package-internal] 执行统一 verify 门禁。'
+    Write-Host '[package] 执行统一 verify 门禁。'
     Invoke-DshNative -FilePath $pwshExecutable -WorkingDirectory $repositoryRoot -Arguments @(
         '-NoLogo', '-NoProfile', '-NonInteractive',
         '-File', (Join-Path $PSScriptRoot 'verify.ps1'),
@@ -341,45 +363,59 @@ try {
 
     $fileVersion = ConvertTo-DshFileVersion -Version $Version
     $desktopProject = Join-Path $repositoryRoot 'src/DshLauncher.Desktop/DshLauncher.Desktop.csproj'
-    Write-Host '[package-internal] 发布明确标记的未签名内部测试应用。'
-    Invoke-DshNative -FilePath $dotnet -WorkingDirectory $repositoryRoot -Arguments @(
+    $buildFlavor = if ($OfficialUnsignedRelease) { 'Official' } else { 'InternalTest' }
+    $productName = if ($OfficialUnsignedRelease) { $officialProductName } else { $internalProductName }
+    $executableName = if ($OfficialUnsignedRelease) { $officialExecutableName } else { $internalExecutableName }
+    $applicationDataId = if ($OfficialUnsignedRelease) { $officialApplicationDataId } else { $internalApplicationDataId }
+    $singleInstanceBaseName = if ($OfficialUnsignedRelease) { $officialSingleInstanceBaseName } else { $internalSingleInstanceBaseName }
+    $installDirectoryName = if ($OfficialUnsignedRelease) { $officialInstallDirectoryName } else { $internalInstallDirectoryName }
+    $appId = if ($OfficialUnsignedRelease) { $officialAppId } else { $internalAppId }
+    $description = if ($OfficialUnsignedRelease) {
+        'Official release with optional Authenticode signing'
+    }
+    else {
+        'UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE'
+    }
+    Write-Host "[package] 发布 $buildFlavor 构建身份的未签名应用。"
+    $publishArguments = @(
         'publish', $desktopProject,
         '--configuration', 'Release',
         '--runtime', 'win-x64',
         '--self-contained', 'true',
         '--no-restore',
         '--output', $publishDirectory,
-        '-p:LauncherBuildFlavor=InternalTest',
-        '-p:Product=DSH Windows Launcher (INTERNAL TEST)',
-        '-p:Description=UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE',
+        "-p:LauncherBuildFlavor=$buildFlavor",
+        "-p:Product=$productName",
+        "-p:Description=$description",
         '-p:PublishSingleFile=false',
         '-p:PublishTrimmed=false',
         "-p:Version=$Version",
         "-p:FileVersion=$fileVersion",
         "-p:InformationalVersion=$Version"
     )
+    Invoke-DshNative -FilePath $dotnet -WorkingDirectory $repositoryRoot -Arguments $publishArguments
 
-    $applicationExe = Join-Path $publishDirectory $internalExecutableName
+    $applicationExe = Join-Path $publishDirectory $executableName
     $applicationDll = Join-Path $publishDirectory $internalApplicationDllName
     if (-not (Test-Path -LiteralPath $applicationExe -PathType Leaf) -or
         -not (Test-Path -LiteralPath $applicationDll -PathType Leaf)) {
-        throw '内部测试发布结果缺少预期 EXE 或 DLL。'
+        throw '发布结果缺少预期 EXE 或 DLL。'
     }
     $applicationVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($applicationExe)
-    if ($applicationVersion.ProductName -cne $internalProductName) {
-        throw '内部测试主程序 ProductName 不匹配。'
+    if ($applicationVersion.ProductName -cne $productName) {
+        throw '主程序 ProductName 不匹配。'
     }
     if ($applicationVersion.FileVersion -cne $fileVersion) {
-        throw '内部测试主程序 FileVersion 不匹配。'
+        throw '主程序 FileVersion 不匹配。'
     }
     $productVersionPattern =
         '^' + [regex]::Escape($Version) +
         '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'
     if ($applicationVersion.ProductVersion -cnotmatch $productVersionPattern) {
-        throw '内部测试主程序 ProductVersion 不匹配。'
+        throw '主程序 ProductVersion 不匹配。'
     }
-    Assert-Unsigned -Path $applicationExe -Description '内部测试主程序'
-    Assert-Unsigned -Path $applicationDll -Description '内部测试托管主程序集'
+    Assert-Unsigned -Path $applicationExe -Description '主程序'
+    Assert-Unsigned -Path $applicationDll -Description '托管主程序集'
 
     $bootstrapperName = 'MicrosoftEdgeWebview2Setup.exe'
     $stagedBootstrapperPath = Join-Path $publishDirectory $bootstrapperName
@@ -392,21 +428,40 @@ try {
         -Path $stagedBootstrapperPath `
         -Description '暂存 WebView2 Evergreen Bootstrapper'
 
-    $installerName = "DSH-Windows-Launcher-INTERNAL-TEST-UNSIGNED-NOT-FOR-PRODUCTION-USE-$Version-win-x64.exe"
+    $installerName = if ($OfficialUnsignedRelease) {
+        $constants.distribution.installerFileNameTemplate.
+            Replace('{Product}', $constants.product.name, [StringComparison]::Ordinal).
+            Replace('{SemVer}', $Version, [StringComparison]::Ordinal)
+    }
+    else {
+        "DSH-Windows-Launcher-INTERNAL-TEST-UNSIGNED-NOT-FOR-PRODUCTION-USE-$Version-win-x64.exe"
+    }
     $outputBaseFilename = [IO.Path]::GetFileNameWithoutExtension($installerName)
-    $innoScript = Join-Path $repositoryRoot 'installer/DshWindowsLauncher.InternalTest.iss'
+    $innoScriptName = if ($OfficialUnsignedRelease) {
+        'DshWindowsLauncher.UnsignedRelease.iss'
+    }
+    else {
+        'DshWindowsLauncher.InternalTest.iss'
+    }
+    $innoScript = Join-Path $repositoryRoot "installer/$innoScriptName"
     if (-not (Test-Path -LiteralPath $innoScript -PathType Leaf)) {
-        throw '内部测试 Inno Setup 脚本不存在。'
+        throw 'Inno Setup 脚本不存在。'
     }
     $compilerArguments = @(
         (New-IsppStringDefine -Name 'SourceRoot' -Value $publishDirectory),
         (New-IsppStringDefine -Name 'AppVersion' -Value $Version),
         (New-IsppStringDefine -Name 'FileVersion' -Value $fileVersion),
         (New-IsppStringDefine -Name 'OutputDirectory' -Value $releaseDirectory),
-        (New-IsppStringDefine -Name 'OutputBaseFilename' -Value $outputBaseFilename),
-        $innoScript
+        (New-IsppStringDefine -Name 'OutputBaseFilename' -Value $outputBaseFilename)
     )
-    Write-Host '[package-internal] 编译未签名 INTERNAL TEST 安装包。'
+    if ($OfficialUnsignedRelease) {
+        $compilerArguments += @(
+            (New-IsppStringDefine -Name 'Publisher' -Value $constants.distribution.signing.publisher),
+            (New-IsppStringDefine -Name 'ReleaseUri' -Value $constants.distribution.officialReleaseUri)
+        )
+    }
+    $compilerArguments += $innoScript
+    Write-Host '[package] 编译未签名安装包。'
     Invoke-DshNative `
         -FilePath $InnoCompilerPath `
         -Arguments $compilerArguments `
@@ -414,9 +469,9 @@ try {
 
     $installerPath = Join-Path $releaseDirectory $installerName
     if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
-        throw 'Inno Setup 未生成预期内部测试安装包。'
+        throw 'Inno Setup 未生成预期安装包。'
     }
-    Assert-Unsigned -Path $installerPath -Description '内部测试安装包'
+    Assert-Unsigned -Path $installerPath -Description '安装包'
 
     $verifySummaryDestination = Join-Path $releaseDirectory 'verify-summary.json'
     $sbomDestination = Join-Path $releaseDirectory 'sbom.spdx.json'
@@ -428,7 +483,7 @@ try {
             @{ Source = Join-Path $verifyDirectory 'third-party-licenses.json'; Destination = $licenseDestination },
             @{ Source = $governanceSummarySource; Destination = $governanceSummaryDestination })) {
         if (-not (Test-Path -LiteralPath $evidence.Source -PathType Leaf)) {
-            throw '统一验证缺少内部测试包所需证据文件。'
+            throw '统一验证缺少安装包所需证据文件。'
         }
         Copy-Item -LiteralPath $evidence.Source -Destination $evidence.Destination
     }
@@ -439,10 +494,15 @@ try {
     $installerHash = Get-DshSha256 -Path $installerPath
     $manifest = [ordered]@{
         schemaVersion = 2
-        packageKind = 'internal-test'
-        releaseEligible = $false
+        packageKind = if ($OfficialUnsignedRelease) { 'official' } else { 'internal-test' }
+        releaseEligible = [bool] $OfficialUnsignedRelease
         signed = $false
-        warning = 'UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE'
+        warning = if ($OfficialUnsignedRelease) {
+            'UNSIGNED OPEN SOURCE RELEASE'
+        }
+        else {
+            'UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE'
+        }
         version = $Version
         source = [ordered]@{
             commit = $sourceState.Commit
@@ -451,13 +511,18 @@ try {
         compatibilityIdentity = $compatibilityIdentity
         verificationImpact = $verifySummary.verificationImpact
         identity = [ordered]@{
-            appId = $internalAppId
-            productName = $internalProductName
-            executableName = $internalExecutableName
-            applicationDataId = $internalApplicationDataId
-            singleInstanceBaseName = $internalSingleInstanceBaseName
-            installDirectoryName = $internalInstallDirectoryName
-            defaultInstallDirectory = '%LOCALAPPDATA%\Programs\DshWindowsLauncher.InternalTest'
+            appId = $appId
+            productName = $productName
+            executableName = $executableName
+            applicationDataId = $applicationDataId
+            singleInstanceBaseName = $singleInstanceBaseName
+            installDirectoryName = $installDirectoryName
+            defaultInstallDirectory = if ($OfficialUnsignedRelease) {
+                '%LOCALAPPDATA%\Programs\DshWindowsLauncher'
+            }
+            else {
+                '%LOCALAPPDATA%\Programs\DshWindowsLauncher.InternalTest'
+            }
         }
         installer = [ordered]@{
             fileName = $installerName
@@ -465,7 +530,7 @@ try {
             authenticodeStatus = 'NotSigned'
         }
         application = [ordered]@{
-            fileName = $internalExecutableName
+            fileName = $executableName
             sha256 = Get-DshSha256 -Path $applicationExe
             productName = $applicationVersion.ProductName
             productVersion = $applicationVersion.ProductVersion
@@ -496,7 +561,8 @@ try {
             thirdPartyLicenses = 'third-party-licenses.json'
         }
     }
-    $manifestPath = Join-Path $releaseDirectory 'internal-test-manifest.json'
+    $manifestName = if ($OfficialUnsignedRelease) { 'package-manifest.json' } else { 'internal-test-manifest.json' }
+    $manifestPath = Join-Path $releaseDirectory $manifestName
     $manifest | ConvertTo-Json -Depth 20 |
         Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
 
@@ -513,17 +579,18 @@ try {
     $checksumLines | Set-Content -LiteralPath $checksumPath -Encoding ascii
 
     if ((Get-DshSha256 -Path $installerPath) -cne $installerHash) {
-        throw '内部测试安装包在冻结哈希后发生变化。'
+        throw '安装包在冻结哈希后发生变化。'
     }
 
     $finalSourceState = Get-DshSourceState -RepositoryRoot $repositoryRoot
     if (-not $finalSourceState.Available -or
         $finalSourceState.Commit -cne $sourceState.Commit -or
         $finalSourceState.WorktreeState -cne 'clean') {
-        throw '内部测试打包期间源提交或工作树状态发生变化。'
+        throw '打包期间源提交或工作树状态发生变化。'
     }
 
-    Write-Host "package-internal.ps1: PASS`nInstaller: $installerPath`nSHA-256: $installerHash"
+    $commandName = if ($OfficialUnsignedRelease) { 'package-unsigned.ps1' } else { 'package-internal.ps1' }
+    Write-Host "$commandName`: PASS`nInstaller: $installerPath`nSHA-256: $installerHash"
 }
 catch {
     Write-Error "package-internal.ps1: FAIL`n$($_.Exception.Message)"

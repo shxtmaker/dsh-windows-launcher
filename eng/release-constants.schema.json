@@ -22,7 +22,7 @@
       "const": "./release-constants.schema.json"
     },
     "schemaVersion": {
-      "const": 2
+      "const": 3
     },
     "releaseStatus": {
       "enum": [
@@ -127,7 +127,7 @@
       ],
       "properties": {
         "contractVersion": {
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "contractCapabilitiesCanonicalSha256": {
           "$ref": "#/$defs/sha256"
@@ -189,10 +189,10 @@
           ],
           "properties": {
             "commit": {
-              "const": "cd5ef8148158c3a752a658978873241fdf8e2bbc"
+              "const": "0a53fb55bea101816fa226bb964ae2bed71c343b"
             },
             "version": {
-              "const": "dsh-v0.1.2-alpha.1"
+              "const": "dsh-v0.1.2-alpha.2"
             },
             "probeFingerprint": {
               "type": "object",
@@ -415,11 +415,18 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "policy",
             "publisher",
             "certificateSubject",
             "timestampServerUri"
           ],
           "properties": {
+            "policy": {
+              "enum": [
+                "optional",
+                "required"
+              ]
+            },
             "publisher": {
               "$ref": "#/$defs/pendingString"
             },
@@ -432,7 +439,7 @@
           }
         },
         "officialReleaseUri": {
-          "$ref": "#/$defs/pendingHttpsUri"
+          "$ref": "#/$defs/pendingHttpUri"
         }
       }
     },
@@ -515,6 +522,11 @@
       "format": "uri",
       "pattern": "^https://"
     },
+    "httpUri": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://"
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[0-9A-Fa-f]{64}$"
@@ -533,6 +545,16 @@
       "oneOf": [
         {
           "$ref": "#/$defs/httpsUri"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pendingHttpUri": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/httpUri"
         },
         {
           "type": "null"
@@ -603,17 +625,44 @@
                 "properties": {
                   "publisher": {
                     "$ref": "#/$defs/nonEmptyString"
-                  },
-                  "certificateSubject": {
-                    "$ref": "#/$defs/nonEmptyString"
-                  },
-                  "timestampServerUri": {
-                    "$ref": "#/$defs/httpsUri"
                   }
                 }
               },
               "officialReleaseUri": {
-                "$ref": "#/$defs/httpsUri"
+                "$ref": "#/$defs/httpUri"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "releaseStatus": { "const": "candidate" },
+          "distribution": {
+            "properties": {
+              "signing": {
+                "properties": {
+                  "policy": { "const": "required" }
+                },
+                "required": ["policy"]
+              }
+            },
+            "required": ["signing"]
+          }
+        },
+        "required": ["releaseStatus", "distribution"]
+      },
+      "then": {
+        "properties": {
+          "distribution": {
+            "properties": {
+              "signing": {
+                "properties": {
+                  "certificateSubject": { "$ref": "#/$defs/nonEmptyString" },
+                  "timestampServerUri": { "$ref": "#/$defs/httpsUri" }
+                }
               }
             }
           }

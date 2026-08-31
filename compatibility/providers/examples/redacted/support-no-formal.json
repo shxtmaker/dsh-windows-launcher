@@ -14,7 +14,7 @@
     "lanPluginVersion": "0.0.0-redacted",
     "routeVersion": "REDACTED"
   },
-  "contractVersion": "1.0.0",
+  "contractVersion": "1.1.0",
   "registryVersion": 1,
   "rules": [],
   "launcher": {

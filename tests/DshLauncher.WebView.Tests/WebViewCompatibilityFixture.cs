@@ -35,11 +35,23 @@ internal static class WebViewCompatibilityFixture
                 Descriptor()));
     }
 
+    public static PageCapabilityResolution CreateRemoteUiResolution()
+    {
+        var resolver = CreateResolver(RemoteUiRule());
+        return resolver.Resolve(
+            TargetId,
+            BoundedDescriptorResponse.Received(
+                200,
+                "application/json; charset=utf-8",
+                wasRedirected: false,
+                Descriptor()));
+    }
+
     public static byte[] Descriptor() => Utf8(
         """
         {
           "schemaVersion": 1,
-          "contractVersion": "1.0.0",
+          "contractVersion": "1.1.0",
           "components": [
             {
               "uiId": "org.example.ui",
@@ -59,7 +71,7 @@ internal static class WebViewCompatibilityFixture
         {
           "schemaVersion": 1,
           "registryVersion": 1,
-          "contractVersion": "1.0.0",
+          "contractVersion": "1.1.0",
           "activeRules": [{{rules}}],
           "tombstones": []
         }
@@ -70,7 +82,7 @@ internal static class WebViewCompatibilityFixture
         {
           "ruleId": "org.example.bundle",
           "ruleVersion": "1.0.0",
-          "contractVersion": "1.0.0",
+          "contractVersion": "1.1.0",
           "evidenceBaseline": {
             "harnessCommit": "0123456789abcdef0123456789abcdef01234567",
             "lanPluginVersion": "1.2.1",
@@ -112,6 +124,73 @@ internal static class WebViewCompatibilityFixture
               "methods": ["GET", "HEAD"],
               "resourceTypes": ["document", "frame"],
               "redirectPolicy": "none"
+            }
+          ]
+        }
+        """;
+
+    public static string RemoteUiRule() =>
+        """
+        {
+          "ruleId": "org.example.remote-ui",
+          "ruleVersion": "1.0.0",
+          "contractVersion": "1.1.0",
+          "evidenceBaseline": {
+            "harnessCommit": "0123456789abcdef0123456789abcdef01234567",
+            "lanPluginVersion": "1.2.1",
+            "routeVersion": "remote-ui-fixture-v1"
+          },
+          "match": {
+            "uiId": "org.example.ui",
+            "minimumUiVersion": "1.2.3",
+            "maximumUiVersion": "1.2.3",
+            "sourceRev": "abc1234",
+            "adapterKey": "example.bundle"
+          },
+          "purpose": {
+            "displayName": "Enable reviewed remote UI bootstrap",
+            "diagnosticName": "remote-ui-bootstrap"
+          },
+          "grants": [
+            {
+              "capabilityId": "reviewed-inline-script-sha256",
+              "scriptSha256": "mXHaYLlSQVyeSOfzqV5XdTPGPqz5QzoV1XVjJm6ZROw="
+            },
+            {
+              "capabilityId": "reviewed-inline-script-sha256",
+              "scriptSha256": "60H3O19ZLKq8nr2bYG0M2Erc+j7nEJP55v17BRb6+90="
+            },
+            {
+              "capabilityId": "target-websocket",
+              "path": {"kind": "exact", "value": "/remote/api/remote.mux"},
+              "methods": ["GET"],
+              "resourceTypes": ["websocket"],
+              "redirectPolicy": "none",
+              "queryKeys": ["device"]
+            },
+            {
+              "capabilityId": "target-websocket",
+              "path": {"kind": "exact", "value": "/remote/sidebar/ws/terminal"},
+              "methods": ["GET"],
+              "resourceTypes": ["websocket"],
+              "redirectPolicy": "none",
+              "queryKeys": ["device"]
+            },
+            {
+              "capabilityId": "target-websocket",
+              "path": {"kind": "exact", "value": "/remote/sidebar/ws/agent-terminals"},
+              "methods": ["GET"],
+              "resourceTypes": ["websocket"],
+              "redirectPolicy": "none",
+              "queryKeys": ["device"]
+            },
+            {
+              "capabilityId": "target-websocket",
+              "path": {"kind": "exact", "value": "/remote/api/dsh-ssh/terminal"},
+              "methods": ["GET"],
+              "resourceTypes": ["websocket"],
+              "redirectPolicy": "none",
+              "queryKeys": ["device"]
             }
           ]
         }

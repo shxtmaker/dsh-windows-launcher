@@ -55,6 +55,43 @@ public sealed class TargetResponseCspPolicyTests
     }
 
     [Fact]
+    public void RemoteUiPolicyContainsOnlyReviewedHashesAndExactTargetWebSockets()
+    {
+        var policy = TargetResponseCspPolicy.CreatePolicy(
+            Binding,
+            WebViewCompatibilityFixture.CreateRemoteUiResolution().Snapshot);
+
+        Assert.Contains(
+            "'sha256-mXHaYLlSQVyeSOfzqV5XdTPGPqz5QzoV1XVjJm6ZROw='",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "'sha256-60H3O19ZLKq8nr2bYG0M2Erc+j7nEJP55v17BRb6+90='",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ws://192.168.10.20:3080/remote/api/remote.mux",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ws://192.168.10.20:3080/remote/sidebar/ws/terminal",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ws://192.168.10.20:3080/remote/sidebar/ws/agent-terminals",
+            policy,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ws://192.168.10.20:3080/remote/api/dsh-ssh/terminal",
+            policy,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("'unsafe-inline'", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("script-src 'self' blob:", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain(" ws:;", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("/remote/;", policy, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TransientPolicyDisablesPageScriptAndAllPassiveResources()
     {
         var policy = TargetResponseCspPolicy.CreateTransientPolicy(Binding);
@@ -179,5 +216,96 @@ public sealed class TargetResponseCspPolicyTests
         Assert.False(parameters.RootElement
             .GetProperty("handleAuthRequests")
             .GetBoolean());
+    }
+
+    [Fact]
+    public void OnlyBoundInlineScriptCspViolationsAreRecognized()
+    {
+        const string boundViolation = """
+            {
+              "entry": {
+                "source": "security",
+                "level": "error",
+                "text": "Refused to execute inline script because it violates the following Content Security Policy directive.",
+                "url": "http://192.168.10.20:3080/"
+              }
+            }
+            """;
+        const string currentChromiumViolation = """
+            {
+              "entry": {
+                "source": "security",
+                "level": "error",
+                "text": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''.",
+                "url": "http://192.168.10.20:3080/"
+              }
+            }
+            """;
+        const string crossOriginViolation = """
+            {
+              "entry": {
+                "source": "security",
+                "level": "error",
+                "text": "Refused to execute inline script because it violates the following Content Security Policy directive.",
+                "url": "https://example.com/"
+              }
+            }
+            """;
+        const string sameOriginSubdocumentViolation = """
+            {
+              "entry": {
+                "source": "security",
+                "level": "error",
+                "text": "Refused to execute inline script because it violates the following Content Security Policy directive.",
+                "url": "http://192.168.10.20:3080/frame"
+              }
+            }
+            """;
+        const string unrelatedEntry = """
+            {
+              "entry": {
+                "source": "javascript",
+                "level": "error",
+                "text": "application startup failed",
+                "url": "http://192.168.10.20:3080/"
+              }
+            }
+            """;
+
+        Assert.True(TargetContentCspViolationPolicy
+            .IsBootstrapInlineScriptViolation(
+                boundViolation,
+                Binding,
+                Binding.Origin));
+        Assert.True(TargetContentCspViolationPolicy
+            .IsBootstrapInlineScriptViolation(
+                currentChromiumViolation,
+                Binding,
+                Binding.Origin));
+        Assert.False(TargetContentCspViolationPolicy
+            .IsBootstrapInlineScriptViolation(
+                crossOriginViolation,
+                Binding,
+                Binding.Origin));
+        Assert.False(TargetContentCspViolationPolicy
+            .IsBootstrapInlineScriptViolation(
+                sameOriginSubdocumentViolation,
+                Binding,
+                Binding.Origin));
+        Assert.False(TargetContentCspViolationPolicy
+            .IsBootstrapInlineScriptViolation(
+                unrelatedEntry,
+                Binding,
+                Binding.Origin));
+        Assert.False(TargetContentCspViolationPolicy
+            .IsBootstrapInlineScriptViolation(
+                "{}",
+                Binding,
+                Binding.Origin));
+        Assert.False(TargetContentCspViolationPolicy
+            .IsBootstrapInlineScriptViolation(
+                string.Empty,
+                Binding,
+                Binding.Origin));
     }
 }

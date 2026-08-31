@@ -166,6 +166,9 @@ public sealed class TargetContentSecurityPolicy
             CapabilityKind.WebSocket =>
                 resourceKind == WebResourceKind.WebSocket &&
                 MatchesExternalGrant(grant, resource),
+            CapabilityKind.TargetWebSocket =>
+                resourceKind == WebResourceKind.WebSocket &&
+                MatchesTargetWebSocketGrant(grant, resource),
             _ => false,
         };
     }
@@ -340,6 +343,28 @@ public sealed class TargetContentSecurityPolicy
             CapabilityPathMatch.None => resource.AbsolutePath == "/",
             _ => false,
         };
+    }
+
+    private bool MatchesTargetWebSocketGrant(
+        CapabilityGrant grant,
+        Uri resource)
+    {
+        return resource.IsAbsoluteUri &&
+               string.Equals(resource.Scheme, "ws", StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(
+                   resource.IdnHost,
+                   Binding.Origin.IdnHost,
+                   StringComparison.OrdinalIgnoreCase) &&
+               resource.Port == Binding.Origin.Port &&
+               string.IsNullOrEmpty(resource.UserInfo) &&
+               string.IsNullOrEmpty(resource.Fragment) &&
+               !HasAmbiguousPath(resource.AbsolutePath) &&
+               grant.PathMatch == CapabilityPathMatch.Exact &&
+               string.Equals(
+                   resource.AbsolutePath,
+                   grant.Path,
+                   StringComparison.Ordinal) &&
+               HasAllowedQuery(GetRawQuery(resource), grant.QueryKeys);
     }
 
     private static string GetRawQuery(Uri resource)

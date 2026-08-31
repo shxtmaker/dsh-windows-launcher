@@ -349,7 +349,7 @@ function Assert-DshReleaseConstants {
         }
     }
 
-    if ($Constants.schemaVersion -ne 2) {
+    if ($Constants.schemaVersion -ne 3) {
         throw "未知发布常量模式：$($Constants.schemaVersion)"
     }
 
@@ -366,8 +366,8 @@ function Assert-DshReleaseConstants {
         throw '发布常量中的构建身份偏离 V1 固定基线。'
     }
 
-    if ($Constants.dependencyBaseline.harness.commit -ne 'cd5ef8148158c3a752a658978873241fdf8e2bbc' -or
-        $Constants.dependencyBaseline.harness.version -ne 'dsh-v0.1.2-alpha.1') {
+    if ($Constants.dependencyBaseline.harness.commit -ne '0a53fb55bea101816fa226bb964ae2bed71c343b' -or
+        $Constants.dependencyBaseline.harness.version -ne 'dsh-v0.1.2-alpha.2') {
         throw '发布常量中的 Harness 源码身份偏离 V1 固定基线。'
     }
     Assert-DshHarnessFingerprintBaseline -RepositoryRoot $RepositoryRoot -Constants $Constants
@@ -384,8 +384,8 @@ function Assert-DshReleaseConstants {
 
     $compatibility = $Constants.webUiCompatibility
     if ($null -eq $compatibility -or
-        $compatibility.contractVersion -cne '1.0.0' -or
-        $compatibility.registryVersion -ne 1) {
+        $compatibility.contractVersion -cne '1.1.0' -or
+        $compatibility.registryVersion -ne 3) {
         throw '发布常量中的 WebUI 契约或注册表版本无效。'
     }
     foreach ($property in @(
@@ -410,17 +410,27 @@ function Assert-DshReleaseConstants {
             throw "正式候选要求 releaseStatus=candidate，当前值为 $($Constants.releaseStatus)。"
         }
 
-        $emptyPaths = @(Get-DshEmptyValuePaths -InputObject $Constants)
+        $emptyPaths = @(Get-DshEmptyValuePaths -InputObject $Constants | Where-Object {
+                $_ -ne '$.verificationBaseline.lastSupportedSignedReleaseCommit'
+            })
+        if ($Constants.distribution.signing.policy -eq 'optional') {
+            $emptyPaths = @($emptyPaths | Where-Object {
+                    $_ -notin @(
+                        '$.distribution.signing.certificateSubject',
+                        '$.distribution.signing.timestampServerUri')
+                })
+        }
         if ($emptyPaths.Count -gt 0) {
             throw "正式候选仍有空发布常量：$($emptyPaths -join ', ')"
         }
 
-        if ($Constants.distribution.officialReleaseUri -notmatch '^https://') {
-            throw '正式发布地址必须使用 HTTPS。'
+        if ($Constants.distribution.officialReleaseUri -notmatch '^https?://') {
+            throw '正式发布地址必须使用 HTTP 或 HTTPS。'
         }
 
-        if ($Constants.distribution.signing.timestampServerUri -notmatch '^https://') {
-            throw '时间戳服务必须使用 HTTPS。'
+        if ($Constants.distribution.signing.policy -eq 'required' -and
+            $Constants.distribution.signing.timestampServerUri -notmatch '^https://') {
+            throw '启用强制签名时，时间戳服务必须使用 HTTPS。'
         }
 
     }

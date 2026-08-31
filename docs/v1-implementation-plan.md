@@ -57,7 +57,7 @@ V1 在 Windows 上提供一个独立桌面入口，用于连接局域网内已�
 | 兼容平台 | Windows 10 22H2 x64，尽力兼容 |
 | UI 技术 | C#、.NET 10 LTS、WPF |
 | Web 容器 | Microsoft Edge WebView2，Evergreen Runtime |
-| Harness | commit `cd5ef8148158c3a752a658978873241fdf8e2bbc`，`dsh-v0.1.2-alpha.1` |
+| Harness | commit `0a53fb55bea101816fa226bb964ae2bed71c343b`，`dsh-v0.1.2-alpha.2` |
 | LAN 插件 | `dsh-web-lan-access 1.2.1` |
 | WebView2 SDK | `1.0.4129.50` |
 | Linux 参考系统 | Ubuntu Server 24.04 LTS x64 |
@@ -72,12 +72,12 @@ V1 在 Windows 上提供一个独立桌面入口，用于连接局域网内已�
 - 精确 .NET SDK 补丁版本和 `global.json`。
 - 固定 Inno Setup 版本。
 - 已实测的最低 Evergreen WebView2 Runtime 版本。
-- Publisher、证书主体和签名设施。
+- Publisher、签名策略，以及策略要求的证书主体和签名设施。
 - 固定 HTTPS 官方发布地址。
 - `contractVersion`、描述符 Schema 版本与 SHA-256、`registryVersion`、规范化注册表 SHA-256、活动规则和墓碑摘要。
 - 首个提供有效描述符的 dsh-web 精确版本、`sourceRev`、提供方套件摘要和参考规则版本。
 
-上述发布身份集中保存在受版本控制的发布常量和机器清单中，再由项目文件、安装脚本、诊断版本信息和证据生成器读取。正式产物不得保留占位值；签名凭据不得进入仓库或普通 runner 文件系统。当前 `1.0.0` 尚未正式发布，因此通用兼容并入首个正式 `1.0.0`；若实施开始前该版本已经形成正式签名发布，则目标自动提升为 `1.1.0`，不得回写旧基线。
+上述发布身份集中保存在受版本控制的发布常量和机器清单中，再由项目文件、安装脚本、诊断版本信息和证据生成器读取。正式产物不得保留占位值；签名凭据不得进入仓库或普通 runner 文件系统。当前 `1.0.0` 尚未正式发布，因此通用兼容并入首个正式 `1.0.0`；若实施开始前该版本已经形成正式发布，则目标自动提升为 `1.1.0`，不得回写旧基线。
 
 ## 4. 规范需求
 
@@ -188,7 +188,7 @@ V1 在 Windows 上提供一个独立桌面入口，用于连接局域网内已�
 | `REQ-WEB-014` | 目标内容宿主在可见根导航前把严格描述符结果与只读内置注册表匹配，与全局能力上限求交，按确定性规则合并并生成不可变页面能力快照。身份、版本、adapter key、用途或规则冲突、注册表损坏、超出上限或无法确定合并结果时，扩展能力整体失效并降级到基础兼容。 |
 | `REQ-WEB-015` | 资源、HTTP 方法、每个重定向跳、frame、条件 WebSocket/Worker 和追加的 Document CSP 只消费同一页面能力快照。外部被动资源限 `GET/HEAD`，审核 API 限 `GET/POST/OPTIONS`；主页面不得直接加载外部脚本。服务端 CSP 必须逐项原样保留；宿主只对当前精确目标的 Document 追加策略。配对与自动连接从首次 token/根导航前启用独立最小 CSP、关闭页面脚本，且不读取描述符、注册表、外部能力确认或可见页面快照。 |
 | `REQ-WEB-016` | 描述符固定从当前目标浏览器会话的 `/.well-known/dsh-webui-compatibility.json` 在可见根导航前读取，只接受无重定向的 `200 application/json; charset=utf-8`。响应上限 64 KiB、组件上限 64、解析深度有限；拒绝重复键、尾随内容、冲突身份、非法 adapter key、未知主版本和授权型扩展字段。缺失或无效时不猜测、不使用缓存授权，只保留基础兼容。 |
-| `REQ-WEB-017` | 适配规则注册表只以规范化只读资源嵌入受 Authenticode 签名的托管主程序集。运行时规则精确匹配契约、`uiId`、`uiVersion`、可选 `sourceRev`、adapter key、`ruleId` 和不可变 `ruleVersion`；匹配域不得重叠。Harness/LAN/route 基线只限定证据和支持范围，不作为无法可信取得的运行时身份。撤销使用永久无能力墓碑，优先于活动规则，规则身份永不复用。 |
+| `REQ-WEB-017` | 适配规则注册表只以规范化只读资源嵌入冻结托管主程序集。运行时规则精确匹配契约、`uiId`、`uiVersion`、可选 `sourceRev`、adapter key、`ruleId` 和不可变 `ruleVersion`；匹配域不得重叠。Harness/LAN/route 基线只限定证据和支持范围，不作为无法可信取得的运行时身份。撤销使用永久无能力墓碑，优先于活动规则，规则身份永不复用。 |
 | `REQ-WEB-018` | 页面能力快照摘要绑定 `targetId`、全部组件精确身份、实际命中规则版本和最终规范化能力。首次出现外部能力或摘要发生任何变化时，用户按目标接受或拒绝精确站点与用途；用户不能编辑规则或能力。只有摘要完全一致才可复用确认，拒绝、撤销、规则墓碑和降级均只保留基础兼容。 |
 | `REQ-WEB-019` | 安全根页面可用但部分能力或 WebUI 声明的必需外部 frame 失败时，目标窗口保持页面可用，并用原生窄提示和按需侧板显示脱敏兼容状态、稳定原因码和恢复动作。只有 Harness 根导航不可用、证书/协议失败或全局安全边界违反进入完整阻断/恢复页；不得提供临时放行或添加域名入口。 |
 | `REQ-WEB-020` | 每次顶层打开、用户刷新、WebView/renderer/browser/environment 恢复和重新配对后首次可见导航都重新读取描述符并计算快照。当前 Document 生命周期内快照不得扩大；变化只在下一次完整页面能力周期生效。 |
@@ -243,8 +243,8 @@ Bootstrap：脚本关闭，仅允许精确描述符 GET Document，无重定向
 
 | ID | 要求 |
 |---|---|
-| `REQ-DIST-001` | 唯一正式产物为受信任签名的 Inno Setup 按用户 EXE：`{Product}-Setup-{SemVer}-win-x64.exe`。应用为 .NET 10 自包含、多文件、非裁剪发布。 |
-| `REQ-DIST-002` | 安装器、自有 EXE 和卸载器必须带可信时间戳的 Authenticode 签名；发行页提供 SHA-256 和发行说明。无有效签名的包只可内部测试。 |
+| `REQ-DIST-001` | 唯一正式产物为 Inno Setup 按用户 EXE：`{Product}-Setup-{SemVer}-win-x64.exe`。应用为 .NET 10 自包含、多文件、非裁剪发布。 |
+| `REQ-DIST-002` | 安装器、自有 EXE 和卸载器必须记录实测 Authenticode 状态；签名策略为 `required` 时必须带可信时间戳的有效签名。发行页始终提供 SHA-256、SBOM 和发行说明。 |
 | `REQ-DIST-003` | 默认目录为 `%LOCALAPPDATA%\Programs\DshWindowsLauncher`。首次安装可选择不存在或空的目录，但最终卷必须是 `DRIVE_FIXED` 且当前用户可写、空间充足。 |
 | `REQ-DIST-004` | 拒绝 UNC、网络映射、可移动盘、设备路径和无法确认最终位置的重解析路径；不得通过提权绕过。其他非空目录不得接管、覆盖或清理。 |
 | `REQ-DIST-005` | 应用数据根固定为 `%LOCALAPPDATA%\DshWindowsLauncher`，独立于程序目录。升级、修复或改变程序安装位置不得改变目标或会话身份。 |
@@ -257,9 +257,9 @@ Bootstrap：脚本关闭，仅允许精确描述符 GET Document，无重定向
 | `REQ-DIST-012` | V1 不后台检查或安装更新。“查看更新”经用户确认后只用系统浏览器打开构建时固定的 HTTPS 发布地址。 |
 | `REQ-DIST-013` | 安装只创建当前用户开始菜单快捷方式和“已安装的应用”卸载项；不默认创建桌面快捷方式。首次安装完成页默认勾选“立即启动”，修复或升级后默认不启动；需要重启时只提示，不自动重启或启动。 |
 | `REQ-DIST-014` | 运行时发现 WebView2 缺失或损坏时显示原生修复页；联网可运行随程序保留的 Microsoft Bootstrapper，离线要求重新运行完整正式安装包。 |
-| `REQ-DIST-015` | 安装过程日志成功后删除，失败后保留并显示路径；不得记录目标、凭据、页面或应用数据内容。项目只维护最新签名补丁版，旧版本可留存但标记为不受支持。 |
-| `REQ-DIST-016` | 内置适配规则注册表、契约和 Schema 只随完整签名启动器分发。不得提供运行时联网下载、后台更新、独立规则包、安装目录可编辑 JSON、命令行/环境变量覆盖、页面提供规则、手工导入或隐藏入口。 |
-| `REQ-DIST-017` | 构建必须校验注册表 Schema、规范化、唯一性、版本单调、匹配域不重叠、墓碑和全局上限，计算 SHA-256，并把契约、Schema、注册表、活动规则/墓碑、参考适配器、支持记录和影响清单身份绑定到签名资源、包清单、SBOM 和正式发布证据。 |
+| `REQ-DIST-015` | 安装过程日志成功后删除，失败后保留并显示路径；不得记录目标、凭据、页面或应用数据内容。项目只维护最新正式补丁版，旧版本可留存但标记为不受支持。 |
+| `REQ-DIST-016` | 内置适配规则注册表、契约和 Schema 只随完整启动器分发。不得提供运行时联网下载、后台更新、独立规则包、安装目录可编辑 JSON、命令行/环境变量覆盖、页面提供规则、手工导入或隐藏入口。 |
+| `REQ-DIST-017` | 构建必须校验注册表 Schema、规范化、唯一性、版本单调、匹配域不重叠、墓碑和全局上限，计算 SHA-256，并把契约、Schema、注册表、活动规则/墓碑、参考适配器、支持记录和影响清单身份绑定到冻结资源、包清单、SBOM 和正式发布证据。 |
 
 ## 5. 代码结构与模块边界
 
@@ -360,7 +360,7 @@ M1 后可以并行准备 Linux 夹具和安装器骨架。M2 与 M3 可在接口
 | P3 Runtime 与受控 fixture | 先拆开可见内容 CSP 与临时最小 CSP，把 Pair 的最小 CSP 前移到首次 token 导航前，再实现脚本关闭的同会话描述符 bootstrap 和统一快照输入；扩建双 HTTPS、异端口、OOPIF、WebSocket、Worker、重定向和到站计数 fixture。 | 配对/自动连接永不调用描述符或规则且首次导航前已启用最小 CSP；可见 adapter 在不执行根页面脚本前取得严格响应；每项条件能力的双 Runtime 和 Edge 夹具可复跑。通过的能力必须写入规范能力清单并提升契约版本；未通过能力不进入规则或产品。 | P5 前仍可丢弃候选，不建立运行时开关。 |
 | P4 dsh-web 参考适配器 | Linux 提供首个有效描述符精确版本；建立 Market 与 Turnstile 精确规则、版本身份、提供方套件、CSP A/B 和正负 route 数据。 | 精确版本、`sourceRev`、规则、描述符、route、安全根页面和 CSP 债务均有确定结果。 | 证据不全时只承诺基础兼容；不合成描述符或恢复旧白名单。 |
 | P5 同一候选原子切换 | 初次打开、刷新、WebView/renderer/browser/environment 恢复同时改用新 resolution；资源、方法、逐跳重定向、frame、WebSocket 和 CSP 同时消费快照；删除专用策略、常量和旧测试。 | 新旧授权路径不能并存；静态专用入口为零；所有可见和临时调用链通过。 | 整体回退候选或完整提交，继续使用上一签名正式版本；产品内无 fallback。 |
-| P6 正式证据与支持记录 | 更新发布资产，运行全部 VFY、全部 RS、最低 Runtime、Evergreen、Edge、参考正负矩阵、性能、签名、时间戳、SBOM、哈希和支持记录生成。 | `FAIL`、`SKIP`、`MISSING`、身份不一致和专用入口残留均为零；证据绑定同一签名候选。 | 未发布候选整体丢弃；正式发布后只使用签名 patch 和墓碑修复。 |
+| P6 正式证据与支持记录 | 更新发布资产，运行全部 VFY、全部 RS、最低 Runtime、Evergreen、Edge、参考正负矩阵、性能、签名策略、SBOM、哈希和支持记录生成。 | `FAIL`、`SKIP`、`MISSING`、身份不一致和专用入口残留均为零；证据绑定同一冻结候选。 | 未发布候选整体丢弃；正式发布后只使用完整 patch 和墓碑修复。 |
 | P7 提供方流程开放 | 发布并启用 P0 的接入规范、模板、正反示例、原因码表、审核决定和生成式支持记录，填入公开入口、私密安全入口、负责人和维护承诺。 | 所有角色、入口、签名发布身份无占位；Schema、双轴状态机、交叉身份、生成一致性和敏感字段自动验证通过；dsh-web 从接入包到机器支持记录及人类生成物完整走通。 | 条件不全时仅发布基础兼容自助材料，不宣称正式扩展接入或长期维护服务开放。 |
 
 P2 与 P3 可在 P1 interface 稳定后部分并行；P4 依赖 P1 和 P3；P5 等待 P2 至 P4 的阻断项清空。P0 至 P4 的提交可以独立评审，但任何可运行候选在 P5 前不得包含“新快照已接入、部分事件仍走旧允许清单”的混合状态。
@@ -378,7 +378,7 @@ P5 必须在同一迁移版本中删除 `src/DshLauncher.WebView/DshWebUiCompati
 | `src/DshLauncher.WebView/WebView2ResponseCspBoundary.cs` | 从 snapshot 生成可见 Document CSP；保留服务端 CSP；为临时流提供独立最小 CSP。 | CSP 确定性数据、CDP fail-closed、`RS-09/10` |
 | `src/DshLauncher.WebView/WebView2TargetContentRuntime.cs` | 实现脚本关闭、仅精确描述符 GET、无重定向的 bootstrap；解析/确认后原子激活 snapshot/CSP，再允许根导航；全部事件映射到统一 enforcement。 | adapter 契约、真实 Runtime fixture |
 | `src/DshLauncher.WebView/WebView2TargetRuntimePort.cs` | 配对和自动连接保持脚本关闭、绑定 origin；Pair 与 PrepareOpen 都在首次导航前启用独立最小 CSP，并证明从不调用 Compatibility。 | 临时流生效顺序和负向测试、`RS-05` |
-| `src/DshLauncher.Desktop/App.xaml.cs`、`DshLauncher.Desktop.csproj` | 作为唯一全局组合根，在任何窗口前校验签名托管主程序集、内置注册表 Schema/摘要/唯一性和回退水位；嵌入规范注册表资源。 | 启动 fail-closed、签名资源和组合根测试 |
+| `src/DshLauncher.Desktop/App.xaml.cs`、`DshLauncher.Desktop.csproj` | 作为唯一全局组合根，在任何窗口前校验发布策略、内置注册表 Schema/摘要/唯一性和回退水位；嵌入规范注册表资源。 | 启动 fail-closed、冻结资源和组合根测试 |
 | `src/DshLauncher.Desktop/WindowCoordinator.cs` 与目标窗口 | 组合 resolver、reader、state adapter、WPF confirmation port 和兼容提示/侧板；不解析规则。 | UI 状态、可访问性、确认复用/撤销测试 |
 | `src/DshLauncher.Platform.Windows/ApplicationDataStore.cs`、`JsonSessionPort.cs` 及新 JSON adapter | 增加水位及目标根内确认/诊断的独立 Schema、原子替换和备份；继续由 `TargetManager` 的整根删除事务完成忘记与崩溃恢复。 | `VFY-03`、TargetManager 忘记/恢复测试、`RS-14` |
 | `src/DshLauncher.WebView/DshWebUiCompatibilityPolicy.cs` | 在 P5 删除。 | 静态扫描不得存在文件或引用 |
@@ -388,7 +388,7 @@ P5 必须在同一迁移版本中删除 `src/DshLauncher.WebView/DshWebUiCompati
 | `eng/generate-webui-governance.ps1` | 校验 Schema、状态机、身份、敏感字段和摘要，生成审核/支持人类摘要。 | 可重复生成、手工平行状态扫描 |
 | `eng/verification-impact-map.json`、`eng/verify.ps1` | 路径和输入身份映射到 tag/RS；自动取并集；更新预期测试数据与专用入口扫描。 | 未映射输入强制全量；人工只能增加 |
 | `eng/fixtures/linux/` | 扩建目标/异端口/双 HTTPS、描述符、重定向、OOPIF、WebSocket、Worker、缓存和到站计数。 | 双 Runtime 与 Edge 可复跑证据 |
-| `eng/package.ps1`、`eng/release-smoke.ps1` | Authenticode 签名并验证 apphost EXE、托管主程序集、卸载器和安装器；绑定注册表/契约/支持身份，生成结构化证据，执行影响并集、双 Runtime、Edge 和全部触发 RS。 | `VFY-08`、签名应用集、`RS-01` 至 `RS-15` |
+| `eng/package.ps1`、`eng/package-unsigned.ps1`、`eng/release-smoke.ps1` | 按签名策略冻结并验证 apphost EXE、托管主程序集、卸载器和安装器；绑定注册表/契约/支持身份，生成结构化证据，执行影响并集、双 Runtime、Edge 和全部触发 RS。 | `VFY-08`、冻结发布应用集、`RS-01` 至 `RS-15` |
 | 三个生产 `.csproj`、相关测试 `.csproj` | 固定 Compatibility 引用方向、托管资源嵌入和测试依赖；禁止 Compatibility 反向引用 UI/平台。 | 架构与构建图测试 |
 | `README.md`、现有兼容说明、实施/发布文档、ADR | 在 P5 同步删除专用产品表述；README 只概述通用能力，dsh-web 只作为参考链接。 | 文档不得把临时规划材料作为规范来源；产品声明与代码一致 |
 
@@ -398,7 +398,7 @@ P5 必须在同一迁移版本中删除 `src/DshLauncher.WebView/DshWebUiCompati
 2. **通用兼容产品完成**：P0 至 P6 全部落地，专用入口静态为零，运行行为统一，精确参考适配器和全部正式证据通过。
 3. **正式接入流程开放**：P7 的负责人、公开入口、私密安全入口、发布身份、模板、示例、机器支持记录和生成物无占位值，并完整跑通一个 dsh-web 接入生命周期。
 
-三种状态不得相互替代。当前仓库在本方案更新后只达到第一种；`releaseStatus=development`、空 Publisher/证书/时间戳/官方地址或未完成实机证据时，不得声明后两种。
+三种状态不得相互替代。`releaseStatus=development`、空 Publisher/签名策略/官方地址、策略要求的证书或时间戳缺失、或未完成适用实机证据时，不得声明后两种。
 
 ## 8. 构建、验证与打包入口
 
@@ -420,7 +420,7 @@ P5 必须在同一迁移版本中删除 `src/DshLauncher.WebView/DshWebUiCompati
 
 ### `eng/package.ps1`
 
-接收明确 SemVer，只消费已通过验证的 Release 输出。它生成自包含应用、离线 Runtime 前置、安装器、SBOM 和发行说明输入；规范化内置注册表必须在编译前完成校验并嵌入托管主程序集，其版本与 SHA-256 进入 `package-manifest.json`、SBOM、结构化证据和发行说明输入。正式模式按固定顺序 Authenticode 签名并验证 apphost EXE、托管主程序集和卸载器，再生成、签名并验证安装器；三者共同构成签名应用集。启动前再次校验托管程序集签名和注册表摘要。对最终不可变安装包计算 SHA-256 后，任何字节变化都产生新候选并使既有实机报告失效。
+接收明确 SemVer，只消费已通过验证的 Release 输出。它生成自包含应用、Runtime 修复入口、安装器、SBOM 和发行说明输入；规范化内置注册表必须在编译前完成校验并嵌入托管主程序集，其版本与 SHA-256 进入 `package-manifest.json`、SBOM、结构化证据和发行说明输入。正式模式按发布常量执行 `required` 或 `optional` 签名策略，记录 apphost EXE、托管主程序集、卸载器和安装器的 Authenticode 状态及 SHA-256，共同构成冻结发布应用集。启动前再次校验发布策略和注册表摘要。对最终不可变安装包计算 SHA-256 后，任何字节变化都产生新候选并使既有实机报告失效。
 
 ### `eng/release-smoke.ps1`
 

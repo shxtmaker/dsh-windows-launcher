@@ -64,6 +64,17 @@ internal static partial class ConfigurationParser
                         WebResourceKind.Media,
                         WebResourceKind.Stylesheet,
                     ])),
+                ["reviewed-inline-script-sha256"] = new(
+                    CapabilityKind.ReviewedInlineScriptSha256,
+                    "passiveResource",
+                    CapabilityDocumentScope.TargetDocument,
+                    new HashSet<WebResourceKind>([WebResourceKind.Script]),
+                    MainDocumentScriptAllowed: true),
+                ["target-websocket"] = new(
+                    CapabilityKind.TargetWebSocket,
+                    "passiveResource",
+                    CapabilityDocumentScope.TargetDocument,
+                    new HashSet<WebResourceKind>([WebResourceKind.WebSocket])),
             };
 
     private static readonly Dictionary<string, CapabilityKind> ConditionalCapabilityMap =
@@ -77,7 +88,6 @@ internal static partial class ConfigurationParser
             ["oopif-frame"] = CapabilityKind.Oopif,
             ["redirect-hop"] = CapabilityKind.Redirect,
             ["shared-worker"] = CapabilityKind.SharedWorker,
-            ["target-websocket"] = CapabilityKind.WebSocket,
         };
 
     private static readonly HashSet<string> TombstoneReasonCodes =
@@ -376,7 +386,9 @@ internal static partial class ConfigurationParser
                 !string.Equals(methodCeiling, shape.MethodCeiling, StringComparison.Ordinal) ||
                 !methodCeilings.TryGetValue(methodCeiling, out var methods) ||
                 !item.TryGetProperty("mainDocumentScriptAllowed", out var scriptAllowed) ||
-                scriptAllowed.ValueKind != JsonValueKind.False)
+                scriptAllowed.ValueKind != (shape.MainDocumentScriptAllowed
+                    ? JsonValueKind.True
+                    : JsonValueKind.False))
             {
                 throw ContractError(
                     CompatibilityReasonCode.ContractInvalidCapability,
@@ -660,12 +672,31 @@ internal static partial class ConfigurationParser
                 "resourceTypes",
                 "redirectPolicy",
                 "parentOrigin",
-                "queryKeys") ||
+                "queryKeys",
+                "scriptSha256") ||
             !TryGetCapabilityId(element, out var capabilityId) ||
             !contract.CapabilityCeilings.TryGetValue(capabilityId, out var ceiling) ||
-            ceiling.IsConditional ||
-            !StrictJson.TryGetRequiredString(element, "origin", out var origin) ||
-            !TryGetCanonicalHttpsOrigin(origin, out origin) ||
+            ceiling.IsConditional)
+        {
+            throw RegistryError(
+                CompatibilityReasonCode.RegistryInvalidCapability,
+                "The trusted adapter registry contains an invalid capability.");
+        }
+
+        if (ceiling.Kind == CapabilityKind.ReviewedInlineScriptSha256)
+        {
+            return ParseReviewedInlineScriptGrant(
+                element,
+                capabilityId,
+                purpose,
+                ceiling);
+        }
+
+        var isTargetWebSocket = ceiling.Kind == CapabilityKind.TargetWebSocket;
+        if (!StrictJson.TryGetOptionalString(element, "origin", out var origin) ||
+            isTargetWebSocket && origin is not null ||
+            !isTargetWebSocket &&
+            (origin is null || !TryGetCanonicalHttpsOrigin(origin, out origin)) ||
             !element.TryGetProperty("path", out var pathElement) ||
             !StrictJson.HasOnlyProperties(pathElement, "kind", "value") ||
             !StrictJson.TryGetRequiredString(pathElement, "kind", out var pathKind) ||
@@ -678,7 +709,8 @@ internal static partial class ConfigurationParser
             redirectPolicy != "none" ||
             !StrictJson.TryGetOptionalString(element, "parentOrigin", out var parentOrigin) ||
             parentOrigin is not null &&
-            !TryGetCanonicalHttpsOrigin(parentOrigin, out parentOrigin))
+            !TryGetCanonicalHttpsOrigin(parentOrigin, out parentOrigin) ||
+            element.TryGetProperty("scriptSha256", out _))
         {
             throw RegistryError(
                 CompatibilityReasonCode.RegistryInvalidCapability,
@@ -713,6 +745,7 @@ internal static partial class ConfigurationParser
             Array.AsReadOnly(resources.Order().ToArray()),
             Array.AsReadOnly(queryKeys.Order(StringComparer.Ordinal).ToArray()),
             ceiling.DocumentScope,
+            ScriptSha256: null,
             purpose);
         if (!methods.IsSubsetOf(ceiling.Methods) ||
             !resources.IsSubsetOf(ceiling.ResourceKinds) ||
@@ -721,6 +754,52 @@ internal static partial class ConfigurationParser
             throw RegistryError(
                 CompatibilityReasonCode.RegistryInvalidCapability,
                 "The trusted adapter registry capability is outside the global ceiling.");
+        }
+
+        return grant;
+    }
+
+    private static GrantDefinition ParseReviewedInlineScriptGrant(
+        JsonElement element,
+        string capabilityId,
+        string purpose,
+        CapabilityCeilingDefinition ceiling)
+    {
+        if (!StrictJson.HasOnlyProperties(
+                element,
+                "capabilityId",
+                "scriptSha256") ||
+            !StrictJson.TryGetRequiredString(
+                element,
+                "scriptSha256",
+                out var scriptSha256) ||
+            !CompatibilityNormalization.TryNormalizeSha256Base64(
+                scriptSha256,
+                out scriptSha256))
+        {
+            throw RegistryError(
+                CompatibilityReasonCode.RegistryInvalidCapability,
+                "The trusted adapter registry inline script digest is invalid.");
+        }
+
+        var grant = new GrantDefinition(
+            capabilityId,
+            ceiling.Kind,
+            Origin: null,
+            ParentOrigin: null,
+            Path: null,
+            CapabilityPathMatch.None,
+            Methods: Array.Empty<HttpMethodKind>(),
+            ResourceKinds: Array.Empty<WebResourceKind>(),
+            QueryKeys: Array.Empty<string>(),
+            ceiling.DocumentScope,
+            scriptSha256,
+            purpose);
+        if (!CompatibilityNormalization.IsGrantShapeValid(grant))
+        {
+            throw RegistryError(
+                CompatibilityReasonCode.RegistryInvalidCapability,
+                "The trusted adapter registry inline script digest is outside the global ceiling.");
         }
 
         return grant;
@@ -1032,5 +1111,6 @@ internal static partial class ConfigurationParser
         CapabilityKind Kind,
         string MethodCeiling,
         CapabilityDocumentScope DocumentScope,
-        IReadOnlySet<WebResourceKind> AllowedResources);
+        IReadOnlySet<WebResourceKind> AllowedResources,
+        bool MainDocumentScriptAllowed = false);
 }

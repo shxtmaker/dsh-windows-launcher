@@ -170,6 +170,24 @@ public sealed class TargetContentHostTests
     }
 
     [Fact]
+    public async Task SecurityRejectionIsNotOverwrittenByALateReadySignal()
+    {
+        var runtime = new FakeTargetContentRuntime();
+        await using var host = CreateHost(runtime);
+        await host.OpenAsync(TestContext.Current.CancellationToken);
+
+        await runtime.EmitAsync(
+            TargetRuntimeSignal.Blocked(),
+            TestContext.Current.CancellationToken);
+        await runtime.EmitAsync(
+            TargetRuntimeSignal.Ready(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(TargetContentState.Blocked, host.State);
+        Assert.Equal(TargetContentFailureKind.SecurityPolicy, host.Failure?.Kind);
+    }
+
+    [Fact]
     public async Task AuthenticationInvalidationPublishesADistinctSanitizedFailure()
     {
         var runtime = new FakeTargetContentRuntime

@@ -36,6 +36,7 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
     private bool _processFailurePublished;
     private bool _authenticationInvalidPublished;
     private bool _bootstrapActive;
+    private int _rootStartupPending;
     private Uri? _expectedDocumentNavigation;
     private Uri? _pendingDocumentNavigation;
     private int _disposed;
@@ -402,6 +403,7 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
         _policy = null;
         _externalNavigation = null;
         _bootstrapActive = true;
+        Volatile.Write(ref _rootStartupPending, 0);
         _expectedDocumentNavigation = null;
         _authenticationInvalidPublished = false;
         _processFailurePublished = false;
@@ -443,7 +445,8 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
             webView.CoreWebView2,
             binding,
             TargetResponseCspPolicy.CreatePolicy(binding, snapshot),
-            () => FireSignal(TargetRuntimeSignal.Blocked()))
+            failureSink: () => FireSignal(TargetRuntimeSignal.Blocked()),
+            inlineScriptViolationSink: PublishBootstrapInlineScriptViolation)
             .ConfigureAwait(true);
         _responseCspBoundary = responseCspBoundary;
         _policy = policy;
@@ -517,7 +520,7 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
         }
     }
 
-    private Task NavigateToRootCoreAsync()
+    private async Task NavigateToRootCoreAsync()
     {
         _container.Dispatcher.VerifyAccess();
         var webView = _webView ?? throw new InvalidOperationException(
@@ -530,7 +533,12 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
         var destination = _pendingDocumentNavigation ??
             (_binding ?? throw new InvalidOperationException()).Origin;
         _pendingDocumentNavigation = null;
+        var responseCspBoundary = _responseCspBoundary ?? throw new InvalidOperationException(
+            "The target content response boundary is not active.");
+        await responseCspBoundary.BeginInlineScriptObservationAsync(destination)
+            .ConfigureAwait(true);
         _expectedDocumentNavigation = destination;
+        Volatile.Write(ref _rootStartupPending, 1);
         try
         {
             webView.CoreWebView2.Navigate(destination.AbsoluteUri);
@@ -538,9 +546,10 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
         catch
         {
             _expectedDocumentNavigation = null;
+            Volatile.Write(ref _rootStartupPending, 0);
             throw;
         }
-        return Task.CompletedTask;
+        return;
     }
 
     private static void ConfigureSecurity(
@@ -622,6 +631,7 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
         _policy = null;
         _externalNavigation = null;
         _bootstrapActive = false;
+        Volatile.Write(ref _rootStartupPending, 0);
         _expectedDocumentNavigation = null;
         _cancelledNavigations.Clear();
         if (webView is null)
@@ -878,9 +888,12 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
 
         if (_cancelledNavigations.Remove(args.NavigationId))
         {
+            _responseCspBoundary?.EndInlineScriptObservation();
+            Volatile.Write(ref _rootStartupPending, 0);
             return;
         }
 
+        _responseCspBoundary?.EndInlineScriptObservation();
         var binding = _binding ?? throw new InvalidOperationException();
         var source = _webView?.CoreWebView2.Source ?? string.Empty;
         if (TargetAuthenticationResponsePolicy.IsInvalidRootNavigation(
@@ -888,16 +901,29 @@ public sealed class WebView2TargetContentRuntime : ITargetContentRuntime
                 source,
                 args.HttpStatusCode))
         {
+            Volatile.Write(ref _rootStartupPending, 0);
             PublishAuthenticationInvalidOnce();
         }
         else if (args.IsSuccess && IsCurrentDocumentBound())
         {
+            Volatile.Write(ref _rootStartupPending, 0);
             _processFailurePublished = false;
             FireSignal(TargetRuntimeSignal.Ready());
         }
         else
         {
+            Volatile.Write(ref _rootStartupPending, 0);
             FireSignal(TargetRuntimeSignal.NavigationFailed());
+        }
+    }
+
+    private void PublishBootstrapInlineScriptViolation(
+        WebView2ResponseCspBoundary boundary)
+    {
+        if (ReferenceEquals(boundary, _responseCspBoundary) &&
+            Interlocked.Exchange(ref _rootStartupPending, 0) == 1)
+        {
+            FireSignal(TargetRuntimeSignal.Blocked());
         }
     }
 

@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <LauncherBuildFlavor Condition="'$(LauncherBuildFlavor)' == ''">InternalTest</LauncherBuildFlavor>
+    <LauncherBuildFlavor Condition="'$(LauncherBuildFlavor)' == ''">Official</LauncherBuildFlavor>
     <BaseOutputPath Condition="'$(BaseOutputPath)' == ''">bin\$(LauncherBuildFlavor)\</BaseOutputPath>
     <BaseIntermediateOutputPath Condition="'$(BaseIntermediateOutputPath)' == ''">obj\$(LauncherBuildFlavor)\</BaseIntermediateOutputPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\bin\**</DefaultItemExcludes>

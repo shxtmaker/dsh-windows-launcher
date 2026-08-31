@@ -43,6 +43,54 @@ public sealed class PageCapabilityResolverTests
     }
 
     [Fact]
+    public void ExactRemoteUiRuleProducesReviewedHashesAndExactTargetWebSockets()
+    {
+        var capabilities = string.Join(",", [
+            CompatibilityFixture.ReviewedInlineScriptCapability(),
+            CompatibilityFixture.ReviewedInlineScriptCapability(
+                "60H3O19ZLKq8nr2bYG0M2Erc+j7nEJP55v17BRb6+90="),
+            CompatibilityFixture.TargetWebSocketCapability(),
+            CompatibilityFixture.TargetWebSocketCapability(
+                "/remote/sidebar/ws/terminal"),
+            CompatibilityFixture.TargetWebSocketCapability(
+                "/remote/sidebar/ws/agent-terminals"),
+            CompatibilityFixture.TargetWebSocketCapability(
+                "/remote/api/dsh-ssh/terminal"),
+        ]);
+        var resolver = CompatibilityFixture.CreateResolver(
+            rules: CompatibilityFixture.Rule(capabilities: capabilities));
+
+        var resolution = resolver.Resolve(
+            TargetId,
+            CompatibilityFixture.Response(CompatibilityFixture.Descriptor(
+                CompatibilityFixture.Component())));
+
+        Assert.Equal(CompatibilityLevel.Extended, resolution.Level);
+        Assert.Equal(
+            [
+                "60H3O19ZLKq8nr2bYG0M2Erc+j7nEJP55v17BRb6+90=",
+                "mXHaYLlSQVyeSOfzqV5XdTPGPqz5QzoV1XVjJm6ZROw=",
+            ],
+            resolution.Snapshot.ExtensionCapabilities
+                .Where(static grant =>
+                    grant.Kind == CapabilityKind.ReviewedInlineScriptSha256)
+                .Select(static grant => grant.ScriptSha256)
+                .Order(StringComparer.Ordinal));
+        var sockets = resolution.Snapshot.ExtensionCapabilities
+            .Where(static grant => grant.Kind == CapabilityKind.TargetWebSocket)
+            .ToArray();
+        Assert.Equal(4, sockets.Length);
+        Assert.All(sockets, grant =>
+        {
+            Assert.Null(grant.Origin);
+            Assert.Equal(CapabilityPathMatch.Exact, grant.PathMatch);
+            Assert.Equal([HttpMethodKind.Get], grant.Methods);
+            Assert.Equal([WebResourceKind.WebSocket], grant.ResourceKinds);
+            Assert.Equal(["device"], grant.QueryKeys);
+        });
+    }
+
+    [Fact]
     public void SourceRevisionMismatchReturnsBaseWithoutTryingNearbyRule()
     {
         var resolver = CompatibilityFixture.CreateResolver();
@@ -198,7 +246,7 @@ public sealed class PageCapabilityResolverTests
             CompatibilityFixture.Response(CompatibilityFixture.Descriptor(firstComponent)));
         var reorderedDescriptor = CompatibilityFixture.Utf8(
             """
-            {"components":[{"adapterKeys":["market.manifest"],"sourceRev":"abc1234","uiVersion":"1.2.3","uiId":"org.example.ui"}],"contractVersion":"1.0.0","schemaVersion":1}
+            {"components":[{"adapterKeys":["market.manifest"],"sourceRev":"abc1234","uiVersion":"1.2.3","uiId":"org.example.ui"}],"contractVersion":"1.1.0","schemaVersion":1}
             """);
         var second = resolver.Resolve(
             TargetId,

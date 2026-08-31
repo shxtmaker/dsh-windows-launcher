@@ -34,6 +34,8 @@ internal static partial class CompatibilityNormalization
         CapabilityKind.Oopif,
         CapabilityKind.Redirect,
         CapabilityKind.CdpFetch,
+        CapabilityKind.ReviewedInlineScriptSha256,
+        CapabilityKind.TargetWebSocket,
     ];
 
     private static readonly HashSet<WebResourceKind> PassiveResourceKinds =
@@ -89,6 +91,33 @@ internal static partial class CompatibilityNormalization
 
     public static bool TryNormalizeQueryKey(string value, out string normalized) =>
         TryNormalizeIdentifier(value, QueryKeyPattern(), 128, out normalized);
+
+    public static bool TryNormalizeSha256Base64(
+        string value,
+        out string normalized)
+    {
+        normalized = string.Empty;
+        if (value.Length != 44)
+        {
+            return false;
+        }
+
+        try
+        {
+            var bytes = Convert.FromBase64String(value);
+            if (bytes.Length != 32)
+            {
+                return false;
+            }
+
+            normalized = Convert.ToBase64String(bytes);
+            return string.Equals(value, normalized, StringComparison.Ordinal);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
 
     public static bool TryNormalizeOrigin(string value, out string normalized)
     {
@@ -196,7 +225,39 @@ internal static partial class CompatibilityNormalization
 
     public static bool IsGrantShapeValid(GrantDefinition grant)
     {
-        if (!IsExtensionCapability(grant.Kind) ||
+        if (!IsExtensionCapability(grant.Kind))
+        {
+            return false;
+        }
+
+        if (grant.Kind == CapabilityKind.ReviewedInlineScriptSha256)
+        {
+            return grant.Origin is null &&
+                   grant.ParentOrigin is null &&
+                   grant.Path is null &&
+                   grant.PathMatch == CapabilityPathMatch.None &&
+                   grant.Methods.Count == 0 &&
+                   grant.ResourceKinds.Count == 0 &&
+                   grant.QueryKeys.Count == 0 &&
+                   grant.DocumentScope == CapabilityDocumentScope.TargetDocument &&
+                   grant.ScriptSha256 is not null &&
+                   TryNormalizeSha256Base64(grant.ScriptSha256, out _);
+        }
+
+        if (grant.Kind == CapabilityKind.TargetWebSocket)
+        {
+            return grant.Origin is null &&
+                   grant.ParentOrigin is null &&
+                   grant.Path is not null &&
+                   grant.PathMatch == CapabilityPathMatch.Exact &&
+                   grant.Methods.SequenceEqual([HttpMethodKind.Get]) &&
+                   grant.ResourceKinds.SequenceEqual([WebResourceKind.WebSocket]) &&
+                   grant.QueryKeys.All(static key => key == "device") &&
+                   grant.DocumentScope == CapabilityDocumentScope.TargetDocument &&
+                   grant.ScriptSha256 is null;
+        }
+
+        if (grant.ScriptSha256 is not null ||
             grant.Origin is null || grant.Path is null ||
             grant.PathMatch == CapabilityPathMatch.None ||
             grant.Methods.Count == 0 || grant.ResourceKinds.Count == 0)

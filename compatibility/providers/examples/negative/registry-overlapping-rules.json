@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "1.0.0",
+  "contractVersion": "1.1.0",
   "registryVersion": 2,
   "activeRules": [
     {
       "ruleId": "org.example.rule-a",
       "ruleVersion": "1.0.0",
-      "contractVersion": "1.0.0",
+      "contractVersion": "1.1.0",
       "evidenceBaseline": {
-        "harnessCommit": "cd5ef8148158c3a752a658978873241fdf8e2bbc",
+        "harnessCommit": "0a53fb55bea101816fa226bb964ae2bed71c343b",
         "lanPluginVersion": "1.2.1",
         "routeVersion": "example-route-1"
       },
@@ -44,9 +44,9 @@
     {
       "ruleId": "org.example.rule-b",
       "ruleVersion": "1.0.0",
-      "contractVersion": "1.0.0",
+      "contractVersion": "1.1.0",
       "evidenceBaseline": {
-        "harnessCommit": "cd5ef8148158c3a752a658978873241fdf8e2bbc",
+        "harnessCommit": "0a53fb55bea101816fa226bb964ae2bed71c343b",
         "lanPluginVersion": "1.2.1",
         "routeVersion": "example-route-1"
       },

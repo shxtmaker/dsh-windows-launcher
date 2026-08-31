@@ -36,8 +36,8 @@ public sealed class WebUiReleaseGovernanceTests
 
             JsonElement firstIdentity = result.RootElement.GetProperty("First");
             JsonElement secondIdentity = result.RootElement.GetProperty("Second");
-            Assert.Equal("1.0.0", firstIdentity.GetProperty("contractVersion").GetString());
-            Assert.Equal(1, firstIdentity.GetProperty("registryVersion").GetInt64());
+            Assert.Equal("1.1.0", firstIdentity.GetProperty("contractVersion").GetString());
+            Assert.Equal(3, firstIdentity.GetProperty("registryVersion").GetInt64());
             Assert.Equal(
                 firstIdentity.GetProperty("governanceSummarySha256").GetString(),
                 secondIdentity.GetProperty("governanceSummarySha256").GetString());
@@ -132,6 +132,7 @@ public sealed class WebUiReleaseGovernanceTests
         string verify = File.ReadAllText(Path.Combine(root, "eng", "verify.ps1"));
         string package = File.ReadAllText(Path.Combine(root, "eng", "package.ps1"));
         string internalPackage = File.ReadAllText(Path.Combine(root, "eng", "package-internal.ps1"));
+        string unsignedPackage = File.ReadAllText(Path.Combine(root, "eng", "package-unsigned.ps1"));
         string smoke = File.ReadAllText(Path.Combine(root, "eng", "release-smoke.ps1"));
 
         Assert.Contains("'DshLauncher.Compatibility'    = @()", common, StringComparison.Ordinal);
@@ -144,7 +145,9 @@ public sealed class WebUiReleaseGovernanceTests
         Assert.Contains("signedApplicationSet = [ordered]@{", package, StringComparison.Ordinal);
         Assert.Contains("compatibilityIdentity = $compatibilityIdentity", package, StringComparison.Ordinal);
         Assert.Contains("release-notes-input.md", package, StringComparison.Ordinal);
-        Assert.Contains("releaseEligible = $false", internalPackage, StringComparison.Ordinal);
+        Assert.Contains("releaseEligible = [bool] $OfficialUnsignedRelease", internalPackage, StringComparison.Ordinal);
+        Assert.Contains("OfficialUnsignedRelease = $true", unsignedPackage, StringComparison.Ordinal);
+        Assert.Contains("authenticodeStatus = 'NotSigned'", internalPackage, StringComparison.Ordinal);
         Assert.Contains("compatibilityIdentity = $compatibilityIdentity", internalPackage, StringComparison.Ordinal);
         Assert.Contains("Assert-DshSbomCompatibilityIdentity", smoke, StringComparison.Ordinal);
         Assert.Contains("signedApplicationSet = [ordered]@{", smoke, StringComparison.Ordinal);

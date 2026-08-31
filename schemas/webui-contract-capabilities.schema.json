@@ -228,12 +228,13 @@
               "font",
               "script",
               "fetch",
-              "xhr"
+              "xhr",
+              "websocket"
             ]
           }
         },
         "mainDocumentScriptAllowed": {
-          "const": false
+          "type": "boolean"
         }
       }
     },

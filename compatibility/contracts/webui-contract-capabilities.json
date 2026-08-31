@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "1.0.0",
+  "contractVersion": "1.1.0",
   "descriptorSchemaId": "https://schemas.dshwindowslauncher.invalid/webui-compatibility-descriptor.schema.json",
   "limits": {
     "descriptorBytes": 65536,
@@ -116,6 +116,24 @@
         "stylesheet"
       ],
       "mainDocumentScriptAllowed": false
+    },
+    {
+      "capabilityId": "reviewed-inline-script-sha256",
+      "description": "Reviewed main-document inline script identified by one exact SHA-256 digest.",
+      "methodCeiling": "passiveResource",
+      "resourceTypes": [
+        "script"
+      ],
+      "mainDocumentScriptAllowed": true
+    },
+    {
+      "capabilityId": "target-websocket",
+      "description": "Reviewed WebSocket path on the exact bound target origin.",
+      "methodCeiling": "passiveResource",
+      "resourceTypes": [
+        "websocket"
+      ],
+      "mainDocumentScriptAllowed": false
     }
   ],
   "conditionalCapabilities": [
@@ -205,18 +223,6 @@
     },
     {
       "capabilityId": "shared-worker",
-      "status": "not-authorized",
-      "requiredEvidence": [
-        "evergreen-runtime",
-        "minimum-runtime",
-        "negative-arrival-count",
-        "recovery",
-        "same-endpoint-edge",
-        "signed-candidate"
-      ]
-    },
-    {
-      "capabilityId": "target-websocket",
       "status": "not-authorized",
       "requiredEvidence": [
         "evergreen-runtime",

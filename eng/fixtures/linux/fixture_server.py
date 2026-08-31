@@ -30,7 +30,7 @@ LEGACY_ROOT_BODY = (
 )
 FIXTURE_DESCRIPTOR = {
     "schemaVersion": 1,
-    "contractVersion": "1.0.0",
+    "contractVersion": "1.1.0",
     "components": [
         {
             "uiId": "org.dshwindowslauncher.fixture",

@@ -9,8 +9,8 @@ Windows 启动器显示 Linux Harness 当前提供的同一套 UI，不复制、
 已核实的基线包括：
 
 - `dsh-web` `0.3.5` 的根页面注入、皮肤和创意工坊契约；
-- `dsh-web` `dev` 提交 `e846fb34`，包版本 `0.3.7`，目标 Harness `>=0.1.2-alpha.1`；
-- 启动器固定 Harness `0.1.2-alpha.1` 的认证探测、`?token=`、根页面和 `/api` 边界。
+- `dsh-web` `dev` 提交 `e846fb34`，包版本 `0.3.7`，目标 Harness `>=0.1.2-alpha.1`（包含 `0.1.2-alpha.2`）；
+- 启动器固定 Harness `0.1.2-alpha.2`（commit `0a53fb55bea101816fa226bb964ae2bed71c343b`）的认证探测、`?token=`、根页面和 `/api` 边界。
 
 后续 `dsh-web`、Harness、WebView2 或 LAN 插件改变资源 origin、iframe 路径、认证响应或配对机制时，必须重新核实并更新兼容清单。
 
@@ -62,7 +62,7 @@ Windows 启动器显示 Linux Harness 当前提供的同一套 UI，不复制、
 - 未认证 `/api` 与 `/`、token `303`、认证后根页面及裸 `/api` 保持固定 Harness 基线；
 - 当前活动 UI 由 Linux profile 或服务端状态决定，不依赖 Linux 浏览器 localStorage。
 
-`dsh-remote-web-ui` 默认启用 `requirePairingForLan`，会给非 loopback 桌面页面增加另一套 `/remote` 设备配对。启动器当前不接受该插件的配对码。若目标已使用 `dsh-web-lan-access` 和 Harness 会话作为局域网准入，应在 `dsh-remote-web-ui` 设置卡中关闭“局域网访问要求配对”。需要保留第二套配对时，必须另行设计 `/pair-accept?pair=`、设备 Cookie、撤销和诊断契约。
+本节记录旧专用实现，不再作为操作建议。当前通用契约已为精确 `dsh-remote-web-ui@0.3.10` 提供 SHA-256 脚本和目标 WebSocket 规则，Linux 部署条件及配对边界见[参考适配器实施说明](reference-adapters/dsh-web.md)。启动器不读取或保存插件设备凭据。
 
 ## 6. 验收
 

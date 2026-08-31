@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-remote-web-ui-compatibility
+      name: '@dsh-windows-launcher/dsh-remote-web-ui-compatibility'

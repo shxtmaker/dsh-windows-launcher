@@ -91,6 +91,37 @@ public sealed class TargetContentSecurityPolicyTests
     }
 
     [Theory]
+    [InlineData("ws://192.168.10.20:3080/remote/api/remote.mux", "GET", true)]
+    [InlineData("ws://192.168.10.20:3080/remote/api/remote.mux?device=abc", "GET", true)]
+    [InlineData("ws://192.168.10.20:3080/remote/sidebar/ws/terminal", "GET", true)]
+    [InlineData("ws://192.168.10.20:3080/remote/sidebar/ws/agent-terminals", "GET", true)]
+    [InlineData("ws://192.168.10.20:3080/remote/api/dsh-ssh/terminal", "GET", true)]
+    [InlineData("ws://192.168.10.20:3080/remote/api/remote.mux/child", "GET", false)]
+    [InlineData("ws://192.168.10.20:3080/remote/other", "GET", false)]
+    [InlineData("ws://192.168.10.20:3180/remote/api/remote.mux", "GET", false)]
+    [InlineData("ws://192.168.10.21:3080/remote/api/remote.mux", "GET", false)]
+    [InlineData("wss://192.168.10.20:3080/remote/api/remote.mux", "GET", false)]
+    [InlineData("ws://192.168.10.20:3080/remote/api/remote.mux?token=x", "GET", false)]
+    [InlineData("ws://192.168.10.20:3080/remote/api/remote.mux?device=a&device=b", "GET", false)]
+    [InlineData("ws://192.168.10.20:3080/remote/api/remote.mux", "POST", false)]
+    public void RemoteUiSnapshotAllowsOnlyReviewedTargetWebSocketPaths(
+        string resource,
+        string method,
+        bool expected)
+    {
+        var policy = new TargetContentSecurityPolicy(
+            WebViewCompatibilityFixture.CreateBinding(),
+            WebViewCompatibilityFixture.CreateRemoteUiResolution().Snapshot);
+
+        Assert.Equal(
+            expected,
+            policy.AllowsResource(
+                new Uri(resource),
+                TargetContentResourceKind.Websocket,
+                method));
+    }
+
+    [Theory]
     [InlineData("about:blank", true)]
     [InlineData("about:srcdoc", false)]
     [InlineData("http://192.168.10.20:3080/frame", true)]

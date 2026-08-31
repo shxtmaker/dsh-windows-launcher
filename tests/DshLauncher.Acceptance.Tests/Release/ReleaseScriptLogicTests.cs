@@ -337,6 +337,11 @@ public sealed class ReleaseScriptLogicTests
             .GetProperty("dependencyBaseline")
             .GetProperty("harness")
             .GetProperty("probeFingerprint");
+        JsonElement harness = constants.RootElement
+            .GetProperty("dependencyBaseline")
+            .GetProperty("harness");
+        Assert.Equal("0a53fb55bea101816fa226bb964ae2bed71c343b", harness.GetProperty("commit").GetString());
+        Assert.Equal("dsh-v0.1.2-alpha.2", harness.GetProperty("version").GetString());
         DshLauncher.Platform.Windows.HarnessProbeFingerprint implementation =
             DshLauncher.Platform.Windows.HarnessProbeFingerprint.V1;
 
@@ -494,6 +499,8 @@ public sealed class ReleaseScriptLogicTests
 
         string internalPackageScript = File.ReadAllText(
             Path.Combine(root, "eng", "package-internal.ps1"));
+        string unsignedPackageScript = File.ReadAllText(
+            Path.Combine(root, "eng", "package-unsigned.ps1"));
         string internalInstallerScript = File.ReadAllText(
             Path.Combine(root, "installer", "DshWindowsLauncher.InternalTest.iss"));
 
@@ -538,9 +545,10 @@ public sealed class ReleaseScriptLogicTests
             "GetVersionInfo($InnoCompilerPath)",
             internalPackageScript,
             StringComparison.Ordinal);
-        Assert.Contains("-p:LauncherBuildFlavor=InternalTest", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("$buildFlavor = if ($OfficialUnsignedRelease) { 'Official' } else { 'InternalTest' }", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("OfficialUnsignedRelease = $true", unsignedPackageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("-p:AssemblyName=", internalPackageScript, StringComparison.Ordinal);
-        Assert.Contains("-p:Product=DSH Windows Launcher (INTERNAL TEST)", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("$internalProductName = 'DSH Windows Launcher (INTERNAL TEST)'", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains("'--self-contained', 'true'", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains("'-p:PublishTrimmed=false'", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains("$applicationVersion.FileVersion -cne $fileVersion", internalPackageScript, StringComparison.Ordinal);
@@ -561,9 +569,9 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains("INTERNAL-TEST-UNSIGNED-NOT-FOR-PRODUCTION-USE", internalPackageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("NOT FOR DISTRIBUTION", internalPackageScript, StringComparison.Ordinal);
-        Assert.Contains("applicationDataId = $internalApplicationDataId", internalPackageScript, StringComparison.Ordinal);
-        Assert.Contains("singleInstanceBaseName = $internalSingleInstanceBaseName", internalPackageScript, StringComparison.Ordinal);
-        Assert.Contains("installDirectoryName = $internalInstallDirectoryName", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("applicationDataId = $applicationDataId", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("singleInstanceBaseName = $singleInstanceBaseName", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("installDirectoryName = $installDirectoryName", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains("$finalSourceState.WorktreeState -cne 'clean'", internalPackageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("eng/package.ps1", internalPackageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("-FilePath $installerPath", internalPackageScript, StringComparison.Ordinal);

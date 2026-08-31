@@ -292,6 +292,12 @@ public sealed class TargetContentHost : ITargetContentHost
                     PublishState(TargetContentState.Loading);
                     break;
                 case TargetRuntimeSignalKind.Ready:
+                    if (State is TargetContentState.Blocked or
+                        TargetContentState.Failed)
+                    {
+                        break;
+                    }
+
                     _rendererFailureCount = 0;
                     _browserFailureCount = 0;
                     PublishState(TargetContentState.Ready);

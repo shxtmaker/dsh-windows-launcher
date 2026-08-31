@@ -8,7 +8,7 @@ DSH Windows Launcher 是面向 Windows 的 WPF 桌面入口。它连接局域网
 
 扩展能力只允许精确来源、路径、方法和资源类型。首次使用外部依赖前会显示原生确认，用户可在兼容状态面板撤销确认。下载、页面权限、证书绕过、DevTools、原生桥接、任意外部脚本和未审核外站仍被禁止。服务端已有 CSP 会保留，并与启动器策略共同生效。
 
-[dsh-web](https://github.com/zhu1090093659/dsh-web) 是参考提供方，不在产品代码中拥有专用白名单。当前生产注册表没有扩展规则，因此其页面只获得基础兼容能力。契约语义见 [WebUI 兼容契约](docs/webui-compatibility-contract.md)，参考状态见 [dsh-web 参考适配器](docs/reference-adapters/dsh-web.md)。
+[dsh-web](https://github.com/zhu1090093659/dsh-web) 是参考提供方，不在产品代码中拥有专用白名单。内置注册表包含精确 `@linxin666/dsh-remote-web-ui@0.3.10` 规则：只授权两个审核脚本 SHA-256 和四条目标 WebSocket 路径。Linux 端必须安装随仓库提供的只读描述符 companion，并通过完整发布包树校验；否则仍只获得基础兼容。契约语义见 [WebUI 兼容契约](docs/webui-compatibility-contract.md)，参考状态见 [dsh-web 参考适配器](docs/reference-adapters/dsh-web.md)。
 
 ## 项目结构
 
@@ -55,7 +55,13 @@ dotnet restore .\DshWindowsLauncher.slnx --locked-mode
 dotnet build .\DshWindowsLauncher.slnx -c Release --no-restore
 ```
 
-`eng/release-constants.json` 当前处于 `development` 状态。正式候选前必须补齐其中的 Runtime、安装器、Publisher、证书和 HTTPS 发布地址，并通过对应 JSON Schema；未知值不能用占位字符串代替。
+`eng/release-constants.json` 当前处于 `candidate` 状态。正式候选必须固定 Runtime、安装器、Publisher、发布地址和签名策略，并通过对应 JSON Schema；未知值不能用占位字符串代替。
+
+## 正式安装包
+
+开源发行采用可选 Authenticode 策略。无代码签名证书时运行 `eng/package-unsigned.ps1`，生成正式产品身份的未签名安装包、`package-manifest.json`、`SHA256SUMS.txt`、验证摘要、SBOM 和第三方许可证清单。manifest 和 Release 正文必须明确记录 `NotSigned`，用户以 SHA-256 校验下载完整性。输入工具和 Microsoft WebView2 Bootstrapper 仍须通过冻结哈希及其上游签名校验。
+
+未签名不是跳过门禁。打包仍要求 clean Git 提交、统一 `verify.ps1` PASS、固定依赖身份和可重复的证据文件。若以后提供代码签名证书，可继续使用 `eng/package.ps1` 生成带 Authenticode 的正式包。
 
 ## 未签名内部测试安装包
 

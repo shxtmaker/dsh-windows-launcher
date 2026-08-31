@@ -1,7 +1,7 @@
 {
   "$schema": "./release-constants.schema.json",
-  "schemaVersion": 2,
-  "releaseStatus": "development",
+  "schemaVersion": 3,
+  "releaseStatus": "candidate",
   "product": {
     "name": "DSH Windows Launcher",
     "executableName": "DshWindowsLauncher.exe",
@@ -24,11 +24,11 @@
     "trimmed": false
   },
   "webUiCompatibility": {
-    "contractVersion": "1.0.0",
-    "contractCapabilitiesCanonicalSha256": "a543d6f2d6bc736b89dbd430a8bae35efb536df2e87bc519e18bca39f491ecbb",
+    "contractVersion": "1.1.0",
+    "contractCapabilitiesCanonicalSha256": "4fe5ce356b3745c0bbca4bbe76e303d326355d8cf51b27546c91801b1669fe64",
     "descriptorSchemaCanonicalSha256": "921dac157e0a4d0a0f634051ecd5c97cd14ad3eee60cec942508bb4563381cad",
-    "registryVersion": 1,
-    "registryCanonicalSha256": "7d71067cc626b90f6e7e0ef8df4c3de8417da55e42b4d1f100a5082c498287ad",
+    "registryVersion": 3,
+    "registryCanonicalSha256": "0c5949d0cb6566e2f39bb37a617f4e686906e001046b0f49ca440e5c3aa621d8",
     "impactMapCanonicalSha256": "9a4d265de42abc97aef1ed594d3583eb958c7c9070883c51d9ab979687ffd8e8"
   },
   "verificationBaseline": {
@@ -36,8 +36,8 @@
   },
   "dependencyBaseline": {
     "harness": {
-      "commit": "cd5ef8148158c3a752a658978873241fdf8e2bbc",
-      "version": "dsh-v0.1.2-alpha.1",
+      "commit": "0a53fb55bea101816fa226bb964ae2bed71c343b",
+      "version": "dsh-v0.1.2-alpha.2",
       "probeFingerprint": {
         "api": {
           "sourcePath": "packages/client/connection/src/index.ts",
@@ -102,11 +102,12 @@
       "sha256": "5ad54ca3def786f8f4212552e54cc6d8d61329e2d24a1cfee0571d42c2684ff1"
     },
     "signing": {
-      "publisher": null,
+      "policy": "optional",
+      "publisher": "lqy",
       "certificateSubject": null,
       "timestampServerUri": null
     },
-    "officialReleaseUri": null
+    "officialReleaseUri": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v1.0.0"
   },
   "limits": {
     "defaultTargetPort": 3080,

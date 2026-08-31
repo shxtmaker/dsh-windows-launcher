@@ -99,12 +99,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "capabilityId",
-        "origin",
-        "path",
-        "methods",
-        "resourceTypes",
-        "redirectPolicy"
+        "capabilityId"
       ],
       "properties": {
         "capabilityId": {
@@ -165,6 +160,10 @@
             "maxLength": 128,
             "pattern": "^[A-Za-z0-9._-]+$"
           }
+        },
+        "scriptSha256": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
         }
       }
     },

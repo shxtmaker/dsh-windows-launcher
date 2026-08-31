@@ -1,7 +1,83 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "1.0.0",
-  "registryVersion": 1,
-  "activeRules": [],
+  "contractVersion": "1.1.0",
+  "registryVersion": 3,
+  "activeRules": [
+    {
+      "ruleId": "io.github.zhu1090093659.dsh-remote-web-ui.lan-pairing",
+      "ruleVersion": "1.0.1",
+      "contractVersion": "1.1.0",
+      "evidenceBaseline": {
+        "harnessCommit": "0a53fb55bea101816fa226bb964ae2bed71c343b",
+        "lanPluginVersion": "1.2.1",
+        "routeVersion": "dsh-remote-web-ui-0.3.10"
+      },
+      "match": {
+        "uiId": "io.github.zhu1090093659.dsh-remote-web-ui",
+        "minimumUiVersion": "0.3.10",
+        "maximumUiVersion": "0.3.10",
+        "sourceRev": "bb3bc6f283a8d956e8e8b19ec1c16caaa2b6a4631143643fef0f06000cc226ce",
+        "adapterKey": "dsh-remote-web-ui.lan-pairing"
+      },
+      "purpose": {
+        "displayName": "Enable the reviewed dsh-remote-web-ui 0.3.10 LAN pairing bootstrap",
+        "diagnosticName": "dsh-remote-web-ui-lan-pairing"
+      },
+      "grants": [
+        {
+          "capabilityId": "reviewed-inline-script-sha256",
+          "scriptSha256": "60H3O19ZLKq8nr2bYG0M2Erc+j7nEJP55v17BRb6+90="
+        },
+        {
+          "capabilityId": "reviewed-inline-script-sha256",
+          "scriptSha256": "mXHaYLlSQVyeSOfzqV5XdTPGPqz5QzoV1XVjJm6ZROw="
+        },
+        {
+          "capabilityId": "target-websocket",
+          "path": {
+            "kind": "exact",
+            "value": "/remote/api/dsh-ssh/terminal"
+          },
+          "methods": ["GET"],
+          "resourceTypes": ["websocket"],
+          "redirectPolicy": "none",
+          "queryKeys": ["device"]
+        },
+        {
+          "capabilityId": "target-websocket",
+          "path": {
+            "kind": "exact",
+            "value": "/remote/api/remote.mux"
+          },
+          "methods": ["GET"],
+          "resourceTypes": ["websocket"],
+          "redirectPolicy": "none",
+          "queryKeys": ["device"]
+        },
+        {
+          "capabilityId": "target-websocket",
+          "path": {
+            "kind": "exact",
+            "value": "/remote/sidebar/ws/agent-terminals"
+          },
+          "methods": ["GET"],
+          "resourceTypes": ["websocket"],
+          "redirectPolicy": "none",
+          "queryKeys": ["device"]
+        },
+        {
+          "capabilityId": "target-websocket",
+          "path": {
+            "kind": "exact",
+            "value": "/remote/sidebar/ws/terminal"
+          },
+          "methods": ["GET"],
+          "resourceTypes": ["websocket"],
+          "redirectPolicy": "none",
+          "queryKeys": ["device"]
+        }
+      ]
+    }
+  ],
   "tombstones": []
 }

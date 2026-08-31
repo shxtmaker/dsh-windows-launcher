@@ -2,7 +2,7 @@
 
 文档编号：`DSHWL-REF-DSH-WEB`<br>
 文档版本：`1.0`<br>
-状态：候选，等待描述符就绪版本与正式证据<br>
+状态：`dsh-remote-web-ui@0.3.10` 适配已实现，等待 Linux 实机与正式发布证据<br>
 更新日期：2026-08-31<br>
 上位契约：`../webui-compatibility-contract.md`
 
@@ -37,7 +37,9 @@ dsh-web 是第三方 WebUI 通用兼容模型的首个参考适配器。它证�
 - 当前目标页面创建并按资源类型绑定该页面能力周期的 `blob:` 资源；
 - Linux 服务端选择的活动皮肤和组件入口。
 
-持续 WebSocket 只有在双 Runtime、Edge 和后续契约版本明确纳入该条件能力后才进入基础范围；门禁前不得由旧专用策略维持。
+持续 WebSocket 不进入基础范围。契约 `1.1.0` 允许适配规则把当前目标 authority 与精确路径组合为单条目标 WebSocket 授权；旧专用策略的任意同端口 WebSocket 不再存在。
+
+`@linxin666/dsh-remote-web-ui@0.3.10` 的 LAN 配对启动只获得以下精确能力：两个发布包静态内联脚本 SHA-256，以及 `/remote/api/remote.mux`、`/remote/sidebar/ws/terminal`、`/remote/sidebar/ws/agent-terminals`、`/remote/api/dsh-ssh/terminal` 四条目标 WebSocket 路径。query 只允许单个 `device` 键。规则不包含裸 `ws:`、`'unsafe-inline'`、`blob:` script、Worker 或 `/remote/` 前缀。
 
 扩展规则按实际外部能力拆分，不以聚合包名授权：
 
@@ -52,9 +54,11 @@ dsh-web 是第三方 WebUI 通用兼容模型的首个参考适配器。它证�
 
 通用兼容版本不为旧 dsh-web 合成描述符，也不从包资源、DOM、HTML、标题或路由猜测版本。无有效描述符的旧版只获得基础兼容。
 
+`0.3.10` 发布包本身没有描述符。仓库内 `compatibility/providers/dsh-remote-web-ui-0.3.10` 提供只读 Linux companion。它只在包名、版本、201 个发布文件和完整包树 SHA-256 全部吻合时发布描述符；不读取 token、Cookie、设备凭据或插件设置。
+
 推荐部署顺序：
 
-1. Linux 管理者升级 dsh-web 到提供有效描述符的精确版本；
+1. Linux 管理者保持精确 `@linxin666/dsh-remote-web-ui@0.3.10`，安装上述只读描述符 companion；
 2. 验证 Harness/LAN、route、安全根页面和描述符响应；
 3. 安装包含对应内置规则的 Windows 通用兼容版本；
 4. 重新打开目标，计算快照并完成必要外部能力确认。
@@ -123,4 +127,4 @@ Windows 先升级时，安全根页面继续以基础兼容运行并显示版本
 
 ## 8. 明确不承诺
 
-启动器不修复或代理 Harness 与插件业务 RPC、流式/安装/数据语义，Market schema 漂移，Turnstile nonce/CSP 组合错误，CORS、SameSite、Cookie、`X-Frame-Options`、`frame-ancestors`、证书和重定向错误；不实现 `dsh-remote-web-ui` 第二套设备配对、未认证 route、PWA、Service Worker、麦克风、下载、原生桥接或浏览器本地状态同步。
+启动器不修复或代理 Harness 与插件业务 RPC、流式/安装/数据语义，Market schema 漂移，Turnstile nonce/CSP 组合错误，CORS、SameSite、Cookie、`X-Frame-Options`、`frame-ancestors`、证书和重定向错误；不读取或代管 `dsh-remote-web-ui` 的设备凭据，不开放未认证业务 route、PWA、Service Worker、麦克风、下载、原生桥接或浏览器本地状态同步。设备授权仍由插件自己的 `/pair-accept` 页面和 Cookie 完成。
