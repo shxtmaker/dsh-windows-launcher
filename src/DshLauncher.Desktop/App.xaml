@@ -1,21 +1,5 @@
 <Application x:Class="DshLauncher.Desktop.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Application.Resources>
-    <Style TargetType="Button">
-      <Setter Property="MinHeight" Value="34" />
-      <Setter Property="MinWidth" Value="88" />
-      <Setter Property="Margin" Value="4" />
-      <Setter Property="Padding" Value="12,5" />
-    </Style>
-    <Style TargetType="TextBox">
-      <Setter Property="MinHeight" Value="32" />
-      <Setter Property="Padding" Value="6,4" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-    <Style TargetType="ComboBox">
-      <Setter Property="MinHeight" Value="32" />
-      <Setter Property="Padding" Value="6,3" />
-    </Style>
-  </Application.Resources>
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
 </Application>

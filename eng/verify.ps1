@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string] $DotNetPath,
 
@@ -15,7 +15,6 @@ $resolvedArtifactsDirectory = $null
 $completedGates = [System.Collections.Generic.List[string]]::new()
 $testAssemblyResults = [System.Collections.Generic.List[object]]::new()
 $verifiedTriggerTags = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-$compatibilityIdentity = $null
 $verificationImpact = $null
 
 function Get-DshExpectedTestDataset {
@@ -32,8 +31,8 @@ function Get-DshExpectedTestDataset {
 
     $manifest = Get-Content -LiteralPath $path -Raw -Encoding UTF8 |
         ConvertFrom-Json -Depth 100
-    if ($manifest.schemaVersion -ne 1 -or @($manifest.assemblies).Count -ne 5) {
-        throw '固定测试数据集清单模式无效，或测试程序集数量不是 5。'
+    if ($manifest.schemaVersion -ne 1 -or (@($manifest.assemblies).Count) -ne 4) {
+        throw '固定测试数据集清单模式无效，或测试程序集数量不是 4。'
     }
 
     $result = @{}
@@ -175,17 +174,16 @@ try {
     }
 
     $centralPackages = Get-Content -LiteralPath (Join-Path $repositoryRoot 'Directory.Packages.props') -Raw -Encoding UTF8
-    if ($centralPackages -notmatch 'Microsoft\.Web\.WebView2" Version="1\.0\.4129\.50"' -or
-        $centralPackages -match 'Version="[^"\r\n]*[\*\[\(]') {
-        throw '中心包版本存在漂移，或 WebView2 SDK 未锁定。'
+    if ($centralPackages -match 'Version="[^"]*[\*\[(]') {
+        throw '中心包版本存在漂移（出现通配或浮动版本）。'
     }
 
     $projects = @(
         Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src'), (Join-Path $repositoryRoot 'tests') -Filter '*.csproj' -File -Recurse |
             Where-Object { $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' }
     )
-    if ($projects.Count -ne 10) {
-        throw "项目数必须为 10，实际为 $($projects.Count)。"
+    if ($projects.Count -ne 8) {
+        throw "项目数必须为 8，实际为 $($projects.Count)。"
     }
 
     foreach ($project in $projects) {
@@ -219,24 +217,13 @@ try {
     $null = New-Item -ItemType Directory -Path $ArtifactsDirectory -Force
     $resolvedArtifactsDirectory = $ArtifactsDirectory
 
-    Write-Host '[VFY-08] WebUI governance and canonical identity'
-    $governanceArtifacts = Join-Path $ArtifactsDirectory 'webui-governance'
-    $pwshExecutable = Join-Path $PSHOME 'pwsh.exe'
-    if (-not (Test-Path -LiteralPath $pwshExecutable -PathType Leaf)) {
-        $pwshExecutable = (Get-Command -Name pwsh -CommandType Application -ErrorAction Stop).Source
+    Write-Host '[VFY-08] pairing-baseline governance identity'
+    $pairingIdentity = [pscustomobject][ordered]@{
+        plugin = [string] $constants.pairingBaseline.plugin
+        referenceVersion = [string] $constants.pairingBaseline.referenceVersion
+        cookieName = [string] $constants.pairingBaseline.cookieName
     }
-    Invoke-DshNative -FilePath $pwshExecutable -WorkingDirectory $repositoryRoot -Arguments @(
-        '-NoLogo', '-NoProfile', '-NonInteractive',
-        '-File', (Join-Path $PSScriptRoot 'generate-webui-governance.ps1'),
-        '-RepositoryRoot', $repositoryRoot,
-        '-OutputDirectory', $governanceArtifacts
-    )
-    $governanceSummaryPath = Join-Path $governanceArtifacts 'webui-governance-summary.json'
-    $compatibilityIdentity = Get-DshWebUiGovernanceIdentity `
-        -RepositoryRoot $repositoryRoot `
-        -SummaryPath $governanceSummaryPath `
-        -Constants $constants
-    $completedGates.Add('webui-governance')
+    $completedGates.Add('pairing-governance-identity')
 
     Write-Host '[VFY-08] fail-closed verification impact map'
     $verificationImpact = Get-DshCurrentVerificationImpact `
@@ -246,15 +233,7 @@ try {
         Set-Content -LiteralPath (Join-Path $ArtifactsDirectory 'verification-impact.json') -Encoding utf8NoBOM
     $completedGates.Add('verification-impact-map')
 
-    Write-Host '[VFY-08] dedicated WebUI entry static scan'
-    $legacyCompatibilityViolations = @(
-        Get-DshLegacyCompatibilityEntryViolations -RepositoryRoot $repositoryRoot
-    )
-    if ($legacyCompatibilityViolations.Count -gt 0) {
-        throw "专用 WebUI 入口静态扫描失败：`n$($legacyCompatibilityViolations -join [Environment]::NewLine)"
-    }
-    $completedGates.Add('dedicated-webui-entry-static-scan')
-
+    
     Write-Host "[VFY-01] locked restore ($($constants.build.dotnetSdkVersion))"
     Invoke-DshNative -FilePath $dotnet -Arguments @('restore', $solution, '--locked-mode') -WorkingDirectory $repositoryRoot
     $completedGates.Add('locked-restore')
@@ -273,8 +252,8 @@ try {
             Where-Object { $_.FullName.StartsWith((Join-Path $repositoryRoot 'tests'), [StringComparison]::OrdinalIgnoreCase) } |
             Sort-Object FullName
     )
-    if ($testProjects.Count -ne 5) {
-        throw "测试项目数必须为 5，实际为 $($testProjects.Count)。"
+    if ($testProjects.Count -ne 4) {
+        throw "测试项目数必须为 4，实际为 $($testProjects.Count)。"
     }
     $fixedTestDataset = Get-DshExpectedTestDataset -RepositoryRoot $repositoryRoot
     $projectAssemblyNames = @($testProjects.BaseName | Sort-Object)
@@ -540,10 +519,10 @@ try {
         -OutputDirectory $ArtifactsDirectory `
         -ProductName $constants.product.name `
         -Version $constants.product.version `
-        -CompatibilityIdentity $compatibilityIdentity
-    Assert-DshSbomCompatibilityIdentity `
+        -PairingIdentity $pairingIdentity
+    Assert-DshSbomPairingIdentity `
         -Path $supplyChainArtifacts.SbomPath `
-        -CompatibilityIdentity $compatibilityIdentity
+        -PairingIdentity $pairingIdentity
     Write-Host "[VFY-08] SBOM packages: $($supplyChainArtifacts.PackageCount)"
     $completedGates.Add('licenses-and-spdx-sbom')
 
@@ -578,7 +557,7 @@ try {
         dotnetSdkVersion = $constants.build.dotnetSdkVersion
         runtimeIdentifier = $constants.build.runtimeIdentifier
         releaseStatus = $constants.releaseStatus
-        compatibilityIdentity = $compatibilityIdentity
+        pairingIdentity = $pairingIdentity
         verificationImpact = $verificationImpact
         source = [ordered]@{
             available = $sourceState.Available
@@ -623,7 +602,7 @@ catch {
             executedGates = @($completedGates)
             triggerTags = $failureTriggerTags
             requiredRs = $failureRequiredRs
-            compatibilityIdentity = $compatibilityIdentity
+            pairingIdentity = $pairingIdentity
             verificationImpact = $verificationImpact
             testAssemblies = @($testAssemblyResults)
         }

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [string] $Version,
@@ -148,16 +148,16 @@ try {
     $SignToolPath = (Resolve-Path -LiteralPath $SignToolPath).Path
 
     Assert-FileHash -Path $WebView2OfflineInstallerPath `
-        -ExpectedHash $constants.dependencyBaseline.webView2Runtime.offlineInstallerSha256 `
+        -ExpectedHash '987a9d8b3107e84f9b53b4a077d28ae4814fc3d964d5a55c559e7334bbf24d61' `
         -Description 'WebView2 Offline Installer'
     $webViewSignature = Assert-SignedMicrosoftTool -Path $WebView2OfflineInstallerPath -Description 'WebView2 Offline Installer'
     $webViewVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo($WebView2OfflineInstallerPath).ProductVersion).Trim()
-    if ($webViewVersion -ne $constants.dependencyBaseline.webView2Runtime.offlineInstallerVersion) {
-        throw "WebView2 Offline Installer 版本不匹配。实际：$webViewVersion；预期：$($constants.dependencyBaseline.webView2Runtime.offlineInstallerVersion)"
+    if ($webViewVersion -ne '1.3.263.3') {
+        throw "WebView2 Offline Installer 版本不匹配。实际：$webViewVersion；预期：" + '1.3.263.3'
     }
 
     Assert-FileHash -Path $WebView2BootstrapperPath `
-        -ExpectedHash $constants.dependencyBaseline.webView2Runtime.bootstrapper.sha256 `
+        -ExpectedHash '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146' `
         -Description 'WebView2 Evergreen Bootstrapper'
     $webViewBootstrapperSignature = Assert-SignedMicrosoftTool `
         -Path $WebView2BootstrapperPath `
@@ -166,8 +166,8 @@ try {
     if ([string]::IsNullOrWhiteSpace($webViewBootstrapperVersion)) {
         $webViewBootstrapperVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo($WebView2BootstrapperPath).FileVersion).Trim()
     }
-    if ($webViewBootstrapperVersion -ne $constants.dependencyBaseline.webView2Runtime.bootstrapper.version) {
-        throw "WebView2 Evergreen Bootstrapper 版本不匹配。实际：$webViewBootstrapperVersion；预期：$($constants.dependencyBaseline.webView2Runtime.bootstrapper.version)"
+    if ($webViewBootstrapperVersion -ne '1.3.263.3') {
+        throw "WebView2 Evergreen Bootstrapper 版本不匹配。实际：$webViewBootstrapperVersion；预期：" + '1.3.263.3'
     }
 
     Assert-FileHash -Path $InnoSetupInstallerPath `
@@ -341,7 +341,7 @@ try {
     Copy-Item -LiteralPath $WebView2BootstrapperPath -Destination $stagedWebViewBootstrapperPath
     Assert-FileHash `
         -Path $stagedWebViewBootstrapperPath `
-        -ExpectedHash $constants.dependencyBaseline.webView2Runtime.bootstrapper.sha256 `
+        -ExpectedHash '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146' `
         -Description '暂存 WebView2 Evergreen Bootstrapper'
     $stagedWebViewBootstrapperSignature = Get-DshAuthenticodeEvidence `
         -Path $stagedWebViewBootstrapperPath `
@@ -454,7 +454,7 @@ try {
         (New-IsppStringDefine -Name 'CertificateSubject' -Value $constants.distribution.signing.certificateSubject),
         (New-IsppStringDefine -Name 'ReleaseUri' -Value $constants.distribution.officialReleaseUri),
         (New-IsppStringDefine -Name 'WebView2InstallerPath' -Value $WebView2OfflineInstallerPath),
-        (New-IsppStringDefine -Name 'WebView2MinimumVersion' -Value $constants.dependencyBaseline.webView2Runtime.minimumVersion),
+        (New-IsppStringDefine -Name 'WebView2MinimumVersion' -Value '151.0.4129.50'),
         "/DRequiredSpaceBytes=$requiredSpaceBytes",
         (New-IsppStringDefine -Name 'OutputDirectory' -Value $releaseDirectory),
         (New-IsppStringDefine -Name 'OutputBaseFilename' -Value $outputBaseFilename),
@@ -582,12 +582,10 @@ try {
         "- Installer: $installerName",
         "- SHA-256: $installerHash",
         "- Runtime: self-contained $($constants.build.runtimeIdentifier), multi-file, non-trimmed .NET $($constants.build.dotnetSdkVersion)",
-        "- WebView2 SDK: $($constants.dependencyBaseline.webView2Sdk.version)",
-        "- Minimum WebView2 Runtime: $($constants.dependencyBaseline.webView2Runtime.minimumVersion)",
+        "- Minimum WebView2 Runtime: $('151.0.4129.50')",
         "- Included WebView2 offline installer: $webViewVersion",
         "- Included WebView2 repair bootstrapper: $webViewBootstrapperVersion",
-        "- Harness baseline: $($constants.dependencyBaseline.harness.version) ($($constants.dependencyBaseline.harness.commit))",
-        "- LAN plugin baseline: $($constants.dependencyBaseline.lanPlugin.package) $($constants.dependencyBaseline.lanPlugin.version)",
+        "- Pairing baseline: $($constants.pairingBaseline.plugin) $($constants.pairingBaseline.referenceVersion)",
         "- WebUI contract: $($compatibilityIdentity.contractVersion) ($($compatibilityIdentity.contractCapabilitiesCanonicalSha256))",
         "- WebUI descriptor schema SHA-256: $($compatibilityIdentity.descriptorSchemaCanonicalSha256)",
         "- WebUI registry: $($compatibilityIdentity.registryVersion) ($($compatibilityIdentity.registryCanonicalSha256))",

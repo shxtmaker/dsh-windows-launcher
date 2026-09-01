@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -284,31 +284,28 @@ public sealed class ReleaseScriptLogicTests
 
         Assert.True(result.RootElement.GetProperty("Count").GetInt32() > 0);
         Assert.Equal(0, result.RootElement.GetProperty("DuplicateCount").GetInt32());
-        Assert.True(result.RootElement.GetProperty("RuntimeCount").GetInt32() > 0);
+        Assert.Equal(
+            result.RootElement.GetProperty("Count").GetInt32(),
+            result.RootElement.GetProperty("RuntimeCount").GetInt32() +
+            result.RootElement.GetProperty("DevelopmentCount").GetInt32());
         Assert.True(result.RootElement.GetProperty("DevelopmentCount").GetInt32() > 0);
     }
 
     [Fact]
-    [Trait("triggerTags", "VFY-07,VFY-08,runtime,installer")]
+    [Trait("triggerTags", "VFY-07,VFY-08,installer")]
     public void WebView2BootstrapperIsFrozenAndInstalledWithoutInnoExecution()
     {
         string root = FindRepositoryRoot();
-        using JsonDocument constants = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(root, "eng", "release-constants.json")));
-        JsonElement bootstrapper = constants.RootElement
-            .GetProperty("dependencyBaseline")
-            .GetProperty("webView2Runtime")
-            .GetProperty("bootstrapper");
-
-        Assert.Equal("1.3.263.3", bootstrapper.GetProperty("version").GetString());
-        Assert.Equal(
-            "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
-            bootstrapper.GetProperty("sourceUri").GetString());
-        Assert.Equal(
-            "94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146",
-            bootstrapper.GetProperty("sha256").GetString());
-
         string packageScript = File.ReadAllText(Path.Combine(root, "eng", "package.ps1"));
+
+        // The packaging tooling pins the WebView2 bootstrapper to the same
+        // frozen upstream identity without reading a removed constants
+        // section: the literals below are the single source of truth.
+        Assert.Contains(
+            "'94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146'",
+            packageScript,
+            StringComparison.Ordinal);
+        Assert.Contains("'1.3.263.3'", packageScript, StringComparison.Ordinal);
         Assert.Contains("[string] $WebView2BootstrapperPath", packageScript, StringComparison.Ordinal);
         Assert.Contains("MicrosoftEdgeWebview2Setup.exe", packageScript, StringComparison.Ordinal);
 
@@ -328,56 +325,38 @@ public sealed class ReleaseScriptLogicTests
 
     [Fact]
     [Trait("triggerTags", "VFY-04,VFY-08")]
-    public void HarnessProbeFingerprintMatchesTheFrozenUpstreamSourceEvidence()
+    public void PairingBaselineMatchesTheProtocolImplementation()
     {
         string root = FindRepositoryRoot();
         using JsonDocument constants = JsonDocument.Parse(
             File.ReadAllText(Path.Combine(root, "eng", "release-constants.json")));
-        JsonElement fingerprint = constants.RootElement
-            .GetProperty("dependencyBaseline")
-            .GetProperty("harness")
-            .GetProperty("probeFingerprint");
-        JsonElement harness = constants.RootElement
-            .GetProperty("dependencyBaseline")
-            .GetProperty("harness");
-        Assert.Equal("0a53fb55bea101816fa226bb964ae2bed71c343b", harness.GetProperty("commit").GetString());
-        Assert.Equal("dsh-v0.1.2-alpha.2", harness.GetProperty("version").GetString());
-        DshLauncher.Platform.Windows.HarnessProbeFingerprint implementation =
-            DshLauncher.Platform.Windows.HarnessProbeFingerprint.V1;
+        JsonElement pairing = constants.RootElement.GetProperty("pairingBaseline");
 
-        JsonElement api = fingerprint.GetProperty("api");
-        Assert.Equal("packages/client/connection/src/index.ts", api.GetProperty("sourcePath").GetString());
-        Assert.Equal("/api", api.GetProperty("requestPath").GetString());
-        Assert.Equal(implementation.ApiStatusCode, api.GetProperty("statusCode").GetInt32());
-        Assert.Equal(implementation.ApiBodyLength, api.GetProperty("bodyLength").GetInt32());
-        Assert.Equal(implementation.ApiBodySha256, api.GetProperty("bodySha256").GetString());
+        Assert.Equal("@linxin666/dsh-remote-web-ui", pairing.GetProperty("plugin").GetString());
+        Assert.Equal("dsh_pair", pairing.GetProperty("cookieName").GetString());
+        Assert.Equal("/pair-accept", pairing.GetProperty("acceptPage").GetString());
+        Assert.Equal("/api/pair/accept", pairing.GetProperty("acceptPath").GetString());
+        Assert.Equal("/api/pair/heartbeat", pairing.GetProperty("heartbeatPath").GetString());
+        Assert.Equal("/api/pair/status", pairing.GetProperty("statusPath").GetString());
+        Assert.Equal(25, pairing.GetProperty("onlineWindowSeconds").GetInt32());
 
-        JsonElement rootResponse = fingerprint.GetProperty("root");
-        Assert.Equal(
-            "packages/client/connection/src/browser-auth.ts",
-            rootResponse.GetProperty("sourcePath").GetString());
-        Assert.Equal("/", rootResponse.GetProperty("requestPath").GetString());
-        Assert.Equal(implementation.RootStatusCode, rootResponse.GetProperty("statusCode").GetInt32());
-        Assert.Equal(implementation.RootBodyLength, rootResponse.GetProperty("bodyLength").GetInt32());
-        Assert.Equal(implementation.RootBodySha256, rootResponse.GetProperty("bodySha256").GetString());
+        // The protocol implementation must carry the exact same wire facts.
+        string protocol = File.ReadAllText(
+            Path.Combine(root, "src", "DshLauncher.Core", "Pairing", "PairingProtocol.cs"));
+        Assert.Contains("DefaultCookieName = \"dsh_pair\"", protocol, StringComparison.Ordinal);
+        Assert.Contains("AcceptPath = \"/api/pair/accept\"", protocol, StringComparison.Ordinal);
+        Assert.Contains("HeartbeatPath = \"/api/pair/heartbeat\"", protocol, StringComparison.Ordinal);
+        Assert.Contains("StatusPath = \"/api/pair/status\"", protocol, StringComparison.Ordinal);
+        Assert.Contains("HostOnlineWindow = TimeSpan.FromSeconds(25)", protocol, StringComparison.Ordinal);
 
-        JsonElement legacy = constants.RootElement
-            .GetProperty("dependencyBaseline")
-            .GetProperty("harness")
-            .GetProperty("legacyUnauthenticatedBaseline");
-        Assert.Equal("@deepseek-ai/dsh", legacy.GetProperty("package").GetString());
-        Assert.Equal("0.1.1-rc.2", legacy.GetProperty("version").GetString());
-        JsonElement legacyFingerprint = legacy.GetProperty("probeFingerprint");
-        DshLauncher.Platform.Windows.HarnessProbeFingerprint legacyImplementation =
-            DshLauncher.Platform.Windows.HarnessProbeFingerprint.LegacyUnauthenticatedV011Rc2;
-        JsonElement legacyApi = legacyFingerprint.GetProperty("api");
-        Assert.Equal(legacyImplementation.ApiStatusCode, legacyApi.GetProperty("statusCode").GetInt32());
-        Assert.Equal(legacyImplementation.ApiBodyLength, legacyApi.GetProperty("bodyLength").GetInt32());
-        Assert.Equal(legacyImplementation.ApiBodySha256, legacyApi.GetProperty("bodySha256").GetString());
-        JsonElement legacyRoot = legacyFingerprint.GetProperty("root");
-        Assert.Equal(legacyImplementation.RootStatusCode, legacyRoot.GetProperty("statusCode").GetInt32());
-        Assert.Equal(legacyImplementation.RootBodyLength, legacyRoot.GetProperty("bodyLength").GetInt32());
-        Assert.Equal(legacyImplementation.RootBodySha256, legacyRoot.GetProperty("bodySha256").GetString());
+        // The link parser must accept exactly the advertised entry page.
+        string parser = File.ReadAllText(
+            Path.Combine(root, "src", "DshLauncher.Core", "Pairing", "PairingLink.cs"));
+        Assert.Contains("\"/pair-accept\"", parser, StringComparison.Ordinal);
+
+        // The keep-alive default must stay strictly below the host window.
+        Assert.True(pairing.GetProperty("defaultHeartbeatIntervalSeconds").GetInt32()
+            < pairing.GetProperty("onlineWindowSeconds").GetInt32());
     }
 
     [Fact]
@@ -522,8 +501,11 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("[StringComparison]::Ordinal", internalPackageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("-notmatch '(?i)Microsoft'", internalPackageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("-notmatch '(?i)Pyrsys", internalPackageScript, StringComparison.Ordinal);
-        Assert.Contains("webView2Runtime.bootstrapper.sha256", internalPackageScript, StringComparison.Ordinal);
-        Assert.Contains("webView2Runtime.bootstrapper.version", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "'94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146'",
+            internalPackageScript,
+            StringComparison.Ordinal);
+        Assert.Contains("'1.3.263.3'", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains("function Get-InnoCompilerVersion", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains(
             "#pragma message \"DSH_INNO_VERSION=\" + DecodeVer(VER, 4)",

@@ -1,33 +1,28 @@
-using System.IO;
 using System.Diagnostics;
-using System.Text.Json;
+using System.IO;
 using System.Windows;
-using System.Windows.Threading;
-using DshLauncher.Compatibility;
 using DshLauncher.Core;
-using DshLauncher.Desktop.Resources;
-using DshLauncher.Desktop.RuntimeRepair;
-using DshLauncher.Desktop.ViewModels;
+using DshLauncher.Core.Hub;
+using DshLauncher.Core.Pairing;
 using DshLauncher.Platform.Windows;
-using DshLauncher.WebView;
+using DshLauncher.WebUi;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace DshLauncher.Desktop;
 
-public partial class App : Application, IDisposable
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design",
+    "CA1001:Types that own disposable fields should be disposable",
+    Justification = "The composition root disposes its components explicitly on the BeginExit path.")]
+public partial class App : Application
 {
-    private readonly TaskCompletionSource<bool> _ready = new(
-        TaskCreationOptions.RunContinuationsAsynchronously);
     private CurrentUserSingleInstance? _singleInstance;
     private ApplicationDataStore? _applicationData;
-    private HarnessTargetProbePort? _probe;
-    private ITargetRuntimePort? _targetRuntime;
-    private TargetManager? _targetManager;
-    private RollingDiagnosticLog? _log;
-    private WindowCoordinator? _windowCoordinator;
-    private LauncherController? _controller;
-    private TargetCenterWindow? _targetCenter;
-    private bool _maintenanceExitInProgress;
-    private bool _disposed;
+    private PairingHub? _hub;
+    private HubWebServer? _webServer;
+    private TrayHost? _tray;
+    private bool _exitRequested;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -36,11 +31,7 @@ public partial class App : Application, IDisposable
         var maintenanceExitRequested = SingleInstanceContract.TryGetMaintenanceExitTimeout(
             e.Args,
             out var maintenanceExitTimeout);
-        if (e.Args.Length > 0 && !maintenanceExitRequested)
-        {
-            Shutdown(2);
-            return;
-        }
+        var port = ParsePortArgument(e.Args);
 
         try
         {
@@ -52,7 +43,6 @@ public partial class App : Application, IDisposable
                 HandleSingleInstanceRequestAsync);
             if (_singleInstance is null)
             {
-                var forwardingStarted = Stopwatch.StartNew();
                 var request = maintenanceExitRequested
                     ? SingleInstanceRequest.Create(SingleInstanceRequestKind.MaintenanceExit)
                     : SingleInstanceRequest.Create(SingleInstanceRequestKind.Activate);
@@ -62,380 +52,162 @@ public partial class App : Application, IDisposable
                     maintenanceExitRequested
                         ? maintenanceExitTimeout
                         : TimeSpan.FromSeconds(10)).ConfigureAwait(true);
-                if (maintenanceExitRequested && response == SingleInstanceResponse.Accepted)
-                {
-                    var remaining = maintenanceExitTimeout - forwardingStarted.Elapsed;
-                    if (remaining <= TimeSpan.Zero ||
-                        !await WaitForPrimaryReleaseAsync(identity, remaining).ConfigureAwait(true))
-                    {
-                        Shutdown(3);
-                        return;
-                    }
-                }
-
                 Shutdown(response == SingleInstanceResponse.Accepted ? 0 : 3);
                 return;
             }
 
             if (maintenanceExitRequested)
             {
-                await _singleInstance.DisposeAsync().ConfigureAwait(true);
-                _singleInstance = null;
-                Shutdown(0);
+                BeginExit();
                 return;
             }
 
-            var capabilityResolver =
-                LauncherApplicationIntegrity.LoadCompatibilityResolver(
-                    buildIdentity);
-            if (!EnsureWebView2Runtime())
-            {
-                _ready.TrySetCanceled();
-                Shutdown(1);
-                return;
-            }
-
-            await InitializeApplicationAsync(capabilityResolver)
-                .ConfigureAwait(true);
-            _ready.TrySetResult(true);
-            await _controller!.ApplyStartupPolicyAsync(CancellationToken.None).ConfigureAwait(true);
-            await _targetCenter!.RefreshAsync().ConfigureAwait(true);
+            await StartHubAsync(buildIdentity, port).ConfigureAwait(true);
         }
-        catch (LauncherPresentationException exception)
+        catch (Exception exception)
         {
-            _ready.TrySetException(exception);
-            MessageBox.Show(
-                exception.UserMessage,
-                LauncherBuildIdentity.Current.ProductName,
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
-        catch (Exception)
-        {
-            _ready.TrySetCanceled();
-            MessageBox.Show(
-                Strings.UnexpectedError,
-                LauncherBuildIdentity.Current.ProductName,
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            ReportFatalStartupError(exception);
             Shutdown(1);
         }
     }
 
-    protected override void OnExit(ExitEventArgs e)
+    private async Task StartHubAsync(LauncherBuildIdentity buildIdentity, int port)
     {
-        Dispose();
-        base.OnExit(e);
+        var dataRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            buildIdentity.ApplicationDataId);
+        _applicationData = new ApplicationDataStore(new ApplicationDataLayout(dataRoot));
+        await _applicationData.InitializeAsync().ConfigureAwait(true);
+
+        var hub = new PairingHub(
+            new PairingHubOptions(),
+            new JsonTargetStore(_applicationData),
+            new HttpPairingTransport(new PairingTransportOptions
+            {
+                UserAgent = $"DshWindowsLauncher/{BuildVersionString()}",
+            }),
+            new SystemClock(),
+            new GuidIdGenerator());
+        _hub = hub;
+        await hub.StartAsync().ConfigureAwait(true);
+
+        _webServer = new HubWebServer(hub, new HubWebServerOptions { Port = port });
+        try
+        {
+            await _webServer.StartAsync().ConfigureAwait(true);
+        }
+        catch (IOException) when (port != 0)
+        {
+            // The default port is taken (another instance or another app):
+            // fall back to a free loopback port instead of refusing to start.
+            await _webServer.DisposeAsync().ConfigureAwait(true);
+            _webServer = new HubWebServer(hub, new HubWebServerOptions { Port = 0 });
+            await _webServer.StartAsync().ConfigureAwait(true);
+        }
+
+        _tray = new TrayHost(buildIdentity.ProductName, _webServer.DashboardUrl);
+        _tray.ExitRequested += BeginExit;
+        hub.Changed += HubStateChanged;
+        HubStateChanged(await hub.GetSnapshotAsync().ConfigureAwait(true));
     }
 
-    public void Dispose()
+    private void HubStateChanged(HubSnapshot snapshot)
     {
-        if (_disposed)
+        if (_tray is null)
         {
             return;
         }
 
-        _disposed = true;
-        DisposeResources();
-        GC.SuppressFinalize(this);
+        var online = snapshot.Targets.Count(target =>
+            target.Pairing == PairingState.Paired && target.Connectivity == ConnectivityState.Online);
+        var paired = snapshot.Targets.Count(target => target.Pairing == PairingState.Paired);
+        _tray.UpdateStatus($"配对 {paired}（在线 {online}）· 心跳 {Math.Round(snapshot.HeartbeatInterval.TotalSeconds)} 秒");
     }
 
-    private bool EnsureWebView2Runtime()
-    {
-        var dependency = new WebView2RuntimeDependency(
-            new InstalledWebView2RuntimeProbe(),
-            new WebView2BootstrapperRunner(
-                AppContext.BaseDirectory,
-                WebView2RuntimeDependency.BootstrapperTimeout));
-        var check = dependency.Check();
-        if (check.IsReady)
-        {
-            return true;
-        }
-
-        var previousShutdownMode = ShutdownMode;
-        ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        try
-        {
-            using var repairWindow = new RuntimeRepairWindow(dependency, check);
-            MainWindow = repairWindow;
-            return repairWindow.ShowDialog() == true;
-        }
-        finally
-        {
-            ShutdownMode = previousShutdownMode;
-        }
-    }
-
-    private async ValueTask InitializeApplicationAsync(
-        PageCapabilityResolver capabilityResolver)
-    {
-        ArgumentNullException.ThrowIfNull(capabilityResolver);
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            LauncherBuildIdentity.Current.ApplicationDataId);
-        var layout = new ApplicationDataLayout(root);
-        _applicationData = new ApplicationDataStore(layout);
-        await _applicationData.InitializeAsync().ConfigureAwait(true);
-        var compatibilityState = new JsonCompatibilityStateStore(
-            _applicationData);
-        var watermark = await compatibilityState.ReadRegistryWatermarkAsync(
-            capabilityResolver.RegistryVersion).ConfigureAwait(true);
-        var extendedCompatibilityAllowed = watermark.Status is
-            CompatibilityStateReadStatus.Missing or
-            CompatibilityStateReadStatus.Loaded or
-            CompatibilityStateReadStatus.RecoveredFromBackup;
-        if (extendedCompatibilityAllowed)
-        {
-            await compatibilityState.AdvanceRegistryWatermarkAsync(
-                capabilityResolver.RegistryVersion).ConfigureAwait(true);
-        }
-
-        _log = new RollingDiagnosticLog(layout);
-        await _log.WriteAsync(DiagnosticRecord.Create(
-            DateTimeOffset.UtcNow,
-            DiagnosticEventCode.ApplicationStarted,
-            statusCode: null,
-            classification: "startup",
-            normalizedPrivateEndpoint: null,
-            includePrivateEndpoint: false)).ConfigureAwait(true);
-
-        var storage = new JsonTargetStorage(_applicationData);
-        var sessions = new JsonSessionPort(_applicationData);
-        var browserData = new TargetBrowserDataStore(_applicationData);
-        var pairingDiagnostics = new PairingDiagnosticLogSink(_log);
-        _targetRuntime = new WebView2TargetRuntimePort(browserData, pairingDiagnostics);
-        var httpProbe = HarnessHttpProbeAdapter.CreateDefault(
-            new HarnessHttpProbeOptions(
-                TimeSpan.FromSeconds(3),
-                maxResponseBytes: 4096));
-        _probe = new HarnessTargetProbePort(httpProbe, HarnessProbeFingerprint.V1);
-        var clipboard = new WindowsClipboardPort();
-
-        _targetManager = new TargetManager(new TargetManagerPorts(
-            storage,
-            new SystemClock(),
-            new GuidIdGenerator(),
-            new WindowsNetworkPort(),
-            _probe,
-            sessions,
-            _targetRuntime,
-            clipboard,
-            pairingDiagnostics));
-
-        Func<Window?> ownerProvider = () => _targetCenter;
-        var externalLauncher = new SystemTargetExternalUriLauncher();
-        var externalConsent = new WpfTargetExternalNavigationConsent(ownerProvider, Dispatcher);
-        var capabilityConfirmation = new WpfExternalCapabilityConfirmationPort(
-            compatibilityState,
-            ownerProvider,
-            Dispatcher,
-            extendedCompatibilityAllowed);
-        _windowCoordinator = new WindowCoordinator(
-            layout,
-            externalConsent,
-            externalLauncher,
-            capabilityResolver,
-            capabilityConfirmation,
-            compatibilityState,
-            Dispatcher);
-        _windowCoordinator.AllTargetWindowsClosed += (_, _) =>
-        {
-            if (!_maintenanceExitInProgress && _targetCenter is { IsVisible: false })
-            {
-                _targetCenter.Close();
-            }
-        };
-
-        var dialogs = new WpfLauncherDialogs(ownerProvider, clipboard);
-        var diagnostics = new DiagnosticExportService(_log, ownerProvider, Dispatcher);
-        var updates = new UpdatePageService(
-            ReadOfficialReleaseUri(),
-            ownerProvider,
-            Dispatcher,
-            externalLauncher);
-        _controller = new LauncherController(
-            _targetManager,
-            dialogs,
-            _windowCoordinator,
-            diagnostics,
-            updates);
-        _targetCenter = new TargetCenterWindow(
-            _controller,
-            () => _windowCoordinator.HasOpenWindows);
-        _controller.SnapshotChanged += OnControllerSnapshotChanged;
-        MainWindow = _targetCenter;
-        _targetCenter.Show();
-        await _targetCenter.InitializeAsync().ConfigureAwait(true);
-    }
-
-    private async ValueTask<SingleInstanceResponse> HandleSingleInstanceRequestAsync(
+    private ValueTask<SingleInstanceResponse> HandleSingleInstanceRequestAsync(
         SingleInstanceRequest request,
         CancellationToken cancellationToken)
     {
-        try
+        switch (request.Kind)
         {
-            await _ready.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-            switch (request.Kind)
-            {
-                case SingleInstanceRequestKind.Activate:
-                    await Dispatcher.InvokeAsync(
-                        () => _targetCenter!.ActivateFromRequest(),
-                        DispatcherPriority.Normal,
-                        cancellationToken);
-                    return SingleInstanceResponse.Accepted;
-
-                case SingleInstanceRequestKind.OpenTarget when request.TargetId is { } targetId:
-                    await Dispatcher.InvokeAsync(
-                        () => _controller!.OpenAsync(targetId, cancellationToken).AsTask(),
-                        DispatcherPriority.Normal,
-                        cancellationToken).Task.Unwrap().ConfigureAwait(false);
-                    return SingleInstanceResponse.Accepted;
-
-                case SingleInstanceRequestKind.MaintenanceExit:
-                    _maintenanceExitInProgress = true;
-                    await Dispatcher.InvokeAsync(
-                        () => _windowCoordinator!.CloseAllAsync(cancellationToken).AsTask(),
-                        DispatcherPriority.Normal,
-                        cancellationToken).Task.Unwrap().ConfigureAwait(false);
-                    _ = CompleteMaintenanceExitAfterResponseAsync();
-                    return SingleInstanceResponse.Accepted;
-
-                default:
-                    return SingleInstanceResponse.Rejected;
-            }
-        }
-        catch (Exception)
-        {
-            return SingleInstanceResponse.Rejected;
+            case SingleInstanceRequestKind.Activate:
+                _tray?.OpenDashboard();
+                return ValueTask.FromResult(SingleInstanceResponse.Accepted);
+            case SingleInstanceRequestKind.MaintenanceExit:
+                Dispatcher.BeginInvoke(BeginExit);
+                return ValueTask.FromResult(SingleInstanceResponse.Accepted);
+            default:
+                return ValueTask.FromResult(SingleInstanceResponse.Rejected);
         }
     }
 
-    private async Task CompleteMaintenanceExitAfterResponseAsync()
+    private void BeginExit()
     {
-        try
+        if (_exitRequested)
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
-            await Dispatcher.InvokeAsync(() =>
-            {
-                if (_targetCenter is { } center)
-                {
-                    center.Close();
-                }
-                else
-                {
-                    Shutdown();
-                }
-            });
-        }
-        catch (Exception)
-        {
-            if (!Dispatcher.HasShutdownStarted)
-            {
-                await Dispatcher.InvokeAsync(() => Shutdown(1));
-            }
-        }
-    }
-
-    private static async ValueTask<bool> WaitForPrimaryReleaseAsync(
-        CurrentUserInstanceIdentity identity,
-        TimeSpan timeout)
-    {
-        var started = Stopwatch.StartNew();
-        while (started.Elapsed < timeout)
-        {
-            var claimed = CurrentUserSingleInstance.TryStart(
-                identity,
-                static (_, _) => ValueTask.FromResult(SingleInstanceResponse.Rejected));
-            if (claimed is not null)
-            {
-                await claimed.DisposeAsync().ConfigureAwait(false);
-                return true;
-            }
-
-            var remaining = timeout - started.Elapsed;
-            if (remaining <= TimeSpan.Zero)
-            {
-                break;
-            }
-
-            await Task.Delay(
-                remaining < TimeSpan.FromMilliseconds(100)
-                    ? remaining
-                    : TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
+            return;
         }
 
-        return false;
-    }
-
-    private void DisposeResources()
-    {
-        if (_controller is not null)
-        {
-            _controller.SnapshotChanged -= OnControllerSnapshotChanged;
-        }
-
-        try
-        {
-            _singleInstance?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-        catch (Exception)
-        {
-        }
-
-        _targetManager?.Dispose();
-        if (_targetRuntime is IAsyncDisposable asyncRuntime)
+        _exitRequested = true;
+        Dispatcher.BeginInvoke(async () =>
         {
             try
             {
-                asyncRuntime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                if (_hub is not null)
+                {
+                    _hub.Changed -= HubStateChanged;
+                    await _hub.DisposeAsync().ConfigureAwait(true);
+                }
+
+                if (_webServer is not null)
+                {
+                    await _webServer.DisposeAsync().ConfigureAwait(true);
+                }
+
+                if (_tray is not null)
+                {
+                    _tray.ExitRequested -= BeginExit;
+                    _tray.Dispose();
+                }
+
+                if (_singleInstance is not null)
+                {
+                    await _singleInstance.DisposeAsync().ConfigureAwait(true);
+                }
+
+                _applicationData?.Dispose();
             }
-            catch (Exception)
+            finally
             {
+                Shutdown(0);
             }
-        }
-
-        try
-        {
-            _probe?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            _log?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-        catch (Exception)
-        {
-        }
-
-        _applicationData?.Dispose();
+        });
     }
 
-    private async void OnControllerSnapshotChanged(object? sender, EventArgs args)
+    private static void ReportFatalStartupError(Exception exception)
     {
-        try
-        {
-            if (_targetCenter is not null &&
-                !Dispatcher.HasShutdownStarted &&
-                !Dispatcher.HasShutdownFinished)
-            {
-                await _targetCenter.RefreshAsync().ConfigureAwait(true);
-            }
-        }
-        catch
-        {
-            // Background session cleanup is complete even if presentation refresh fails.
-        }
+        var safe = exception is HubStorageException or ApplicationDataOwnershipException or IOException
+            ? exception.Message
+            : "启动失败，请查看 Windows 事件查看器。";
+        MessageBox.Show(safe, LauncherBuildIdentity.Current.ProductName, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
-    private static Uri? ReadOfficialReleaseUri()
+    private static string BuildVersionString() =>
+        (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0))
+            .ToString(3);
+
+    private static int ParsePortArgument(string[] args)
     {
-        using var stream = typeof(App).Assembly.GetManifestResourceStream(
-            "DshLauncher.Desktop.ReleaseConstants.json") ??
-            throw new InvalidOperationException("Embedded release constants are missing.");
-        using var document = JsonDocument.Parse(stream);
-        var value = document.RootElement
-            .GetProperty("distribution")
-            .GetProperty("officialReleaseUri");
-        return value.ValueKind == JsonValueKind.String &&
-               Uri.TryCreate(value.GetString(), UriKind.Absolute, out var uri)
-            ? uri
-            : null;
+        for (var index = 0; index + 1 < args.Length; index++)
+        {
+            if (string.Equals(args[index], "--port", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(args[index + 1], out var port) &&
+                port is >= 0 and <= 65535)
+            {
+                return port;
+            }
+        }
+
+        return HubWebServerOptions.DefaultPort;
     }
 }

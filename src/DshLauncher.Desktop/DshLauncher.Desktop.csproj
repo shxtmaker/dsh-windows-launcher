@@ -4,28 +4,18 @@
     <RootNamespace>DshLauncher.Desktop</RootNamespace>
     <AssemblyName>DshWindowsLauncher</AssemblyName>
     <Product>$(LauncherProductName)</Product>
-    <Description>$(LauncherProductName) 的 WPF 表示层与组合根。</Description>
+    <Description>$(LauncherProductName) 的 Windows 托盘宿主与组合根：集中管理配对、保活连接并托管独立 Web 管理页面。</Description>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <UseAppHost>true</UseAppHost>
     <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../DshLauncher.Compatibility/DshLauncher.Compatibility.csproj" />
     <ProjectReference Include="../DshLauncher.Core/DshLauncher.Core.csproj" />
     <ProjectReference Include="../DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
-    <ProjectReference Include="../DshLauncher.WebView/DshLauncher.WebView.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="../../eng/release-constants.json"
-                      LogicalName="DshLauncher.Desktop.ReleaseConstants.json" />
-    <EmbeddedResource Include="../../compatibility/contracts/webui-contract-capabilities.json"
-                      LogicalName="DshLauncher.Desktop.WebUiContractCapabilities.json" />
-    <EmbeddedResource Include="../../compatibility/registry/webui-adapter-registry.json"
-                      LogicalName="DshLauncher.Desktop.WebUiAdapterRegistry.json" />
+    <ProjectReference Include="../DshLauncher.WebUi/DshLauncher.WebUi.csproj" />
   </ItemGroup>
 
   <Target Name="RenameInternalTestBuildAppHost"

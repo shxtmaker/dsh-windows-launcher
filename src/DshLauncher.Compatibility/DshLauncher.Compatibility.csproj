@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>DshLauncher.Compatibility</RootNamespace>
-    <AssemblyName>DshLauncher.Compatibility</AssemblyName>
-    <Description>第三方 WebUI 描述符、适配规则与页面能力快照的技术无关解析模块。</Description>
-  </PropertyGroup>
-</Project>

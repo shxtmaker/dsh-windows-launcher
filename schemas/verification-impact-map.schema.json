@@ -28,15 +28,8 @@
       "uniqueItems": true,
       "items": {
         "enum": [
-          "contract",
-          "descriptor-schema",
-          "registry",
-          "harness",
-          "lan-plugin",
-          "webview2-runtime",
-          "csp-debt",
-          "provider-identity",
-          "support-record"
+          "pairing-baseline",
+          "product"
         ]
       }
     },
@@ -132,15 +125,8 @@
           "uniqueItems": true,
           "items": {
             "enum": [
-              "contract",
-              "descriptor-schema",
-              "registry",
-              "harness",
-              "lan-plugin",
-              "webview2-runtime",
-              "csp-debt",
-              "provider-identity",
-              "support-record"
+              "pairing-baseline",
+              "product"
             ]
           }
         }

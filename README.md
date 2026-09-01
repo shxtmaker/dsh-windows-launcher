@@ -1,46 +1,54 @@
-# DSH Windows Launcher
+# DSH Windows Launcher（配对集中端）
 
-DSH Windows Launcher 是面向 Windows 的 WPF 桌面入口。它连接局域网内已经运行的 DeepSeek Harness Web UI，不安装、启动或管理 Linux Harness 
+DSH Windows Launcher 是面向 Windows 的 **DSH 配对集中端**：它集中管理局域网内多台
+DeepSeek Harness 实例的「DSH 远程访问」配对，持续发送心跳保活配对连接，并托管一个
+**独立 Web 管理页面**。它不安装、不启动、不管理远端 Harness 进程。
 
-## 第三方 WebUI 兼容
+## 产品形态
 
-启动器通过版本化兼容契约和内置只读适配器注册表评估第三方 WebUI。每次打开、刷新或恢复页面时，启动器会先在脚本关闭状态下读取同源描述符，再生成不可变能力快照并应用响应 CSP。描述符缺失、无效或没有精确规则时，页面自动使用基础兼容模式。
-
-扩展能力只允许精确来源、路径、方法和资源类型。首次使用外部依赖前会显示原生确认，用户可在兼容状态面板撤销确认。下载、页面权限、证书绕过、DevTools、原生桥接、任意外部脚本和未审核外站仍被禁止。服务端已有 CSP 会保留，并与启动器策略共同生效。
-
-[dsh-web](https://github.com/zhu1090093659/dsh-web) 是参考提供方，不在产品代码中拥有专用白名单。内置注册表包含精确 `@linxin666/dsh-remote-web-ui@0.3.10` 规则：只授权两个审核脚本 SHA-256 和四条目标 WebSocket 路径。Linux 端必须安装随仓库提供的只读描述符 companion，并通过完整发布包树校验；否则仍只获得基础兼容。契约语义见 [WebUI 兼容契约](docs/webui-compatibility-contract.md)，参考状态见 [dsh-web 参考适配器](docs/reference-adapters/dsh-web.md)。
+- Windows 托盘宿主：单实例运行，托盘图标展示实时配对计数，双击打开管理页面。
+- 独立 Web 管理页面：由本机 Kestrel 服务（默认 `http://127.0.0.1:4780`，仅回环）托管，
+  支持粘贴配对链接添加目标、查看配对/连接状态、开关保活、手动心跳、打开远程界面、
+  重命名与删除。
+- 配对协议完全由 Harness 侧 [dsh-web](https://github.com/zhu1090093659/dsh-web) 的
+  **DSH 远程访问（dsh-remote-web-ui）** 插件提供：一次性令牌 `/api/pair/accept` 兑换
+  设备凭据，`POST /api/pair/heartbeat` 心跳保活（默认 10 秒一次，低于主机端 25 秒
+  在线窗口），`/remote` 门控通道承载配对后的全部流量。协议细节见
+  [docs/pairing-hub.md](docs/pairing-hub.md)。
 
 ## 项目结构
 
 | 项目 | 职责 |
 |---|---|
-| `DshLauncher.Core` | 目标目录、探测、配对、会话和忘记事务；不得引用 WPF、WebView2 或 Windows 适配器。 |
-| `DshLauncher.Compatibility` | 严格解析描述符与内置注册表，生成不可变页面能力快照；不得引用 UI、WebView2 或 Windows 适配器。 |
-| `DshLauncher.WebView` | 绑定单一目标、origin 和 UDF 的受限 WebView2 内容宿主。 |
-| `DshLauncher.Platform.Windows` | 文件系统、网络类别、IPC、剪贴板、Runtime 和系统集成适配器。 |
-| `DshLauncher.Desktop` | WPF 表示层、单实例入口、窗口协调和应用组合根。 |
-| `*.Tests` | Core、Compatibility、WebView、Windows 平台和跨模块验收测试。 |
+| `DshLauncher.Core` | 配对链接解析、配对传输、目标目录、心跳保活调度与持久化契约；无任何项目/包引用。 |
+| `DshLauncher.WebUi` | 独立 Web 管理页面与本地 JSON/SSE API（ASP.NET Core Kestrel，仅回环）。 |
+| `DshLauncher.Platform.Windows` | 应用数据根（防重解析点）、配对文档持久化、单实例 IPC、组合根适配器。 |
+| `DshLauncher.Desktop` | WPF/WinForms 托盘宿主与组合根：启动枢纽、Web 服务与托盘。 |
+| `*.Tests` | Core、WebUi、Windows 平台与跨模块端到端验收测试。 |
 
 生产项目依赖方向：
 
 ```text
-DshLauncher.Core                    无项目引用
-DshLauncher.Compatibility           无项目引用
-DshLauncher.Platform.Windows        → Core, Compatibility
-DshLauncher.WebView                 → Core, Compatibility
-DshLauncher.Desktop                 → Core, Compatibility, Platform.Windows, WebView
+DshLauncher.Core             无项目引用
+DshLauncher.WebUi            → Core
+DshLauncher.Platform.Windows → Core
+DshLauncher.Desktop          → Core, Platform.Windows, WebUi
 ```
 
-`Desktop` 是唯一组合根。`Core` 与 `Compatibility` 都不反向引用 UI、WebView2 或 Windows 适配器。
+## 配对与保活
+
+1. 在 Harness 桌面端「远程访问」面板铸造二维码并复制配对链接
+   （`http://<host>:<port>/pair-accept?pair=<token>`）。
+2. 在本机管理页面粘贴链接：集中端执行 accept 兑换设备凭据并持久化。
+3. 之后由保活调度器按 10 秒（可配）间隔发送心跳；主机吊销设备后自动转入
+   「已失效」并停止心跳，等待重新配对；网络中断按指数退避重试并自动恢复。
 
 ## 构建基线
 
-- .NET SDK `10.0.400`，禁止补丁滚动。
-- `net10.0-windows`、`win-x64`。
-- WebView2 SDK `1.0.4129.50`。
-- Release 主程序为自包含、多文件、非裁剪发布。
-- NuGet 使用中心包版本管理，每个项目生成并提交 `packages.lock.json`。
-- nullable、SDK analyzers、代码样式和警告即错误在所有项目统一启用。
+- .NET SDK `10.0.400`，禁止补丁滚动；`net10.0-windows`、`win-x64`。
+- 零第三方运行时依赖：生产项目只使用 BCL 与 ASP.NET Core 共享框架。
+- NuGet 中心包版本管理，每个项目提交 `packages.lock.json`。
+- nullable、SDK analyzers、代码样式与警告即错误全仓库启用。
 
 首次生成或显式刷新锁文件：
 
@@ -48,32 +56,17 @@ DshLauncher.Desktop                 → Core, Compatibility, Platform.Windows, W
 dotnet restore .\DshWindowsLauncher.slnx --force-evaluate
 ```
 
-日常验证只允许锁定还原：
+统一验证（还原、格式、Release 构建、全部测试、架构门禁、SBOM、秘密扫描）：
 
 ```powershell
-dotnet restore .\DshWindowsLauncher.slnx --locked-mode
-dotnet build .\DshWindowsLauncher.slnx -c Release --no-restore
+pwsh ./eng/verify.ps1
 ```
 
-`eng/release-constants.json` 当前处于 `candidate` 状态。正式候选必须固定 Runtime、安装器、Publisher、发布地址和签名策略，并通过对应 JSON Schema；未知值不能用占位字符串代替。
+`eng/release-constants.json` 处于 `candidate` 状态（schemaVersion 4，固定远程访问
+配对契约基线）。正式候选必须通过 `verify.ps1` 并完成安装包实机冒烟。
 
 ## 正式安装包
 
-开源发行采用可选 Authenticode 策略。无代码签名证书时运行 `eng/package-unsigned.ps1`，生成正式产品身份的未签名安装包、`package-manifest.json`、`SHA256SUMS.txt`、验证摘要、SBOM 和第三方许可证清单。manifest 和 Release 正文必须明确记录 `NotSigned`，用户以 SHA-256 校验下载完整性。输入工具和 Microsoft WebView2 Bootstrapper 仍须通过冻结哈希及其上游签名校验。
-
-未签名不是跳过门禁。打包仍要求 clean Git 提交、统一 `verify.ps1` PASS、固定依赖身份和可重复的证据文件。若以后提供代码签名证书，可继续使用 `eng/package.ps1` 生成带 Authenticode 的正式包。
-
-## 未签名内部测试安装包
-
-`eng/package-internal.ps1` 只在 `releaseStatus=development` 时生成明确标记为
-`INTERNAL TEST`、`UNSIGNED`、`NOT FOR PRODUCTION USE` 的内部测试安装包。它使用独立的
-产品名、EXE 名、Inno Setup `AppId`、安装目录、应用数据根和单实例身份，不得覆盖或升级
-正式安装。
-
-该入口先运行统一 `verify.ps1`，并把 PASS 摘要绑定到同一个 clean Git 提交。它只接受
-匹配冻结版本和 SHA-256、带有效 Microsoft 签名及可信时间戳的 WebView2 Evergreen
-Bootstrapper。内部测试应用、安装器和卸载器保持未签名，不属于正式候选版本，禁止上传到
-正式 Release 或交付给最终用户。仅在当次获得明确上传授权后，才可作为
-`prerelease=true` 的预发布上传；标题、正文和文件名必须完整保留 `INTERNAL TEST`、
-`UNSIGNED`、`NOT FOR PRODUCTION USE`，且不得设为 latest 或正式发布。脚本只生成产物，
-不自动执行安装或卸载。
+安装包继续采用 Inno Setup 的按用户 EXE 形态（`eng/package.ps1` /
+`eng/package-unsigned.ps1`，开源发行可选 Authenticode 策略并记录 `NotSigned`）。
+`eng/package-internal.ps1` 生成明确标记 `INTERNAL TEST` 的内部测试包，禁止对外交付。

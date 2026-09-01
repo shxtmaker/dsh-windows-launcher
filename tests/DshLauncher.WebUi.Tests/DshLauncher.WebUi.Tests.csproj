@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>DshLauncher.Platform.Windows.Tests</RootNamespace>
-    <AssemblyName>DshLauncher.Platform.Windows.Tests</AssemblyName>
+    <RootNamespace>DshLauncher.WebUi.Tests</RootNamespace>
+    <AssemblyName>DshLauncher.WebUi.Tests</AssemblyName>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/DshLauncher.Core/DshLauncher.Core.csproj" />
-    <ProjectReference Include="../../src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
+    <ProjectReference Include="../../src/DshLauncher.WebUi/DshLauncher.WebUi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

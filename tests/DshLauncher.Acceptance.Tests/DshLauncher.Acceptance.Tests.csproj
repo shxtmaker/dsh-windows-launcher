@@ -7,11 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/DshLauncher.Compatibility/DshLauncher.Compatibility.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Core/DshLauncher.Core.csproj" />
+    <ProjectReference Include="../../src/DshLauncher.WebUi/DshLauncher.WebUi.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Desktop/DshLauncher.Desktop.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
-    <ProjectReference Include="../../src/DshLauncher.WebView/DshLauncher.WebView.csproj" />
   </ItemGroup>
 
   <ItemGroup>

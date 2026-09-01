@@ -13,7 +13,7 @@ pwsh -File .\eng\verify.ps1 `
   -DotNetPath "$env:LOCALAPPDATA\DshWindowsLauncherDev\dotnet-10.0.400\dotnet.exe"
 ```
 
-四个测试项目作为 Microsoft.Testing.Platform 可执行测试模块逐一运行，避免混用 VSTest。脚本先枚举预期测试方法和固定数据集，再用结构化结果核对实际执行、动态 Theory 展开、零跳过和逐数据集 `triggerTags`。结果目录包含逐模块 `.mtp.log`、脱敏 `.test-evidence.json`、夹具清单和 `verify-summary.json`。`releaseStatus=candidate` 时，任何空发布常量、非 HTTPS 发布地址或签名输入缺失都会在构建前阻断。
+四个测试项目（Core、WebUi、Platform.Windows、Acceptance）作为 Microsoft.Testing.Platform 可执行测试模块逐一运行，避免混用 VSTest。脚本先枚举预期测试方法和固定数据集，再用结构化结果核对实际执行、动态 Theory 展开、零跳过和逐数据集 `triggerTags`。结果目录包含逐模块 `.mtp.log`、脱敏 `.test-evidence.json`、夹具清单和 `verify-summary.json`。`releaseStatus=candidate` 时，任何空发布常量、非 HTTPS 发布地址或签名输入缺失都会在构建前阻断。
 
 ## `package.ps1`
 

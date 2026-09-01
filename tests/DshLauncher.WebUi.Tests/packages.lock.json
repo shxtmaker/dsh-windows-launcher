@@ -172,24 +172,10 @@
       "dshlauncher.core": {
         "type": "Project"
       },
-      "dshlauncher.platform.windows": {
-        "type": "Project",
-        "dependencies": {
-          "DshLauncher.Core": "[1.0.0, )"
-        }
-      },
       "dshlauncher.webui": {
         "type": "Project",
         "dependencies": {
           "DshLauncher.Core": "[1.0.0, )"
-        }
-      },
-      "DshWindowsLauncher": {
-        "type": "Project",
-        "dependencies": {
-          "DshLauncher.Core": "[1.0.0, )",
-          "DshLauncher.Platform.Windows": "[1.0.0, )",
-          "DshLauncher.WebUi": "[1.0.0, )"
         }
       }
     },

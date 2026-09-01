@@ -31,101 +31,12 @@
     ]
   },
   "identityInputs": [
-    "contract",
-    "csp-debt",
-    "descriptor-schema",
-    "harness",
-    "lan-plugin",
-    "provider-identity",
-    "registry",
-    "support-record",
-    "webview2-runtime"
+    "pairing-baseline",
+    "product"
   ],
   "mappings": [
     {
-      "mappingId": "compatibility-contract-data",
-      "pathPatterns": [
-        "compatibility/contracts/**",
-        "schemas/webui-compatibility-descriptor.schema.json",
-        "schemas/webui-contract-capabilities.schema.json"
-      ],
-      "triggerTags": [
-        "VFY-03",
-        "VFY-06",
-        "VFY-08",
-        "contract-change"
-      ],
-      "requiredRs": [
-        "RS-01",
-        "RS-05",
-        "RS-07",
-        "RS-08",
-        "RS-09",
-        "RS-10",
-        "RS-11",
-        "RS-12",
-        "RS-13",
-        "RS-14",
-        "RS-15"
-      ],
-      "identityInputs": [
-        "contract",
-        "csp-debt",
-        "descriptor-schema"
-      ]
-    },
-    {
-      "mappingId": "compatibility-governance-data",
-      "pathPatterns": [
-        "compatibility/providers/**",
-        "eng/generate-webui-governance.ps1",
-        "schemas/webui-provider-intake.schema.json",
-        "schemas/webui-review-decision.schema.json",
-        "schemas/webui-support-record.schema.json"
-      ],
-      "triggerTags": [
-        "VFY-08",
-        "governance-change"
-      ],
-      "requiredRs": [
-        "RS-01"
-      ],
-      "identityInputs": [
-        "provider-identity",
-        "support-record"
-      ]
-    },
-    {
-      "mappingId": "compatibility-registry-data",
-      "pathPatterns": [
-        "compatibility/registry/**",
-        "schemas/webui-adapter-registry.schema.json"
-      ],
-      "triggerTags": [
-        "VFY-03",
-        "VFY-06",
-        "VFY-08",
-        "registry-change"
-      ],
-      "requiredRs": [
-        "RS-01",
-        "RS-05",
-        "RS-07",
-        "RS-08",
-        "RS-09",
-        "RS-10",
-        "RS-11",
-        "RS-12",
-        "RS-13",
-        "RS-14",
-        "RS-15"
-      ],
-      "identityInputs": [
-        "registry"
-      ]
-    },
-    {
-      "mappingId": "core-target-domain",
+      "mappingId": "core-pairing-domain",
       "pathPatterns": [
         "src/DshLauncher.Core/**",
         "tests/DshLauncher.Core.Tests/**"
@@ -133,52 +44,91 @@
       "triggerTags": [
         "VFY-02",
         "VFY-03",
-        "VFY-05",
-        "target-domain-change"
+        "VFY-04",
+        "VFY-05"
       ],
-      "requiredRs": [
-        "RS-04",
-        "RS-05",
-        "RS-06",
-        "RS-08",
-        "RS-14"
-      ],
+      "requiredRs": [],
       "identityInputs": []
     },
     {
-      "mappingId": "desktop-composition-ui",
+      "mappingId": "webui-hub-dashboard",
       "pathPatterns": [
-        "src/DshLauncher.Desktop/**",
-        "tests/DshLauncher.Acceptance.Tests/Desktop/**"
+        "src/DshLauncher.WebUi/**",
+        "tests/DshLauncher.WebUi.Tests/**"
       ],
       "triggerTags": [
-        "VFY-06",
-        "VFY-07",
-        "desktop-change"
+        "VFY-07"
       ],
-      "requiredRs": [
-        "RS-04",
-        "RS-05",
-        "RS-09",
-        "RS-10",
-        "RS-12",
-        "RS-13"
+      "requiredRs": [],
+      "identityInputs": []
+    },
+    {
+      "mappingId": "platform-persistence",
+      "pathPatterns": [
+        "src/DshLauncher.Platform.Windows/**",
+        "tests/DshLauncher.Platform.Windows.Tests/**"
       ],
+      "triggerTags": [
+        "VFY-06"
+      ],
+      "requiredRs": [],
+      "identityInputs": []
+    },
+    {
+      "mappingId": "desktop-composition-tray",
+      "pathPatterns": [
+        "src/DshLauncher.Desktop/**",
+        "tests/DshLauncher.Acceptance.Tests/**"
+      ],
+      "triggerTags": [
+        "VFY-07"
+      ],
+      "requiredRs": [],
+      "identityInputs": []
+    },
+    {
+      "mappingId": "release-constants-data",
+      "pathPatterns": [
+        "eng/release-constants.json",
+        "eng/release-constants.schema.json",
+        "eng/release-constants.md",
+        "eng/verification-impact-map.json",
+        "schemas/verification-impact-map.schema.json"
+      ],
+      "triggerTags": [
+        "VFY-01",
+        "VFY-08"
+      ],
+      "requiredRs": [],
       "identityInputs": [
-        "contract",
-        "registry"
+        "pairing-baseline"
+      ]
+    },
+    {
+      "mappingId": "installer-distribution",
+      "pathPatterns": [
+        "eng/package.ps1",
+        "eng/package-unsigned.ps1",
+        "eng/package-internal.ps1",
+        "eng/release-smoke.ps1",
+        "installer/**"
+      ],
+      "triggerTags": [
+        "VFY-01"
+      ],
+      "requiredRs": [],
+      "identityInputs": [
+        "product"
       ]
     },
     {
       "mappingId": "documentation-only",
       "pathPatterns": [
         "README.md",
+        "CONTEXT.md",
         "docs/**"
       ],
-      "triggerTags": [
-        "VFY-08",
-        "documentation-change"
-      ],
+      "triggerTags": [],
       "requiredRs": [],
       "identityInputs": []
     },
@@ -186,82 +136,14 @@
       "mappingId": "engineering-evidence",
       "pathPatterns": [
         "eng/**",
-        "schemas/verification-impact-map.schema.json",
-        "schemas/webui-release-evidence.schema.json"
+        "schemas/**"
       ],
       "triggerTags": [
         "VFY-01",
-        "VFY-08",
-        "evidence-change"
+        "VFY-08"
       ],
-      "requiredRs": [
-        "RS-01",
-        "RS-03",
-        "RS-14",
-        "RS-15"
-      ],
-      "identityInputs": [
-        "contract",
-        "descriptor-schema",
-        "harness",
-        "lan-plugin",
-        "registry",
-        "support-record",
-        "webview2-runtime"
-      ]
-    },
-    {
-      "mappingId": "installer-distribution",
-      "pathPatterns": [
-        "eng/package.ps1",
-        "eng/release-constants.json",
-        "eng/release-smoke.ps1",
-        "installer/**"
-      ],
-      "triggerTags": [
-        "VFY-01",
-        "VFY-07",
-        "VFY-08",
-        "distribution-change"
-      ],
-      "requiredRs": [
-        "RS-01",
-        "RS-02",
-        "RS-03",
-        "RS-14",
-        "RS-15"
-      ],
-      "identityInputs": [
-        "contract",
-        "registry",
-        "support-record",
-        "webview2-runtime"
-      ]
-    },
-    {
-      "mappingId": "network-pairing-platform",
-      "pathPatterns": [
-        "src/DshLauncher.Platform.Windows/**",
-        "tests/DshLauncher.Platform.Windows.Tests/**"
-      ],
-      "triggerTags": [
-        "VFY-03",
-        "VFY-04",
-        "VFY-05",
-        "VFY-07",
-        "platform-change"
-      ],
-      "requiredRs": [
-        "RS-05",
-        "RS-06",
-        "RS-07",
-        "RS-08",
-        "RS-14"
-      ],
-      "identityInputs": [
-        "harness",
-        "lan-plugin"
-      ]
+      "requiredRs": [],
+      "identityInputs": []
     },
     {
       "mappingId": "solution-build-graph",
@@ -270,50 +152,15 @@
         "*.slnx",
         "*.targets",
         "global.json",
+        "NuGet.config",
         "src/**/*.csproj",
         "tests/**/*.csproj"
       ],
       "triggerTags": [
-        "VFY-01",
-        "VFY-08",
-        "build-graph-change"
+        "VFY-01"
       ],
-      "requiredRs": [
-        "RS-01",
-        "RS-02",
-        "RS-15"
-      ],
+      "requiredRs": [],
       "identityInputs": []
-    },
-    {
-      "mappingId": "webview-content-host",
-      "pathPatterns": [
-        "src/DshLauncher.WebView/**",
-        "tests/DshLauncher.WebView.Tests/**"
-      ],
-      "triggerTags": [
-        "VFY-05",
-        "VFY-06",
-        "webview-change"
-      ],
-      "requiredRs": [
-        "RS-05",
-        "RS-07",
-        "RS-08",
-        "RS-09",
-        "RS-10",
-        "RS-11",
-        "RS-12",
-        "RS-13",
-        "RS-15"
-      ],
-      "identityInputs": [
-        "contract",
-        "csp-debt",
-        "descriptor-schema",
-        "registry",
-        "webview2-runtime"
-      ]
     }
   ]
 }

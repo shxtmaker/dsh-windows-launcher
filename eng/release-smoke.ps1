@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [string] $InstallerPath,
@@ -502,9 +502,9 @@ try {
         throw 'package-manifest.json 未绑定有效且干净的候选源码提交。'
     }
     if ($packageManifest.inputs.webView2BootstrapperVersion -ne
-            $constants.dependencyBaseline.webView2Runtime.bootstrapper.version -or
+            '1.3.263.3' -or
         $packageManifest.inputs.webView2BootstrapperSha256 -ne
-            $constants.dependencyBaseline.webView2Runtime.bootstrapper.sha256.ToUpperInvariant()) {
+            '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146'.ToUpperInvariant()) {
         throw 'package-manifest.json 中的 WebView2 Bootstrapper 身份与发布常量不一致。'
     }
 
@@ -888,8 +888,8 @@ try {
         $lines.Add("- Installed EXE path, size, version and SHA-256: $($hostEvidence.InstalledExecutable.Path); $($hostEvidence.InstalledExecutable.Size); $($hostEvidence.InstalledExecutable.FileVersion); $($hostEvidence.InstalledExecutable.Sha256)")
         $lines.Add("- Installed EXE signature subject and timestamp: $($hostEvidence.InstalledExecutable.Signature.SignerSubject); $($hostEvidence.InstalledExecutable.Signature.TimestampSubject); timestamp certificate expires $($hostEvidence.InstalledExecutable.Signature.TimestampNotAfter)")
     }
-    $lines.Add("- Dependency baseline: Harness $($constants.dependencyBaseline.harness.version) at $($constants.dependencyBaseline.harness.commit); LAN plugin $($constants.dependencyBaseline.lanPlugin.version); WebView2 SDK $($constants.dependencyBaseline.webView2Sdk.version)")
-    $lines.Add("- Actual .NET, Inno, WebView2 Runtime, offline installer and Bootstrapper versions: .NET SDK $($constants.build.dotnetSdkVersion); Inno $($constants.distribution.innoSetup.version); Runtime $runtimeVersion; offline $($constants.dependencyBaseline.webView2Runtime.offlineInstallerVersion); Bootstrapper $($constants.dependencyBaseline.webView2Runtime.bootstrapper.version)")
+    $lines.Add("- Pairing baseline: $($constants.pairingBaseline.plugin) $($constants.pairingBaseline.referenceVersion)")
+    $lines.Add("- Actual .NET and Inno versions: .NET SDK $($constants.build.dotnetSdkVersion); Inno $($constants.distribution.innoSetup.version)")
     $lines.Add("- Windows 11 VM snapshot: $($environmentEvidence.Windows11Vm)")
     $lines.Add("- Windows 11 physical reference: $($environmentEvidence.Windows11Physical)")
     $lines.Add("- Linux A/B baseline: $($environmentEvidence.LinuxABaseline)")

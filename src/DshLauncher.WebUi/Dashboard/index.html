@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>DSH 集中配对管理</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #101318;
+    --panel: #181d25;
+    --panel-2: #1f2630;
+    --border: #2b3442;
+    --text: #e8ecf1;
+    --muted: #93a0b0;
+    --accent: #4c8dff;
+    --accent-strong: #2f6fe0;
+    --ok: #3fce7a;
+    --warn: #e6b455;
+    --bad: #e66a6a;
+    --idle: #8b95a3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .meta { color: var(--muted); font-size: 12.5px; }
+  header .spacer { flex: 1; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+  .dot.ok { background: var(--ok); }
+  .dot.bad { background: var(--bad); }
+  .dot.idle { background: var(--idle); }
+  main { max-width: 1080px; margin: 0 auto; padding: 22px 24px 60px; }
+  section.card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 20px;
+  }
+  section.card h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .form-row > label { flex: 1 1 240px; display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 12.5px; }
+  input[type=text], textarea {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 8px 10px; font-size: 13.5px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 58px; }
+  input:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; font-family: inherit; cursor: pointer;
+  }
+  button:hover { background: var(--accent-strong); }
+  button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+  button.danger { background: transparent; border: 1px solid var(--border); color: var(--bad); }
+  button.danger:hover { border-color: var(--bad); background: transparent; }
+  button:disabled { opacity: .45; cursor: default; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+  .banner {
+    display: none; margin-bottom: 16px; padding: 10px 14px; border-radius: 10px;
+    background: #33241f; border: 1px solid #6b4237; color: #f3c2b6; font-size: 13px;
+  }
+  .banner.show { display: block; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+  .target {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .target .title-row { display: flex; align-items: baseline; gap: 8px; }
+  .target .name { font-size: 14.5px; font-weight: 600; word-break: break-all; }
+  .target .url { color: var(--muted); font-size: 12px; word-break: break-all; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 10px;
+    font-size: 11.5px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+  }
+  .badge.paired { color: var(--ok); border-color: #2b5b40; }
+  .badge.pairing { color: var(--accent); border-color: #2c4a78; }
+  .badge.awaiting { color: var(--warn); border-color: #6b5a33; }
+  .badge.revoked { color: var(--bad); border-color: #6b3535; }
+  .badge.online { color: var(--ok); border-color: #2b5b40; }
+  .badge.offline { color: var(--bad); border-color: #6b3535; }
+  .badge.unknown { color: var(--idle); }
+  .facts { color: var(--muted); font-size: 12px; display: grid; gap: 2px; }
+  .toggle { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; font-size: 12.5px; color: var(--muted); }
+  .toggle input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 2px; }
+  .empty { color: var(--muted); text-align: center; padding: 26px 0; }
+  dialog {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; max-width: 460px; width: calc(100vw - 40px);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.55); }
+  dialog h3 { margin: 0 0 12px; font-size: 15px; }
+  dialog .form-row { flex-direction: column; }
+  dialog .form-row > label { flex: initial; }
+  dialog .row-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; padding: 18px 0 26px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>DSH 集中配对管理</h1>
+  <span class="meta" id="hubMeta">正在连接…</span>
+  <span class="spacer"></span>
+  <span class="meta" id="streamMeta"><span class="dot idle"></span>未连接</span>
+</header>
+<main>
+  <div class="banner" id="banner"></div>
+
+  <section class="card">
+    <h2>添加 Harness 目标</h2>
+    <div class="form-row">
+      <label>配对链接（推荐：在 Harness 桌面端「远程访问」面板复制链接后粘贴）
+        <textarea id="pairingLink" placeholder="http://192.168.x.x:3080/pair-accept?pair=…" spellcheck="false"></textarea>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>仅添加地址（稍后配对）
+        <input type="text" id="baseUrl" placeholder="http://192.168.x.x:3080" spellcheck="false">
+      </label>
+      <label>显示名称（可选）
+        <input type="text" id="displayName" placeholder="例如：工作台 Linux" maxlength="64">
+      </label>
+      <label>&nbsp;<button id="addButton">添加目标</button></label>
+    </div>
+    <div class="hint">添加后本机会立即用配对链接完成配对；随后按固定间隔发送心跳，持续保活配对连接（主机端 25 秒无请求会显示离线）。</div>
+  </section>
+
+  <section class="card">
+    <h2>已管理目标</h2>
+    <div class="grid" id="targets"><div class="empty">尚未管理任何目标。</div></div>
+  </section>
+
+  <footer>DSH Windows Launcher · 配对连接由 Harness 侧 dsh-web「DSH 远程访问」插件提供 · 管理页面仅绑定 127.0.0.1</footer>
+</main>
+
+<dialog id="renameDialog">
+  <h3>重命名目标</h3>
+  <div class="form-row">
+    <label>显示名称
+      <input type="text" id="renameInput" maxlength="64">
+    </label>
+  </div>
+  <div class="row-actions">
+    <button class="ghost" id="renameCancel">取消</button>
+    <button id="renameSave">保存</button>
+  </div>
+</dialog>
+
+<dialog id="reputeDialog">
+  <h3>重新配对</h3>
+  <div class="hint" id="reputeTarget" style="margin:0 0 10px;"></div>
+  <div class="form-row">
+    <label>新的配对链接
+      <textarea id="reputeInput" placeholder="http://192.168.x.x:3080/pair-accept?pair=…" spellcheck="false"></textarea>
+    </label>
+  </div>
+  <div class="row-actions">
+    <button class="ghost" id="reputeCancel">取消</button>
+    <button id="reputeSave">配对</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const state = { snapshot: null, events: null };
+const $ = (id) => document.getElementById(id);
+const pairingStateLabels = {
+  Paired: ["已配对", "paired"],
+  Pairing: ["配对中…", "pairing"],
+  AwaitingPairing: ["待配对", "awaiting"],
+  Revoked: ["已失效", "revoked"],
+};
+const connectivityLabels = {
+  Online: ["在线", "online"],
+  Offline: ["离线", "offline"],
+  Unknown: ["未知", "unknown"],
+};
+
+function relativeTime(iso) {
+  if (!iso) return "—";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "—";
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 5) return "刚刚";
+  if (seconds < 60) return seconds + " 秒前";
+  if (seconds < 3600) return Math.floor(seconds / 60) + " 分钟前";
+  if (seconds < 86400) return Math.floor(seconds / 3600) + " 小时前";
+  return Math.floor(seconds / 86400) + " 天前";
+}
+
+function showBanner(message) {
+  const banner = $("banner");
+  banner.textContent = message;
+  banner.classList.add("show");
+}
+function hideBanner() { $("banner").classList.remove("show"); }
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  let body = null;
+  try { body = await response.json(); } catch (_) { /* empty body */ }
+  if (!response.ok) {
+    const code = body && body.error ? body.error.code : "HTTP " + response.status;
+    throw new Error(translateError(code));
+  }
+  return body;
+}
+
+function translateError(code) {
+  const map = {
+    InvalidPairingLink: "配对链接格式无效，请检查后重新粘贴。",
+    InvalidBaseUrl: "Harness 地址无效，应为 http(s)://主机:端口。",
+    TargetLimitReached: "已达目标数量上限。",
+    TargetNotFound: "目标不存在，请刷新页面。",
+    TargetNotPaired: "该目标尚未配对或配对已失效。",
+    PairingInvalidToken: "配对令牌无效或已过期，请在主机端刷新二维码。",
+    PairingTokenUsed: "配对令牌已被使用，请刷新二维码后重试。",
+    PairingForbidden: "主机端拒绝了配对请求（来源受限）。",
+    PairingRateLimited: "配对请求过于频繁，请稍后重试。",
+    PairingUnreachable: "无法连接 Harness 主机，请检查地址与网络。",
+    PairingFailed: "配对失败，主机端返回异常。",
+  };
+  return map[code] || "操作失败：" + code;
+}
+
+function renderMeta() {
+  const snap = state.snapshot;
+  if (!snap) { $("hubMeta").textContent = "正在连接…"; return; }
+  const interval = Math.round(snap.heartbeatInterval / 1000);
+  $("hubMeta").innerHTML =
+    (snap.keepAliveRunning ? '<span class="dot ok"></span>运行中' : '<span class="dot bad"></span>未启动') +
+    " · 心跳间隔 " + interval + " 秒 · 共 " + snap.targets.length + " 个目标";
+}
+
+function targetCard(t) {
+  const [pairLabel, pairClass] = pairingStateLabels[t.pairing] || [t.pairing, ""];
+  const [connLabel, connClass] = connectivityLabels[t.connectivity] || [t.connectivity, ""];
+  const card = document.createElement("div");
+  card.className = "target";
+  card.dataset.id = t.targetId;
+
+  const title = document.createElement("div");
+  title.className = "title-row";
+  title.innerHTML = '<span class="name"></span>';
+  title.querySelector(".name").textContent = t.effectiveDisplayName;
+  card.appendChild(title);
+
+  const url = document.createElement("div");
+  url.className = "url";
+  url.textContent = t.baseUrl;
+  card.appendChild(url);
+
+  const badges = document.createElement("div");
+  badges.className = "badges";
+  badges.innerHTML =
+    '<span class="badge ' + pairClass + '"></span>' +
+    '<span class="badge ' + connClass + '"></span>' +
+    (t.keepAliveEnabled && t.hasCredential ? '<span class="badge">保活中</span>' : "");
+  badges.querySelectorAll(".badge")[0].textContent = pairLabel;
+  badges.querySelectorAll(".badge")[1].textContent = connLabel;
+  card.appendChild(badges);
+
+  const facts = document.createElement("div");
+  facts.className = "facts";
+  const failureNote = t.lastFailure
+    ? "最近异常：" + t.lastFailure + (t.consecutiveFailures ? " × " + t.consecutiveFailures : "")
+    : null;
+  facts.innerHTML =
+    '<span>配对于：' + relativeTime(t.pairedAtUtc) + "</span>" +
+    '<span>最近心跳：' + relativeTime(t.lastHeartbeatUtc) + "</span>" +
+    (failureNote ? '<span style="color:var(--bad)"></span>' : "");
+  if (failureNote) facts.querySelector("span:last-child").textContent = failureNote;
+  card.appendChild(facts);
+
+  const toggle = document.createElement("label");
+  toggle.className = "toggle";
+  toggle.innerHTML = '<input type="checkbox"' + (t.keepAliveEnabled ? " checked" : "") + "><span>保活</span>";
+  toggle.querySelector("input").addEventListener("change", async (event) => {
+    event.target.disabled = true;
+    try {
+      await api("/api/targets/" + t.targetId + "/keep-alive", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: event.target.checked }),
+      });
+    } catch (error) { showBanner(error.message); render(); }
+    event.target.disabled = false;
+  });
+  card.appendChild(toggle);
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  actions.appendChild(actionButton("立即心跳", "ghost", async () => {
+    try { await api("/api/targets/" + t.targetId + "/heartbeat", { method: "POST" }); }
+    catch (error) { showBanner(error.message); }
+  }));
+  if (t.hasCredential && t.pairing === "Paired") {
+    actions.appendChild(actionButton("打开远程界面", "ghost", async () => {
+      try {
+        const body = await api("/api/targets/" + t.targetId + "/remote-url");
+        if (body && body.url) window.open(body.url, "_blank", "noopener");
+      } catch (error) { showBanner(error.message); }
+    }));
+  }
+  actions.appendChild(actionButton("重新配对", "ghost", () => openReputeDialog(t)));
+  actions.appendChild(actionButton("重命名", "ghost", () => openRenameDialog(t)));
+  actions.appendChild(actionButton("删除", "danger", async () => {
+    if (!window.confirm("确定删除目标「" + t.effectiveDisplayName + "」？\n仅删除本机的配对凭据；主机端撤销请在远程访问面板操作。")) return;
+    try { await api("/api/targets/" + t.targetId, { method: "DELETE" }); }
+    catch (error) { showBanner(error.message); }
+  }));
+  card.appendChild(actions);
+  return card;
+}
+
+function actionButton(label, kind, onClick) {
+  const button = document.createElement("button");
+  button.className = kind;
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function render() {
+  renderMeta();
+  const container = $("targets");
+  container.textContent = "";
+  const targets = state.snapshot ? state.snapshot.targets : [];
+  if (targets.length === 0) {
+    container.innerHTML = '<div class="empty">尚未管理任何目标。</div>';
+    return;
+  }
+  for (const target of targets) container.appendChild(targetCard(target));
+}
+
+function applySnapshot(snapshot) {
+  state.snapshot = snapshot;
+  render();
+}
+
+function connectEvents() {
+  if (state.events) state.events.close();
+  const stream = new EventSource("/api/events");
+  state.events = stream;
+  stream.onopen = () => {
+    $("streamMeta").innerHTML = '<span class="dot ok"></span>实时同步中';
+  };
+  stream.onmessage = (event) => {
+    try { applySnapshot(JSON.parse(event.data)); } catch (_) { /* ignore malformed frame */ }
+  };
+  stream.onerror = () => {
+    $("streamMeta").innerHTML = '<span class="dot bad"></span>连接中断，正在重连…';
+  };
+}
+
+function openRenameDialog(target) {
+  $("renameInput").value = target.displayName || "";
+  const dialog = $("renameDialog");
+  dialog.dataset.targetId = target.targetId;
+  dialog.showModal();
+}
+
+function openReputeDialog(target) {
+  $("reputeTarget").textContent = "目标：" + target.effectiveDisplayName;
+  $("reputeInput").value = "";
+  const dialog = $("reputeDialog");
+  dialog.dataset.targetId = target.targetId;
+  dialog.showModal();
+}
+
+$("renameCancel").addEventListener("click", () => $("renameDialog").close());
+$("reputeCancel").addEventListener("click", () => $("reputeDialog").close());
+$("renameSave").addEventListener("click", async () => {
+  const dialog = $("renameDialog");
+  try {
+    await api("/api/targets/" + dialog.dataset.targetId + "/rename", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName: $("renameInput").value.trim() || null }),
+    });
+    dialog.close();
+  } catch (error) { showBanner(error.message); }
+});
+$("reputeSave").addEventListener("click", async () => {
+  const dialog = $("reputeDialog");
+  const link = $("reputeInput").value.trim();
+  if (!link) { showBanner("请先粘贴新的配对链接。"); return; }
+  try {
+    await api("/api/targets/" + dialog.dataset.targetId + "/pairing", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pairingLink: link }),
+    });
+    dialog.close();
+  } catch (error) { showBanner(error.message); }
+});
+
+$("addButton").addEventListener("click", async () => {
+  const link = $("pairingLink").value.trim();
+  const base = $("baseUrl").value.trim();
+  const name = $("displayName").value.trim() || null;
+  if (!link && !base) { showBanner("请粘贴配对链接，或填写 Harness 地址。"); return; }
+  if (link && base) { showBanner("配对链接与仅地址二选一即可。"); return; }
+  $("addButton").disabled = true;
+  try {
+    await api("/api/targets", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pairingLink: link || null, baseUrl: base || null, displayName: name }),
+    });
+    $("pairingLink").value = "";
+    $("baseUrl").value = "";
+    $("displayName").value = "";
+    hideBanner();
+  } catch (error) { showBanner(error.message); }
+  $("addButton").disabled = false;
+});
+
+(async function init() {
+  try {
+    applySnapshot(await api("/api/hub"));
+  } catch (error) {
+    $("hubMeta").innerHTML = '<span class="dot bad"></span>无法读取枢纽状态';
+  }
+  connectEvents();
+  setInterval(() => { if (state.snapshot) render(); }, 30000);
+})();
+</script>
+</body>
+</html>

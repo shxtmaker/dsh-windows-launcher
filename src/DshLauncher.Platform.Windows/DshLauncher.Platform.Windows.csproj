@@ -2,12 +2,11 @@
   <PropertyGroup>
     <RootNamespace>DshLauncher.Platform.Windows</RootNamespace>
     <AssemblyName>DshLauncher.Platform.Windows</AssemblyName>
-    <Description>文件、网络类别、IPC、剪贴板与系统集成的 Windows 适配器。</Description>
+    <Description>应用数据根、配对文档持久化、单实例 IPC 与组合根适配器。</Description>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../DshLauncher.Compatibility/DshLauncher.Compatibility.csproj" />
     <ProjectReference Include="../DshLauncher.Core/DshLauncher.Core.csproj" />
   </ItemGroup>
 </Project>

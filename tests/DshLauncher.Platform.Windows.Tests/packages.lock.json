@@ -169,16 +169,12 @@
           "xunit.v3.runner.common": "[4.0.0]"
         }
       },
-      "dshlauncher.compatibility": {
-        "type": "Project"
-      },
       "dshlauncher.core": {
         "type": "Project"
       },
       "dshlauncher.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "DshLauncher.Compatibility": "[1.0.0, )",
           "DshLauncher.Core": "[1.0.0, )"
         }
       }

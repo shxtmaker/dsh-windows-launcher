@@ -11,9 +11,8 @@
     "product",
     "platform",
     "build",
-    "webUiCompatibility",
+    "pairingBaseline",
     "verificationBaseline",
-    "dependencyBaseline",
     "distribution",
     "limits"
   ],
@@ -22,7 +21,7 @@
       "const": "./release-constants.schema.json"
     },
     "schemaVersion": {
-      "const": 3
+      "const": 4
     },
     "releaseStatus": {
       "enum": [
@@ -114,37 +113,49 @@
         }
       }
     },
-    "webUiCompatibility": {
+    "pairingBaseline": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "contractVersion",
-        "contractCapabilitiesCanonicalSha256",
-        "descriptorSchemaCanonicalSha256",
-        "registryVersion",
-        "registryCanonicalSha256",
-        "impactMapCanonicalSha256"
+        "plugin",
+        "referenceVersion",
+        "cookieName",
+        "acceptPage",
+        "acceptPath",
+        "heartbeatPath",
+        "statusPath",
+        "onlineWindowSeconds",
+        "defaultHeartbeatIntervalSeconds"
       ],
       "properties": {
-        "contractVersion": {
-          "const": "1.1.0"
+        "plugin": {
+          "const": "@linxin666/dsh-remote-web-ui"
         },
-        "contractCapabilitiesCanonicalSha256": {
-          "$ref": "#/$defs/sha256"
+        "referenceVersion": {
+          "const": "0.3.10"
         },
-        "descriptorSchemaCanonicalSha256": {
-          "$ref": "#/$defs/sha256"
+        "cookieName": {
+          "const": "dsh_pair"
         },
-        "registryVersion": {
+        "acceptPage": {
+          "const": "/pair-accept"
+        },
+        "acceptPath": {
+          "const": "/api/pair/accept"
+        },
+        "heartbeatPath": {
+          "const": "/api/pair/heartbeat"
+        },
+        "statusPath": {
+          "const": "/api/pair/status"
+        },
+        "onlineWindowSeconds": {
+          "const": 25
+        },
+        "defaultHeartbeatIntervalSeconds": {
           "type": "integer",
-          "minimum": 1,
-          "maximum": 9007199254740991
-        },
-        "registryCanonicalSha256": {
-          "$ref": "#/$defs/sha256"
-        },
-        "impactMapCanonicalSha256": {
-          "$ref": "#/$defs/sha256"
+          "minimum": 2,
+          "maximum": 24
         }
       }
     },
@@ -165,212 +176,6 @@
               "type": "null"
             }
           ]
-        }
-      }
-    },
-    "dependencyBaseline": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "harness",
-        "lanPlugin",
-        "webView2Sdk",
-        "webView2Runtime"
-      ],
-      "properties": {
-        "harness": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "commit",
-            "version",
-            "probeFingerprint",
-            "legacyUnauthenticatedBaseline"
-          ],
-          "properties": {
-            "commit": {
-              "const": "0a53fb55bea101816fa226bb964ae2bed71c343b"
-            },
-            "version": {
-              "const": "dsh-v0.1.2-alpha.2"
-            },
-            "probeFingerprint": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "api",
-                "root"
-              ],
-              "properties": {
-                "api": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "sourcePath",
-                    "requestPath",
-                    "statusCode",
-                    "bodyLength",
-                    "bodySha256"
-                  ],
-                  "properties": {
-                    "sourcePath": {
-                      "const": "packages/client/connection/src/index.ts"
-                    },
-                    "requestPath": {
-                      "const": "/api"
-                    },
-                    "statusCode": {
-                      "const": 401
-                    },
-                    "bodyLength": {
-                      "const": 12
-                    },
-                    "bodySha256": {
-                      "const": "e9d83f01c9aff03af6380e341aad90a5547d378ef54582383c6c9a35c53181af"
-                    }
-                  }
-                },
-                "root": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "sourcePath",
-                    "requestPath",
-                    "statusCode",
-                    "bodyLength",
-                    "bodySha256"
-                  ],
-                  "properties": {
-                    "sourcePath": {
-                      "const": "packages/client/connection/src/browser-auth.ts"
-                    },
-                    "requestPath": {
-                      "const": "/"
-                    },
-                    "statusCode": {
-                      "const": 401
-                    },
-                    "bodyLength": {
-                      "const": 68
-                    },
-                    "bodySha256": {
-                      "const": "3aad6226baa021e747c19d2c55cbd7a5995d10f43c1d05b248af37836942acaf"
-                    }
-                  }
-                }
-              }
-            },
-            "legacyUnauthenticatedBaseline": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "package",
-                "version",
-                "probeFingerprint"
-              ],
-              "properties": {
-                "package": {
-                  "const": "@deepseek-ai/dsh"
-                },
-                "version": {
-                  "const": "0.1.1-rc.2"
-                },
-                "probeFingerprint": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "api",
-                    "root"
-                  ],
-                  "properties": {
-                    "api": {
-                      "$ref": "#/$defs/legacyProbeApi"
-                    },
-                    "root": {
-                      "$ref": "#/$defs/legacyProbeRoot"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "lanPlugin": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "package",
-            "version"
-          ],
-          "properties": {
-            "package": {
-              "const": "dsh-web-lan-access"
-            },
-            "version": {
-              "const": "1.2.1"
-            }
-          }
-        },
-        "webView2Sdk": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "package",
-            "version"
-          ],
-          "properties": {
-            "package": {
-              "const": "Microsoft.Web.WebView2"
-            },
-            "version": {
-              "const": "1.0.4129.50"
-            }
-          }
-        },
-        "webView2Runtime": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "minimumVersion",
-            "offlineInstallerVersion",
-            "offlineInstallerSourceUri",
-            "offlineInstallerSha256",
-            "bootstrapper"
-          ],
-          "properties": {
-            "minimumVersion": {
-              "$ref": "#/$defs/pendingString"
-            },
-            "offlineInstallerVersion": {
-              "$ref": "#/$defs/pendingString"
-            },
-            "offlineInstallerSourceUri": {
-              "$ref": "#/$defs/pendingHttpsUri"
-            },
-            "offlineInstallerSha256": {
-              "$ref": "#/$defs/pendingSha256"
-            },
-            "bootstrapper": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "version",
-                "sourceUri",
-                "sha256"
-              ],
-              "properties": {
-                "version": {
-                  "const": "1.3.263.3"
-                },
-                "sourceUri": {
-                  "const": "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
-                },
-                "sha256": {
-                  "const": "94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146"
-                }
-              }
-            }
-          }
         }
       }
     },
@@ -447,71 +252,27 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "defaultTargetPort",
-        "activeTargetWindows"
+        "webUiPort",
+        "maxTargets"
       ],
       "properties": {
-        "defaultTargetPort": {
-          "const": 3080
+        "webUiPort": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
         },
-        "activeTargetWindows": {
-          "const": 4
+        "maxTargets": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
         }
       }
     }
   },
   "$defs": {
-    "legacyProbeApi": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "requestPath",
-        "statusCode",
-        "bodyLength",
-        "bodySha256"
-      ],
-      "properties": {
-        "requestPath": {
-          "const": "/api"
-        },
-        "statusCode": {
-          "const": 404
-        },
-        "bodyLength": {
-          "const": 9
-        },
-        "bodySha256": {
-          "const": "907ba78b4545338d3539683e63ecb51cf51c10adc9dabd86e92bd52339f298b9"
-        }
-      }
-    },
-    "legacyProbeRoot": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "requestPath",
-        "statusCode",
-        "bodyLength",
-        "bodySha256"
-      ],
-      "properties": {
-        "requestPath": {
-          "const": "/"
-        },
-        "statusCode": {
-          "const": 200
-        },
-        "bodyLength": {
-          "const": 14556
-        },
-        "bodySha256": {
-          "const": "a1c9e8d395d34fc83466b19d652a36e94b4f643fafef57f840b226b0bfab74de"
-        }
-      }
-    },
     "semver": {
       "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+      "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*)?(?:\\+[0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*)?$"
     },
     "nonEmptyString": {
       "type": "string",
@@ -519,17 +280,15 @@
     },
     "httpsUri": {
       "type": "string",
-      "format": "uri",
       "pattern": "^https://"
     },
     "httpUri": {
       "type": "string",
-      "format": "uri",
       "pattern": "^https?://"
     },
     "sha256": {
       "type": "string",
-      "pattern": "^[0-9A-Fa-f]{64}$"
+      "pattern": "^[0-9a-f]{64}$"
     },
     "pendingString": {
       "oneOf": [
@@ -586,26 +345,6 @@
       },
       "then": {
         "properties": {
-          "dependencyBaseline": {
-            "properties": {
-              "webView2Runtime": {
-                "properties": {
-                  "minimumVersion": {
-                    "$ref": "#/$defs/nonEmptyString"
-                  },
-                  "offlineInstallerVersion": {
-                    "$ref": "#/$defs/nonEmptyString"
-                  },
-                  "offlineInstallerSourceUri": {
-                    "$ref": "#/$defs/httpsUri"
-                  },
-                  "offlineInstallerSha256": {
-                    "$ref": "#/$defs/sha256"
-                  }
-                }
-              }
-            }
-          },
           "distribution": {
             "properties": {
               "innoSetup": {
@@ -639,20 +378,31 @@
     {
       "if": {
         "properties": {
-          "releaseStatus": { "const": "candidate" },
+          "releaseStatus": {
+            "const": "candidate"
+          },
           "distribution": {
             "properties": {
               "signing": {
                 "properties": {
-                  "policy": { "const": "required" }
+                  "policy": {
+                    "const": "required"
+                  }
                 },
-                "required": ["policy"]
+                "required": [
+                  "policy"
+                ]
               }
             },
-            "required": ["signing"]
+            "required": [
+              "signing"
+            ]
           }
         },
-        "required": ["releaseStatus", "distribution"]
+        "required": [
+          "releaseStatus",
+          "distribution"
+        ]
       },
       "then": {
         "properties": {
@@ -660,8 +410,12 @@
             "properties": {
               "signing": {
                 "properties": {
-                  "certificateSubject": { "$ref": "#/$defs/nonEmptyString" },
-                  "timestampServerUri": { "$ref": "#/$defs/httpsUri" }
+                  "certificateSubject": {
+                    "$ref": "#/$defs/nonEmptyString"
+                  },
+                  "timestampServerUri": {
+                    "$ref": "#/$defs/httpsUri"
+                  }
                 }
               }
             }
