@@ -1,0 +1,66 @@
+<Window x:Class="DshLauncher.Desktop.ManagementWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DSH 集中配对管理" Width="960" Height="620"
+        MinWidth="760" MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel Margin="10">
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Vertical">
+                <TextBlock Text="DSH 集中配对管理" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="HubStatusText" Foreground="#667" Margin="0,2,0,0"
+                           Text="正在加载枢纽状态…" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="添加目标" Padding="14,6"
+                    Click="OnAddTarget" VerticalAlignment="Center" />
+        </Grid>
+
+        <UniformGrid DockPanel.Dock="Bottom" Rows="1" Margin="0,8,0,0">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="HeartbeatButton" Content="立即心跳" Padding="12,5" Margin="0,0,6,0"
+                        Click="OnHeartbeatNow" IsEnabled="False" />
+                <Button x:Name="OpenRemoteButton" Content="打开远程界面" Padding="12,5" Margin="0,0,6,0"
+                        Click="OnOpenRemote" IsEnabled="False" />
+                <Button x:Name="RePairButton" Content="重新配对" Padding="12,5" Margin="0,0,6,0"
+                        Click="OnRePair" IsEnabled="False" />
+                <Button x:Name="RenameButton" Content="重命名" Padding="12,5" Margin="0,0,6,0"
+                        Click="OnRename" IsEnabled="False" />
+                <Button x:Name="DeleteButton" Content="删除" Padding="12,5"
+                        Click="OnDelete" IsEnabled="False" />
+            </StackPanel>
+        </UniformGrid>
+
+        <ListView x:Name="TargetsList" SelectionMode="Single"
+                  SelectionChanged="OnSelectionChanged"
+                  MouseDoubleClick="OnListDoubleClick">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="名称" Width="170"
+                                    DisplayMemberBinding="{Binding DisplayName}" />
+                    <GridViewColumn Header="地址" Width="230"
+                                    DisplayMemberBinding="{Binding BaseUrl}" />
+                    <GridViewColumn Header="配对" Width="100"
+                                    DisplayMemberBinding="{Binding PairingText}" />
+                    <GridViewColumn Header="连接" Width="80"
+                                    DisplayMemberBinding="{Binding ConnectivityText}" />
+                    <GridViewColumn Header="最近心跳" Width="130"
+                                    DisplayMemberBinding="{Binding LastHeartbeatText}" />
+                    <GridViewColumn Header="异常" Width="150"
+                                    DisplayMemberBinding="{Binding FailureText}" />
+                    <GridViewColumn Header="保活" Width="50">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding KeepAliveEnabled, Mode=OneWay}"
+                                          IsHitTestVisible="False" HorizontalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </DockPanel>
+</Window>

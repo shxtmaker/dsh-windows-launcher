@@ -31,8 +31,8 @@ function Get-DshExpectedTestDataset {
 
     $manifest = Get-Content -LiteralPath $path -Raw -Encoding UTF8 |
         ConvertFrom-Json -Depth 100
-    if ($manifest.schemaVersion -ne 1 -or (@($manifest.assemblies).Count) -ne 4) {
-        throw '固定测试数据集清单模式无效，或测试程序集数量不是 4。'
+    if ($manifest.schemaVersion -ne 1 -or (@($manifest.assemblies).Count) -ne 3) {
+        throw '固定测试数据集清单模式无效，或测试程序集数量不是 3。'
     }
 
     $result = @{}
@@ -182,8 +182,8 @@ try {
         Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src'), (Join-Path $repositoryRoot 'tests') -Filter '*.csproj' -File -Recurse |
             Where-Object { $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' }
     )
-    if ($projects.Count -ne 8) {
-        throw "项目数必须为 8，实际为 $($projects.Count)。"
+    if ($projects.Count -ne 6) {
+        throw "项目数必须为 6，实际为 $($projects.Count)。"
     }
 
     foreach ($project in $projects) {
@@ -252,8 +252,8 @@ try {
             Where-Object { $_.FullName.StartsWith((Join-Path $repositoryRoot 'tests'), [StringComparison]::OrdinalIgnoreCase) } |
             Sort-Object FullName
     )
-    if ($testProjects.Count -ne 4) {
-        throw "测试项目数必须为 4，实际为 $($testProjects.Count)。"
+    if ($testProjects.Count -ne 3) {
+        throw "测试项目数必须为 3，实际为 $($testProjects.Count)。"
     }
     $fixedTestDataset = Get-DshExpectedTestDataset -RepositoryRoot $repositoryRoot
     $projectAssemblyNames = @($testProjects.BaseName | Sort-Object)

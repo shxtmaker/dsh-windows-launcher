@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
@@ -39,6 +39,27 @@ public sealed class ApplicationDataLayout
     public string HubDocumentPath { get; }
 
     public string HubDocumentBackupPath { get; }
+
+    public string TargetsRoot => Path.Combine(RootPath, "targets");
+
+    public string GetTargetRoot(Guid targetId)
+    {
+        ValidateTargetId(targetId);
+        return Path.Combine(TargetsRoot, targetId.ToString("N"));
+    }
+
+    public string GetUdfPath(Guid targetId) =>
+        Path.Combine(GetTargetRoot(targetId), "udf");
+
+    private static void ValidateTargetId(Guid targetId)
+    {
+        if (targetId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Target identity must not be empty.",
+                nameof(targetId));
+        }
+    }
 }
 
 /// <summary>
@@ -128,6 +149,45 @@ public sealed partial class ApplicationDataStore : IDisposable
             ApplicationDataLayout.OwnershipMarkerContent,
             applicationRoot.FinalPath,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Creates (or verifies) the per-target browser user-data directory for
+    /// the embedded remote UI host and returns its path. The root ownership
+    /// is re-verified and the created directories are inspected no-follow so
+    /// a planted reparse point cannot divert the location.
+    /// </summary>
+    public async ValueTask<string> PrepareTargetDataAsync(
+        Guid targetId,
+        CancellationToken cancellationToken = default)
+    {
+        var applicationRootFinalPath = await VerifyApplicationOwnershipAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!TryInspectDirectoryNoFollow(Layout.TargetsRoot, out var targetsRoot))
+        {
+            Directory.CreateDirectory(Layout.TargetsRoot);
+            targetsRoot = InspectRequiredDirectoryNoFollow(Layout.TargetsRoot);
+        }
+
+        EnsureImmediateFinalChild(
+            targetsRoot.FinalPath,
+            applicationRootFinalPath,
+            "targets");
+
+        var udfPath = Layout.GetUdfPath(targetId);
+        if (!TryInspectDirectoryNoFollow(udfPath, out var udfInspection))
+        {
+            Directory.CreateDirectory(udfPath);
+            udfInspection = InspectRequiredDirectoryNoFollow(udfPath);
+        }
+
+        EnsureImmediateFinalChild(
+            udfInspection.FinalPath,
+            targetsRoot.FinalPath,
+            targetId.ToString("N") + Path.DirectorySeparatorChar + "udf");
+
+        return udfPath;
     }
 
     public async ValueTask WriteDocumentSnapshotAsync(

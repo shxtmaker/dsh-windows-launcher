@@ -1,11 +1,9 @@
-using System.Diagnostics;
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using DshLauncher.Core;
 using DshLauncher.Core.Hub;
 using DshLauncher.Core.Pairing;
 using DshLauncher.Platform.Windows;
-using DshLauncher.WebUi;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 
@@ -20,8 +18,8 @@ public partial class App : Application
     private CurrentUserSingleInstance? _singleInstance;
     private ApplicationDataStore? _applicationData;
     private PairingHub? _hub;
-    private HubWebServer? _webServer;
     private TrayHost? _tray;
+    private ManagementWindow? _management;
     private bool _exitRequested;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -31,7 +29,6 @@ public partial class App : Application
         var maintenanceExitRequested = SingleInstanceContract.TryGetMaintenanceExitTimeout(
             e.Args,
             out var maintenanceExitTimeout);
-        var port = ParsePortArgument(e.Args);
 
         try
         {
@@ -62,7 +59,8 @@ public partial class App : Application
                 return;
             }
 
-            await StartHubAsync(buildIdentity, port).ConfigureAwait(true);
+            await StartHubAsync(buildIdentity).ConfigureAwait(true);
+            OpenManagement();
         }
         catch (Exception exception)
         {
@@ -71,7 +69,7 @@ public partial class App : Application
         }
     }
 
-    private async Task StartHubAsync(LauncherBuildIdentity buildIdentity, int port)
+    private async Task StartHubAsync(LauncherBuildIdentity buildIdentity)
     {
         var dataRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -91,37 +89,11 @@ public partial class App : Application
         _hub = hub;
         await hub.StartAsync().ConfigureAwait(true);
 
-        _webServer = new HubWebServer(hub, new HubWebServerOptions { Port = port });
-        try
-        {
-            await _webServer.StartAsync().ConfigureAwait(true);
-        }
-        catch (IOException) when (port != 0)
-        {
-            // The default port is taken (another instance or another app):
-            // fall back to a free loopback port instead of refusing to start.
-            await _webServer.DisposeAsync().ConfigureAwait(true);
-            _webServer = new HubWebServer(hub, new HubWebServerOptions { Port = 0 });
-            await _webServer.StartAsync().ConfigureAwait(true);
-        }
-
-        _tray = new TrayHost(buildIdentity.ProductName, _webServer.DashboardUrl);
-        _tray.ExitRequested += BeginExit;
-        hub.Changed += HubStateChanged;
-        HubStateChanged(await hub.GetSnapshotAsync().ConfigureAwait(true));
-    }
-
-    private void HubStateChanged(HubSnapshot snapshot)
-    {
-        if (_tray is null)
-        {
-            return;
-        }
-
-        var online = snapshot.Targets.Count(target =>
-            target.Pairing == PairingState.Paired && target.Connectivity == ConnectivityState.Online);
-        var paired = snapshot.Targets.Count(target => target.Pairing == PairingState.Paired);
-        _tray.UpdateStatus($"配对 {paired}（在线 {online}）· 心跳 {Math.Round(snapshot.HeartbeatInterval.TotalSeconds)} 秒");
+        _tray = new TrayHost(
+            buildIdentity.ProductName,
+            OpenManagement,
+            BeginExit);
+        _tray.UpdateStatus("配对保活运行中");
     }
 
     private ValueTask<SingleInstanceResponse> HandleSingleInstanceRequestAsync(
@@ -131,7 +103,7 @@ public partial class App : Application
         switch (request.Kind)
         {
             case SingleInstanceRequestKind.Activate:
-                _tray?.OpenDashboard();
+                Dispatcher.BeginInvoke(OpenManagement);
                 return ValueTask.FromResult(SingleInstanceResponse.Accepted);
             case SingleInstanceRequestKind.MaintenanceExit:
                 Dispatcher.BeginInvoke(BeginExit);
@@ -139,6 +111,21 @@ public partial class App : Application
             default:
                 return ValueTask.FromResult(SingleInstanceResponse.Rejected);
         }
+    }
+
+    private void OpenManagement()
+    {
+        if (_exitRequested)
+        {
+            return;
+        }
+
+        if (_management is null)
+        {
+            _management = new ManagementWindow(_hub!, _applicationData!, _tray!);
+        }
+
+        _management.ShowAndActivate();
     }
 
     private void BeginExit()
@@ -153,20 +140,20 @@ public partial class App : Application
         {
             try
             {
-                if (_hub is not null)
+                if (_management is not null)
                 {
-                    _hub.Changed -= HubStateChanged;
-                    await _hub.DisposeAsync().ConfigureAwait(true);
+                    _management.AllowClose();
+                    _management.Close();
+                    _management = null;
                 }
 
-                if (_webServer is not null)
+                if (_hub is not null)
                 {
-                    await _webServer.DisposeAsync().ConfigureAwait(true);
+                    await _hub.DisposeAsync().ConfigureAwait(true);
                 }
 
                 if (_tray is not null)
                 {
-                    _tray.ExitRequested -= BeginExit;
                     _tray.Dispose();
                 }
 
@@ -195,19 +182,4 @@ public partial class App : Application
     private static string BuildVersionString() =>
         (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0))
             .ToString(3);
-
-    private static int ParsePortArgument(string[] args)
-    {
-        for (var index = 0; index + 1 < args.Length; index++)
-        {
-            if (string.Equals(args[index], "--port", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(args[index + 1], out var port) &&
-                port is >= 0 and <= 65535)
-            {
-                return port;
-            }
-        }
-
-        return HubWebServerOptions.DefaultPort;
-    }
 }

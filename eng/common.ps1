@@ -801,9 +801,8 @@ function Get-DshArchitectureViolations {
 
     $expectedReferences = @{
         'DshLauncher.Core'             = @()
-        'DshLauncher.WebUi'            = @('DshLauncher.Core')
         'DshLauncher.Platform.Windows' = @('DshLauncher.Core')
-        'DshLauncher.Desktop'          = @('DshLauncher.Core', 'DshLauncher.Platform.Windows', 'DshLauncher.WebUi')
+        'DshLauncher.Desktop'          = @('DshLauncher.Core', 'DshLauncher.Platform.Windows')
     }
 
     foreach ($projectName in $expectedReferences.Keys) {
@@ -875,8 +874,8 @@ function Get-DshLockedPackageInventory {
             -Filter 'packages.lock.json' -File -Recurse |
             Where-Object { $_.FullName -notmatch '[\\/](?:bin|obj)[\\/]' }
     )
-    if ($lockFiles.Count -ne 8) {
-        throw "许可证与 SBOM 输入要求 8 个锁文件，实际为 $($lockFiles.Count)。"
+    if ($lockFiles.Count -ne 6) {
+        throw "许可证与 SBOM 输入要求 6 个锁文件，实际为 $($lockFiles.Count)。"
     }
 
     foreach ($lockFile in $lockFiles) {
@@ -942,8 +941,8 @@ function Get-DshNuGetGlobalPackagesFolder {
             -Filter 'project.assets.json' -File -Recurse |
             Where-Object { $_.FullName -match '[\\/]obj[\\/]Official[\\/]project\.assets\.json$' }
     )
-    if ($assetsFiles.Count -ne 8) {
-        throw "许可证与 SBOM 生成要求 8 个还原资产文件，实际为 $($assetsFiles.Count)。"
+    if ($assetsFiles.Count -ne 6) {
+        throw "许可证与 SBOM 生成要求 6 个还原资产文件，实际为 $($assetsFiles.Count)。"
     }
     $folders = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($assetsFile in $assetsFiles) {

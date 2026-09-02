@@ -252,15 +252,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "webUiPort",
         "maxTargets"
       ],
       "properties": {
-        "webUiPort": {
-          "type": "integer",
-          "minimum": 1024,
-          "maximum": 65535
-        },
         "maxTargets": {
           "type": "integer",
           "minimum": 1,

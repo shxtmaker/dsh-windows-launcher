@@ -51,18 +51,6 @@
       "identityInputs": []
     },
     {
-      "mappingId": "webui-hub-dashboard",
-      "pathPatterns": [
-        "src/DshLauncher.WebUi/**",
-        "tests/DshLauncher.WebUi.Tests/**"
-      ],
-      "triggerTags": [
-        "VFY-07"
-      ],
-      "requiredRs": [],
-      "identityInputs": []
-    },
-    {
       "mappingId": "platform-persistence",
       "pathPatterns": [
         "src/DshLauncher.Platform.Windows/**",
@@ -75,7 +63,7 @@
       "identityInputs": []
     },
     {
-      "mappingId": "desktop-composition-tray",
+      "mappingId": "desktop-client-shell",
       "pathPatterns": [
         "src/DshLauncher.Desktop/**",
         "tests/DshLauncher.Acceptance.Tests/**"

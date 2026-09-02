@@ -1,4 +1,4 @@
-# 发布常量清单
+﻿# 发布常量清单
 
 `release-constants.json` 是构建、打包、诊断版本信息和发布证据共同使用的版本化输入。`release-constants.schema.json` 固定字段、常量和正式候选完整性规则。
 
@@ -28,7 +28,6 @@
 | `pairingBaseline.onlineWindowSeconds` | `25` | 插件默认 `offlineAfterMs` |
 | `pairingBaseline.defaultHeartbeatIntervalSeconds` | `10` | 保活默认间隔（< 在线窗口） |
 | `distribution.innoSetup` | `7.0.2`（冻结 SHA-256） | 安装器工具基线 |
-| `limits.webUiPort` | `4780` | 独立 Web 管理页面默认回环端口 |
 | `limits.maxTargets` | `32` | 集中端目标数量上限 |
 
 V1 的 `webUiCompatibility`、`dependencyBaseline`（Harness 指纹、LAN 插件、WebView2 SDK/Runtime）随 WebView2 壳架构一并移除：产品不再内嵌第三方 WebUI，配对连接完全由 Harness 侧远程访问插件提供（见 docs/adr/0006 与 docs/pairing-hub.md）。

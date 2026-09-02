@@ -1,15 +1,20 @@
-# DSH Windows Launcher（配对集中端）
+﻿# DSH Windows Launcher（配对集中端）
 
-DSH Windows Launcher 是面向 Windows 的 **DSH 配对集中端**：它集中管理局域网内多台
-DeepSeek Harness 实例的「DSH 远程访问」配对，持续发送心跳保活配对连接，并托管一个
-**独立 Web 管理页面**。它不安装、不启动、不管理远端 Harness 进程。
+DSH Windows Launcher 是面向 Windows 的 **DSH 配对集中端独立客户端**：它集中管理局域网内多台
+DeepSeek Harness 实例的「DSH 远程访问」配对，持续发送心跳保活配对连接，并在客户端内
+内嵌显示 Harness 远程界面。它不安装、不启动、不管理远端 Harness 进程，管理操作全程
+不依赖浏览器。
 
 ## 产品形态
 
-- Windows 托盘宿主：单实例运行，托盘图标展示实时配对计数，双击打开管理页面。
-- 独立 Web 管理页面：由本机 Kestrel 服务（默认 `http://127.0.0.1:4780`，仅回环）托管，
-  支持粘贴配对链接添加目标、查看配对/连接状态、开关保活、手动心跳、打开远程界面、
-  重命名与删除。
+- 独立客户端窗口（WPF 原生）：目标列表（配对/连接/心跳/异常），粘贴配对链接添加
+  目标、重新配对、重命名、删除、手动心跳、保活开关；关闭窗口即最小化到托盘，
+  保活继续。
+- 内嵌远程界面：每个目标可在客户端内打开一个 WebView2 窗口，直接显示 Harness 的
+  `pair-app?device=<id>` 远程界面（按目标隔离的用户数据目录）；弹窗折叠回当前视图，
+  全程不调用外部浏览器。
+- 托盘常驻：单实例运行，托盘图标展示实时配对计数，双击重新打开管理窗口，菜单提供
+  退出。
 - 配对协议完全由 Harness 侧 [dsh-web](https://github.com/zhu1090093659/dsh-web) 的
   **DSH 远程访问（dsh-remote-web-ui）** 插件提供：一次性令牌 `/api/pair/accept` 兑换
   设备凭据，`POST /api/pair/heartbeat` 心跳保活（默认 10 秒一次，低于主机端 25 秒
@@ -21,18 +26,16 @@ DeepSeek Harness 实例的「DSH 远程访问」配对，持续发送心跳保�
 | 项目 | 职责 |
 |---|---|
 | `DshLauncher.Core` | 配对链接解析、配对传输、目标目录、心跳保活调度与持久化契约；无任何项目/包引用。 |
-| `DshLauncher.WebUi` | 独立 Web 管理页面与本地 JSON/SSE API（ASP.NET Core Kestrel，仅回环）。 |
-| `DshLauncher.Platform.Windows` | 应用数据根（防重解析点）、配对文档持久化、单实例 IPC、组合根适配器。 |
+| `DshLauncher.Platform.Windows` | 应用数据根（防重解析点）、配对文档持久化、按目标浏览器数据目录、单实例 IPC。 |
 | `DshLauncher.Desktop` | WPF/WinForms 托盘宿主与组合根：启动枢纽、Web 服务与托盘。 |
-| `*.Tests` | Core、WebUi、Windows 平台与跨模块端到端验收测试。 |
+| `*.Tests` | Core、Windows 平台与跨模块端到端验收测试。 |
 
 生产项目依赖方向：
 
 ```text
 DshLauncher.Core             无项目引用
-DshLauncher.WebUi            → Core
 DshLauncher.Platform.Windows → Core
-DshLauncher.Desktop          → Core, Platform.Windows, WebUi
+DshLauncher.Desktop          → Core, Platform.Windows
 ```
 
 ## 配对与保活

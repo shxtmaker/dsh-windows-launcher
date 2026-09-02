@@ -54,7 +54,6 @@
     "officialReleaseUri": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v2.0.0"
   },
   "limits": {
-    "webUiPort": 4780,
     "maxTargets": 32
   }
 }

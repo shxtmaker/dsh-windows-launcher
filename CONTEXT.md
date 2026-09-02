@@ -1,4 +1,4 @@
-# DeepSeek Harness 配对集中端（Windows）
+﻿# DeepSeek Harness 配对集中端（Windows）
 
 本上下文描述 Windows 配对集中端与 Harness 侧「DSH 远程访问」插件之间的产品边界和连接语言。
 
@@ -56,9 +56,13 @@ _Avoid_: 登录会话、全局配对、Token 缓存
 dsh-web 仓库的 `@linxin666/dsh-remote-web-ui`（「DSH 远程访问」）。它拥有 `/api/pair/*` 路由族、`/remote` 门控通道、设备会话持久化与局域网绑定；集中端是它的一个配对设备。
 _Avoid_: 自研服务端、DSH 官方组件
 
-**独立 Web 管理页面**：
-集中端在本机回环端口托管的独立管理界面（与 Harness 界面无关）。提供目标列表、添加/重命名/删除、配对与保活控制、`/pair-app?device=<id>` 远程界面入口和 SSE 实时状态。
-_Avoid_: WebView 壳、Harness 界面镜像、通用浏览器
+**独立客户端**：
+Windows 上的原生 WPF 管理窗口（托盘常驻）。提供目标列表、添加/重命名/删除、配对与保活控制，并在客户端内以 WebView2 打开远程界面窗口；管理操作与远程界面显示均不调用外部浏览器。
+_Avoid_: 浏览器管理页、Harness 界面镜像、通用浏览器
+
+**远程界面窗口**：
+客户端内嵌显示一个已配对目标 `pair-app?device=<id>` 的 WebView2 窗口。按目标隔离的用户数据目录承载其浏览器状态；新窗口请求折叠回当前视图。
+_Avoid_: 外部浏览器、多标签浏览器、远程桌面
 
 **应用数据根**：
 当前 Windows 用户持有集中端配置与配对凭据的稳定本地位置（`%LOCALAPPDATA%\DshWindowsLauncher`），由所有权标记与防重解析点检查保护。文档以主文件 + 备份的原子写持久化。

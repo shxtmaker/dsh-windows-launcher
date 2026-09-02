@@ -2,6 +2,12 @@
   "version": 2,
   "dependencies": {
     "net10.0-windows7.0": {
+      "Microsoft.Web.WebView2": {
+        "type": "Direct",
+        "requested": "[1.0.4129.50, )",
+        "resolved": "1.0.4129.50",
+        "contentHash": "BuJC70c7SCl8wlvojLZbc/E5ONmGyG3fhAMmpftCpKerxae//TxgKOTELRK2QRD7m7jigNFQRf6cfVT3ZiIQoQ=="
+      },
       "dshlauncher.core": {
         "type": "Project"
       },
@@ -10,14 +16,15 @@
         "dependencies": {
           "DshLauncher.Core": "[1.0.0, )"
         }
-      },
-      "dshlauncher.webui": {
-        "type": "Project",
-        "dependencies": {
-          "DshLauncher.Core": "[1.0.0, )"
-        }
       }
     },
-    "net10.0-windows7.0/win-x64": {}
+    "net10.0-windows7.0/win-x64": {
+      "Microsoft.Web.WebView2": {
+        "type": "Direct",
+        "requested": "[1.0.4129.50, )",
+        "resolved": "1.0.4129.50",
+        "contentHash": "BuJC70c7SCl8wlvojLZbc/E5ONmGyG3fhAMmpftCpKerxae//TxgKOTELRK2QRD7m7jigNFQRf6cfVT3ZiIQoQ=="
+      }
+    }
   }
 }

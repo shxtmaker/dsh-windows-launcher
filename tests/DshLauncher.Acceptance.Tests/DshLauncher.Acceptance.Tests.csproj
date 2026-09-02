@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>DshLauncher.Acceptance.Tests</RootNamespace>
     <AssemblyName>DshLauncher.Acceptance.Tests</AssemblyName>
@@ -7,8 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../src/DshLauncher.Core/DshLauncher.Core.csproj" />
-    <ProjectReference Include="../../src/DshLauncher.WebUi/DshLauncher.WebUi.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Desktop/DshLauncher.Desktop.csproj" />
     <ProjectReference Include="../../src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj" />
   </ItemGroup>
