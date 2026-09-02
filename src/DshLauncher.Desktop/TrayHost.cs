@@ -37,6 +37,10 @@ public sealed class TrayHost : IDisposable
         _icon.Text = Truncate($"{_productName} — {status}");
     }
 
+    /// <summary>Raises the app-level exit from inside a window flow (the
+    /// management close dialog); same path as the tray menu's 退出.</summary>
+    public void RequestExit() => RaiseExit();
+
     public void ShowBalloonHint(string title, string message)
     {
         _icon.BalloonTipTitle = title;

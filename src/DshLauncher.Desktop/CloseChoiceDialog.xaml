@@ -1,0 +1,33 @@
+<Window x:Class="DshLauncher.Desktop.CloseChoiceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:DshLauncher.Desktop"
+        Title="关闭管理窗口" Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" ResizeMode="NoResize"
+        Background="{x:Static ui:UiPalette.WindowBrush}"
+        Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}"
+        FontFamily="Segoe UI Variable Display, Segoe UI, Microsoft YaHei UI"
+        UseLayoutRounding="True"
+        ui:UiChrome.DarkTitleBar="True">
+    <StackPanel Margin="20,18,20,16">
+        <TextBlock Text="要退出程序，还是最小化到托盘？" FontSize="14" FontWeight="SemiBold"
+                   Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}" />
+        <TextBlock Margin="0,8,0,16" TextWrapping="Wrap" FontSize="12"
+                   Foreground="{x:Static ui:UiPalette.TextSecondaryBrush}"
+                   Text="最小化到托盘：配对保活心跳继续在后台运行；退出程序：停止全部保活并关闭托盘图标。" />
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="1" Content="最小化到托盘" Margin="0,0,10,0"
+                    MinWidth="112" Height="34" Padding="10,0"
+                    Click="OnMinimizeToTray" IsCancel="True" IsDefault="True" />
+            <Button Grid.Column="2" Content="退出程序" Style="{StaticResource TechDangerButton}"
+                    MinWidth="112" Height="34" Padding="10,0"
+                    Click="OnExitApp" />
+        </Grid>
+    </StackPanel>
+</Window>

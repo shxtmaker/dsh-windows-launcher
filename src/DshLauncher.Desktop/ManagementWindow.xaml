@@ -212,19 +212,34 @@
 
         <StackPanel Grid.Row="2" Orientation="Vertical" Margin="0,14,0,0">
             <Border Height="1" Background="{x:Static ui:UiPalette.BorderBrush}" />
-            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                <Button x:Name="HeartbeatButton" Content="立即心跳" Margin="0,0,8,0"
-                        Click="OnHeartbeatNow" IsEnabled="False" />
-                <Button x:Name="OpenRemoteButton" Content="打开远程界面" Margin="0,0,8,0"
-                        Click="OnOpenRemote" IsEnabled="False" />
-                <Button x:Name="RePairButton" Content="重新配对" Margin="0,0,8,0"
-                        Click="OnRePair" IsEnabled="False" />
-                <Button x:Name="RenameButton" Content="重命名" Margin="0,0,8,0"
-                        Click="OnRename" IsEnabled="False" />
-                <Button x:Name="DeleteButton" Content="删除"
-                        Style="{StaticResource TechDangerButton}"
-                        Click="OnDelete" IsEnabled="False" />
-            </StackPanel>
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <!-- 底部操作区：五个等宽按钮同一规格（MinWidth/Height/Padding 完全一致） -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Button x:Name="HeartbeatButton" Content="立即心跳" Margin="0,0,10,0"
+                            MinWidth="112" Height="34" Padding="10,0"
+                            Click="OnHeartbeatNow" IsEnabled="False" />
+                    <Button x:Name="OpenRemoteButton" Content="打开远程界面" Margin="0,0,10,0"
+                            MinWidth="112" Height="34" Padding="10,0"
+                            Click="OnOpenRemote" IsEnabled="False" />
+                    <Button x:Name="RePairButton" Content="重新配对" Margin="0,0,10,0"
+                            MinWidth="112" Height="34" Padding="10,0"
+                            Click="OnRePair" IsEnabled="False" />
+                    <Button x:Name="RenameButton" Content="重命名" Margin="0,0,10,0"
+                            MinWidth="112" Height="34" Padding="10,0"
+                            Click="OnRename" IsEnabled="False" />
+                    <Button x:Name="DeleteButton" Content="删除"
+                            Style="{StaticResource TechDangerButton}"
+                            MinWidth="112" Height="34" Padding="10,0"
+                            Click="OnDelete" IsEnabled="False" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="11"
+                           Foreground="{x:Static ui:UiPalette.TextMutedBrush}"
+                           Text="双击列表项也可打开远程界面" />
+            </Grid>
         </StackPanel>
     </Grid>
 </Window>

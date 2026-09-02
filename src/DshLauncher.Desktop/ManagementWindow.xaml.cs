@@ -311,9 +311,18 @@ public partial class ManagementWindow : Window
             return;
         }
 
-        // Closing the window keeps the hub (and every keep-alive loop) running
-        // in the tray; the tray menu's 退出 is the real exit.
+        // The window button asks once per close: keep the hub (and every
+        // keep-alive loop) running by hiding to the tray, or exit for real.
+        // Dismissing the dialog keeps the tray path so nothing dies by
+        // accident; the tray menu's 退出 is always available as well.
         e.Cancel = true;
+        var choice = CloseChoiceDialog.Show(this);
+        if (choice.ExitApplication)
+        {
+            _tray.RequestExit();
+            return;
+        }
+
         Hide();
         if (!_minimizeHintShown)
         {
