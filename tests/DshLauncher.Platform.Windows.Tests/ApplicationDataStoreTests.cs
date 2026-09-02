@@ -58,6 +58,45 @@ public sealed class ApplicationDataStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task InitializeAdoptsAV1RootByUpgradingTheMarkerInPlace()
+    {
+        var layout = new ApplicationDataLayout(_root);
+        Directory.CreateDirectory(_root);
+        await File.WriteAllTextAsync(
+            layout.OwnershipMarkerPath,
+            ApplicationDataLayout.LegacyOwnershipMarkerContent,
+            TestContext.Current.CancellationToken);
+        await File.WriteAllTextAsync(
+            Path.Combine(_root, "targets.json"),
+            "{ old v1 payload }",
+            TestContext.Current.CancellationToken);
+
+        await _store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ApplicationDataLayout.OwnershipMarkerContent,
+            await File.ReadAllTextAsync(layout.OwnershipMarkerPath, TestContext.Current.CancellationToken));
+        Assert.True(File.Exists(Path.Combine(_root, "targets.json")));
+        await _store.WriteDocumentSnapshotAsync(new byte[] { 1 }, TestContext.Current.CancellationToken);
+        var snapshots = await _store.ReadDocumentSnapshotsAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(new byte[] { 1 }, snapshots.Primary);
+    }
+
+    [Fact]
+    public async Task InitializeRefusesAnUnknownMarkerGeneration()
+    {
+        var layout = new ApplicationDataLayout(_root);
+        Directory.CreateDirectory(_root);
+        await File.WriteAllTextAsync(
+            layout.OwnershipMarkerPath,
+            "DshWindowsLauncher:v99",
+            TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<ApplicationDataOwnershipException>(
+            () => _store.InitializeAsync(TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Fact]
     public async Task DocumentWritesRotateThePrimaryIntoTheBackupSlot()
     {
         await _store.InitializeAsync(TestContext.Current.CancellationToken);

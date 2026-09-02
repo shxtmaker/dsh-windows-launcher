@@ -14,6 +14,7 @@ public sealed class ApplicationDataLayout
 {
     public const string OwnershipMarkerName = ".dsh-windows-launcher-owner";
     public const string OwnershipMarkerContent = "DshWindowsLauncher:v2";
+    public const string LegacyOwnershipMarkerContent = "DshWindowsLauncher:v1";
 
     public ApplicationDataLayout(string rootPath)
     {
@@ -82,12 +83,34 @@ public sealed partial class ApplicationDataStore : IDisposable
 
         if (TryInspectPathNoFollow(Layout.OwnershipMarkerPath, out _))
         {
-            await VerifyMarkerAsync(
+            var content = await File.ReadAllTextAsync(
                 Layout.OwnershipMarkerPath,
-                ApplicationDataLayout.OwnershipMarkerContent,
-                applicationRoot.FinalPath,
                 cancellationToken).ConfigureAwait(false);
-            return;
+            if (string.Equals(content, ApplicationDataLayout.OwnershipMarkerContent, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (string.Equals(content, ApplicationDataLayout.LegacyOwnershipMarkerContent, StringComparison.Ordinal))
+            {
+                // A V1 root is ours by construction: adopt it by upgrading the
+                // marker in place. The V1 payload (browser sessions, target
+                // catalog) stays untouched as residue; the hub reads only its
+                // own pairing-hub.json, which a V1 root never has.
+                await VerifyMarkerAsync(
+                    Layout.OwnershipMarkerPath,
+                    ApplicationDataLayout.LegacyOwnershipMarkerContent,
+                    applicationRoot.FinalPath,
+                    cancellationToken).ConfigureAwait(false);
+                await ReplaceMarkerContentAsync(
+                    Layout.OwnershipMarkerPath,
+                    ApplicationDataLayout.OwnershipMarkerContent,
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            throw new ApplicationDataOwnershipException(
+                "Ownership marker content does not match.");
         }
 
         if (existed && Directory.EnumerateFileSystemEntries(Layout.RootPath).Any())
@@ -219,6 +242,20 @@ public sealed partial class ApplicationDataStore : IDisposable
         await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         stream.Flush(flushToDisk: true);
+    }
+
+    private static async ValueTask ReplaceMarkerContentAsync(
+        string markerPath,
+        string content,
+        CancellationToken cancellationToken)
+    {
+        var temporaryPath = markerPath + $".{Guid.NewGuid():N}.tmp";
+        await WriteNewMarkerAsync(temporaryPath, content, cancellationToken).ConfigureAwait(false);
+        File.Replace(temporaryPath, markerPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+        if (File.Exists(temporaryPath))
+        {
+            File.Delete(temporaryPath);
+        }
     }
 
     private static async ValueTask WriteThroughAsync(
