@@ -192,20 +192,20 @@
                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"
                                 Margin="0,0,8,0"
                                 WindowChrome.IsHitTestVisibleInChrome="True">
-                        <!-- 统一 18x18 视图的矢量图标，三键完全同规格 -->
+                        <!-- 统一 18x18 元素盒内的绝对坐标字形，三键同规格且垂直严格居中 -->
                         <Button Style="{StaticResource TechIconButton}" Click="OnMinimizeWindow" ToolTip="最小化">
-                            <Path Data="M3,9.5 H15"
+                            <Path Width="18" Height="18" Data="M3,9 H15"
                                   Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
                                   StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                         </Button>
                         <Button Style="{StaticResource TechIconButton}" x:Name="MaximizeButton"
                                 Click="OnMaximizeWindow" ToolTip="最大化">
-                            <Path x:Name="MaximizeGlyph" Data="M4.5,4.5 H13.5 V13.5 H4.5 Z" Fill="Transparent"
+                            <Path Width="18" Height="18" x:Name="MaximizeGlyph" Data="M4.5,4.5 H13.5 V13.5 H4.5 Z" Fill="Transparent"
                                   Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
                                   StrokeThickness="1.6" StrokeLineJoin="Round" />
                         </Button>
                         <Button Style="{StaticResource TechIconButton}" Click="OnCloseWindow" ToolTip="关闭">
-                            <Path Data="M4.5,4.5 L13.5,13.5 M13.5,4.5 L4.5,13.5"
+                            <Path Width="18" Height="18" Data="M4.5,4.5 L13.5,13.5 M13.5,4.5 L4.5,13.5"
                                   Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
                                   StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                         </Button>
