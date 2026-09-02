@@ -152,12 +152,12 @@ try {
         -Description 'WebView2 Offline Installer'
     $webViewSignature = Assert-SignedMicrosoftTool -Path $WebView2OfflineInstallerPath -Description 'WebView2 Offline Installer'
     $webViewVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo($WebView2OfflineInstallerPath).ProductVersion).Trim()
-    if ($webViewVersion -ne '1.3.263.3') {
-        throw "WebView2 Offline Installer 版本不匹配。实际：$webViewVersion；预期：" + '1.3.263.3'
+    if ($webViewVersion -ne '1.3.265.7') {
+        throw "WebView2 Offline Installer 版本不匹配。实际：$webViewVersion；预期：" + '1.3.265.7'
     }
 
     Assert-FileHash -Path $WebView2BootstrapperPath `
-        -ExpectedHash '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146' `
+        -ExpectedHash '17debf797a6c737959bc588236e897936ffac1af5f7e515e674ab32f9edfe719' `
         -Description 'WebView2 Evergreen Bootstrapper'
     $webViewBootstrapperSignature = Assert-SignedMicrosoftTool `
         -Path $WebView2BootstrapperPath `
@@ -166,8 +166,8 @@ try {
     if ([string]::IsNullOrWhiteSpace($webViewBootstrapperVersion)) {
         $webViewBootstrapperVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo($WebView2BootstrapperPath).FileVersion).Trim()
     }
-    if ($webViewBootstrapperVersion -ne '1.3.263.3') {
-        throw "WebView2 Evergreen Bootstrapper 版本不匹配。实际：$webViewBootstrapperVersion；预期：" + '1.3.263.3'
+    if ($webViewBootstrapperVersion -ne '1.3.265.7') {
+        throw "WebView2 Evergreen Bootstrapper 版本不匹配。实际：$webViewBootstrapperVersion；预期：" + '1.3.265.7'
     }
 
     Assert-FileHash -Path $InnoSetupInstallerPath `
@@ -341,7 +341,7 @@ try {
     Copy-Item -LiteralPath $WebView2BootstrapperPath -Destination $stagedWebViewBootstrapperPath
     Assert-FileHash `
         -Path $stagedWebViewBootstrapperPath `
-        -ExpectedHash '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146' `
+        -ExpectedHash '17debf797a6c737959bc588236e897936ffac1af5f7e515e674ab32f9edfe719' `
         -Description '暂存 WebView2 Evergreen Bootstrapper'
     $stagedWebViewBootstrapperSignature = Get-DshAuthenticodeEvidence `
         -Path $stagedWebViewBootstrapperPath `

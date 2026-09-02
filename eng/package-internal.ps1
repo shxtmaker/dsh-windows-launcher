@@ -235,7 +235,7 @@ try {
     $WebView2BootstrapperPath = (Resolve-Path -LiteralPath $WebView2BootstrapperPath).Path
     Assert-FileHash `
         -Path $WebView2BootstrapperPath `
-        -ExpectedHash '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146' `
+        -ExpectedHash '17debf797a6c737959bc588236e897936ffac1af5f7e515e674ab32f9edfe719' `
         -Description 'WebView2 Evergreen Bootstrapper'
     $webViewSignature = Assert-SignedMicrosoftTool `
         -Path $WebView2BootstrapperPath `
@@ -246,7 +246,7 @@ try {
         $webViewVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo(
                 $WebView2BootstrapperPath).FileVersion).Trim()
     }
-    if ($webViewVersion -cne '1.3.263.3') {
+    if ($webViewVersion -cne '1.3.265.7') {
         throw 'WebView2 Evergreen Bootstrapper 版本不匹配。'
     }
 
@@ -422,7 +422,7 @@ try {
     Copy-Item -LiteralPath $WebView2BootstrapperPath -Destination $stagedBootstrapperPath
     Assert-FileHash `
         -Path $stagedBootstrapperPath `
-        -ExpectedHash '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146' `
+        -ExpectedHash '17debf797a6c737959bc588236e897936ffac1af5f7e515e674ab32f9edfe719' `
         -Description '暂存 WebView2 Evergreen Bootstrapper'
     $stagedWebViewSignature = Assert-SignedMicrosoftTool `
         -Path $stagedBootstrapperPath `

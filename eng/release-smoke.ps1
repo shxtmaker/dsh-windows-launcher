@@ -502,9 +502,9 @@ try {
         throw 'package-manifest.json 未绑定有效且干净的候选源码提交。'
     }
     if ($packageManifest.inputs.webView2BootstrapperVersion -ne
-            '1.3.263.3' -or
+            '1.3.265.7' -or
         $packageManifest.inputs.webView2BootstrapperSha256 -ne
-            '94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146'.ToUpperInvariant()) {
+            '17debf797a6c737959bc588236e897936ffac1af5f7e515e674ab32f9edfe719'.ToUpperInvariant()) {
         throw 'package-manifest.json 中的 WebView2 Bootstrapper 身份与发布常量不一致。'
     }
 
