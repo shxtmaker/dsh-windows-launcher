@@ -9,7 +9,11 @@
         Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}"
         FontFamily="Segoe UI Variable Display, Segoe UI, Microsoft YaHei UI"
         UseLayoutRounding="True"
-        ui:UiChrome.DarkTitleBar="True">
+        WindowStyle="SingleBorderWindow">
+    <WindowChrome.WindowChrome>
+        <WindowChrome GlassFrameThickness="0,1,0,0" CaptionHeight="0" CornerRadius="0"
+                      ResizeBorderThickness="6" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
@@ -28,7 +32,11 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="14,12,10,10">
+                <!-- 侧栏头部即拖拽区/标题 -->
+                <Grid Grid.Row="0" Margin="14,10,8,10" Background="Transparent"
+                      MouseLeftButtonDown="OnCaptionMouseLeftButtonDown"
+                      MouseLeftButtonUp="OnCaptionMouseLeftButtonUp"
+                      MouseMove="OnCaptionMouseMove">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -160,17 +168,22 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
+            <!-- 合并式标题栏：拖拽区 + 汉堡开关 + 目标地址 + 加载状态 + 窗口控制 -->
             <Border Grid.Row="0" Background="{x:Static ui:UiPalette.SurfaceBrush}"
                     BorderBrush="{x:Static ui:UiPalette.BorderBrush}"
-                    BorderThickness="0,0,0,1" Padding="10,0,14,0" Height="44">
-                <Grid>
+                    BorderThickness="0,0,0,1">
+                <Grid Height="44" Background="Transparent"
+                      MouseLeftButtonDown="OnCaptionMouseLeftButtonDown"
+                      MouseLeftButtonUp="OnCaptionMouseLeftButtonUp"
+                      MouseMove="OnCaptionMouseMove">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Button Grid.Column="0" Style="{StaticResource TechIconButton}"
-                            VerticalAlignment="Center"
+                            Margin="10,0,0,0" VerticalAlignment="Center"
                             Click="OnToggleSidebar" ToolTip="展开/折叠侧边栏">
                         <Path Data="M3,5.5 H15 M3,9.5 H15 M3,13.5 H15"
                               Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
@@ -180,11 +193,21 @@
                                VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold"
                                Foreground="{x:Static ui:UiPalette.TextSecondaryBrush}"
                                TextTrimming="CharacterEllipsis" />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                Margin="0,0,8,0">
                         <Ellipse x:Name="StateDot" Width="8" Height="8"
                                  Fill="{x:Static ui:UiPalette.AccentBrush}" />
                         <TextBlock x:Name="StateText" Margin="7,0,0,0" FontSize="11.5"
                                    Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"
+                                WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Button Style="{StaticResource TechIconButton}" Content="─"
+                                FontSize="10" Click="OnMinimizeWindow" ToolTip="最小化" />
+                        <Button Style="{StaticResource TechIconButton}" x:Name="MaximizeButton"
+                                Content="□" FontSize="10" Click="OnMaximizeWindow" ToolTip="最大化" />
+                        <Button Style="{StaticResource TechIconButton}" Content="✕"
+                                FontSize="11" Click="OnCloseWindow" ToolTip="关闭" />
                     </StackPanel>
                 </Grid>
             </Border>

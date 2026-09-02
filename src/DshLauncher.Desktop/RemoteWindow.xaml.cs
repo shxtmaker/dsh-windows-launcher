@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using DshLauncher.Core;
@@ -128,6 +131,65 @@ public partial class RemoteWindow : Window
             ExpandSidebar();
         }
     }
+
+    // The system title bar is folded into the in-content top bar; these
+    // handlers supply the caption gestures (drag, double-click restore) and
+    // the window buttons on its right edge.
+    private void OnMinimizeWindow(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeWindow(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        MaximizeButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+    }
+
+    private void OnCloseWindow(object sender, RoutedEventArgs e) => Close();
+
+    private void OnCaptionMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != System.Windows.Input.MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        // Double-click on the caption toggles maximize. ClickCount arrives
+        // from the underlying WM_LBUTTONDBLCLK, so no manual timing needed.
+        if (e.ClickCount == 2)
+        {
+            OnMaximizeWindow(sender, e);
+            return;
+        }
+
+        if (WindowState == WindowState.Maximized)
+        {
+            // Dragging a maximized window restores it under the cursor.
+            var point = PointToScreen(e.GetPosition(this));
+            double ratio = point.X / SystemParameters.PrimaryScreenWidth;
+            Top = point.Y - Height / 2;
+            Left = Math.Max(point.X - Width * ratio, -Width * (ratio - 1));
+            WindowState = WindowState.Normal;
+        }
+
+        _ = ReleaseCapture();
+        _ = SendMessage(new WindowInteropHelper(this).Handle, WmNclButtonDown, HtCaption, 0);
+    }
+
+    private void OnCaptionMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+    }
+
+    private void OnCaptionMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+    }
+
+    private const int WmNclButtonDown = 0xA1;
+    private const int HtCaption = 0x2;
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    private static extern int SendMessage(nint hWnd, int message, nint wParam, nint lParam);
 
     private void CollapseSidebar()
     {
