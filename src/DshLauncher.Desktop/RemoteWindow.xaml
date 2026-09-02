@@ -32,28 +32,17 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- 侧栏头部即拖拽区/标题 -->
-                <Grid Grid.Row="0" Margin="14,10,8,10" Background="Transparent"
+                <!-- 侧栏头部即拖拽区/标题；折叠开关只保留顶栏的汉堡按钮 -->
+                <Grid Grid.Row="0" Margin="14,10,14,10" Background="Transparent"
                       MouseLeftButtonDown="OnCaptionMouseLeftButtonDown"
                       MouseLeftButtonUp="OnCaptionMouseLeftButtonUp"
                       MouseMove="OnCaptionMouseMove">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Vertical" VerticalAlignment="Center">
                         <TextBlock Text="远程目标" FontSize="12.5" FontWeight="SemiBold"
                                    Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}" />
                         <TextBlock Text="TARGETS" FontSize="9" Margin="0,2,0,0"
                                    Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
                     </StackPanel>
-                    <Button Grid.Column="1" Style="{StaticResource TechIconButton}"
-                            Click="OnToggleSidebar" ToolTip="折叠侧边栏">
-                        <Path x:Name="SidebarChevron" Data="M10.5,4 L5.5,9.5 L10.5,15"
-                              Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
-                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              StrokeLineJoin="Round" />
-                    </Button>
                 </Grid>
 
                 <ListBox Grid.Row="1" x:Name="SidebarList" Padding="6,0"
@@ -201,13 +190,25 @@
                                    Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
                     </StackPanel>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"
+                                Margin="0,0,8,0"
                                 WindowChrome.IsHitTestVisibleInChrome="True">
-                        <Button Style="{StaticResource TechIconButton}" Content="─"
-                                FontSize="10" Click="OnMinimizeWindow" ToolTip="最小化" />
+                        <!-- 统一 18x18 视图的矢量图标，三键完全同规格 -->
+                        <Button Style="{StaticResource TechIconButton}" Click="OnMinimizeWindow" ToolTip="最小化">
+                            <Path Data="M3,9.5 H15"
+                                  Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Button>
                         <Button Style="{StaticResource TechIconButton}" x:Name="MaximizeButton"
-                                Content="□" FontSize="10" Click="OnMaximizeWindow" ToolTip="最大化" />
-                        <Button Style="{StaticResource TechIconButton}" Content="✕"
-                                FontSize="11" Click="OnCloseWindow" ToolTip="关闭" />
+                                Click="OnMaximizeWindow" ToolTip="最大化">
+                            <Path x:Name="MaximizeGlyph" Data="M4.5,4.5 H13.5 V13.5 H4.5 Z" Fill="Transparent"
+                                  Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  StrokeThickness="1.6" StrokeLineJoin="Round" />
+                        </Button>
+                        <Button Style="{StaticResource TechIconButton}" Click="OnCloseWindow" ToolTip="关闭">
+                            <Path Data="M4.5,4.5 L13.5,13.5 M13.5,4.5 L4.5,13.5"
+                                  Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                                  StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -140,7 +140,11 @@ public partial class RemoteWindow : Window
     private void OnMaximizeWindow(object sender, RoutedEventArgs e)
     {
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        MaximizeButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+        // Same-size glyph swap: square for maximize, double frame for restore.
+        MaximizeGlyph.Data = Geometry.Parse(
+            WindowState == WindowState.Maximized
+                ? "M4.5,7.5 H13.5 V13.5 H4.5 Z M7,7.5 V5 H15.5 V13.5 H13.5"
+                : "M4.5,4.5 H13.5 V13.5 H4.5 Z");
     }
 
     private void OnCloseWindow(object sender, RoutedEventArgs e) => Close();
@@ -194,7 +198,6 @@ public partial class RemoteWindow : Window
     private void CollapseSidebar()
     {
         _sidebarExpanded = false;
-        SidebarChevron.LayoutTransform = new RotateTransform(180);
         var animation = CollapseAnimation(0);
         animation.Completed += (_, _) =>
         {
@@ -210,7 +213,6 @@ public partial class RemoteWindow : Window
     private void ExpandSidebar()
     {
         _sidebarExpanded = true;
-        SidebarChevron.LayoutTransform = Transform.Identity;
         Sidebar.Visibility = Visibility.Visible;
         var animation = CollapseAnimation(SidebarWidth);
         animation.Completed += (_, _) =>
