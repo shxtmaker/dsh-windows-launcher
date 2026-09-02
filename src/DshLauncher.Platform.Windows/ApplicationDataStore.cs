@@ -40,6 +40,8 @@ public sealed class ApplicationDataLayout
 
     public string HubDocumentBackupPath { get; }
 
+    public string CloseBehaviorPath => Path.Combine(RootPath, "close-behavior.txt");
+
     public string TargetsRoot => Path.Combine(RootPath, "targets");
 
     public string GetTargetRoot(Guid targetId)
@@ -245,6 +247,80 @@ public sealed partial class ApplicationDataStore : IDisposable
             .ConfigureAwait(false);
         return new DocumentSnapshots(primary, backup);
     }
+
+    /// <summary>
+    /// Persists the remembered close-window choice (one single-line token).
+    /// Written through the same ownership verification and write-through
+    /// path as the hub document so a planted reparse point cannot divert it.
+    /// </summary>
+    public async ValueTask WriteCloseBehaviorAsync(
+        string choice,
+        CancellationToken cancellationToken = default)
+    {
+        if (choice.Length == 0 || choice.Any(char.IsWhiteSpace) || choice.Length > MaximumCloseBehaviorCharacters)
+        {
+            throw new InvalidDataException("The close behavior choice token is invalid.");
+        }
+
+        await VerifyApplicationOwnershipAsync(cancellationToken).ConfigureAwait(false);
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        string? temporaryPath = null;
+        try
+        {
+            temporaryPath = Path.Combine(
+                Layout.RootPath,
+                $"close-behavior.{Guid.NewGuid():N}.tmp");
+            await WriteThroughAsync(
+                temporaryPath,
+                Encoding.UTF8.GetBytes(choice),
+                cancellationToken).ConfigureAwait(false);
+            if (File.Exists(Layout.CloseBehaviorPath))
+            {
+                File.Replace(
+                    temporaryPath,
+                    Layout.CloseBehaviorPath,
+                    destinationBackupFileName: null,
+                    ignoreMetadataErrors: true);
+            }
+            else
+            {
+                File.Move(temporaryPath, Layout.CloseBehaviorPath);
+            }
+
+            temporaryPath = null;
+        }
+        finally
+        {
+            if (temporaryPath is not null && File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+
+            _writeGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Reads the remembered close-window choice, or null when it was never
+    /// recorded. Any structural surprise (oversized file, whitespace) reads
+    /// as null so a corrupted preference degrades to ask-every-close.
+    /// </summary>
+    public async ValueTask<string?> ReadCloseBehaviorAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var rootFinalPath = await VerifyApplicationOwnershipAsync(cancellationToken).ConfigureAwait(false);
+        var content = await ReadBoundedRegularFileIfPresentAsync(Layout.CloseBehaviorPath, rootFinalPath, cancellationToken)
+            .ConfigureAwait(false);
+        if (content is null || content.Length == 0 || content.Length > MaximumCloseBehaviorCharacters)
+        {
+            return null;
+        }
+
+        var choice = Encoding.UTF8.GetString(content).Trim();
+        return choice.Length > 0 && !choice.Any(char.IsWhiteSpace) ? choice : null;
+    }
+
+    private const int MaximumCloseBehaviorCharacters = 32;
 
     private async ValueTask<string> VerifyApplicationOwnershipAsync(CancellationToken cancellationToken)
     {

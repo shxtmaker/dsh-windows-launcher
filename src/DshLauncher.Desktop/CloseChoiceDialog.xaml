@@ -13,10 +13,12 @@
     <StackPanel Margin="20,18,20,16">
         <TextBlock Text="要退出程序，还是最小化到托盘？" FontSize="14" FontWeight="SemiBold"
                    Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}" />
-        <TextBlock Margin="0,8,0,16" TextWrapping="Wrap" FontSize="12"
+        <TextBlock Margin="0,8,0,12" TextWrapping="Wrap" FontSize="12"
                    Foreground="{x:Static ui:UiPalette.TextSecondaryBrush}"
                    Text="最小化到托盘：配对保活心跳继续在后台运行；退出程序：停止全部保活并关闭托盘图标。" />
-        <Grid>
+        <CheckBox x:Name="RememberChoice" Content="记住我的选择，下次关闭不再询问"
+                  FontSize="12" Foreground="{x:Static ui:UiPalette.TextSecondaryBrush}" />
+        <Grid Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

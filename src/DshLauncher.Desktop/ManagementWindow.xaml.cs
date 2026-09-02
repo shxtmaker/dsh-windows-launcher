@@ -33,7 +33,23 @@ public partial class ManagementWindow : Window
     {
         // Never block the UI thread on the hub gate: the constructor already
         // returned, and the first frame arrives through the same marshal as
-        // every later change.
+        // every later change. The stored close behavior (if any) rides the
+        // same async path; until it lands, closing simply asks. A preference
+        // read failure degrades to Ask instead of killing startup.
+        try
+        {
+            _closeBehavior = DescribeCloseBehavior(
+                await _applicationData.ReadCloseBehaviorAsync().ConfigureAwait(true));
+        }
+        catch (Exception exception) when (exception is HubStorageException or
+                                          ApplicationDataOwnershipException or
+                                          IOException or
+                                          UnauthorizedAccessException)
+        {
+            _closeBehavior = CloseBehavior.Ask;
+        }
+
+        ApplyTrayCloseMenu();
         var snapshot = await _hub.GetSnapshotAsync().ConfigureAwait(true);
         RefreshRows(snapshot);
     }
@@ -45,6 +61,23 @@ public partial class ManagementWindow : Window
     private readonly Dictionary<Guid, RemoteWindow> _remoteWindows = new();
     private bool _allowClose;
     private bool _minimizeHintShown;
+    private CloseBehavior _closeBehavior = CloseBehavior.Ask;
+
+    /// <summary>Stable single-line tokens persisted in close-behavior.txt;
+    /// unknown or missing content always degrades to Ask.</summary>
+    private static string CloseBehaviorToken(CloseBehavior behavior) => behavior switch
+    {
+        CloseBehavior.MinimizeToTray => "minimize-tray",
+        CloseBehavior.Exit => "exit",
+        _ => "ask",
+    };
+
+    private static CloseBehavior DescribeCloseBehavior(string? stored) => stored switch
+    {
+        "minimize-tray" => CloseBehavior.MinimizeToTray,
+        "exit" => CloseBehavior.Exit,
+        _ => CloseBehavior.Ask,
+    };
 
     public void ShowAndActivate()
     {
@@ -311,25 +344,99 @@ public partial class ManagementWindow : Window
             return;
         }
 
-        // The window button asks once per close: keep the hub (and every
-        // keep-alive loop) running by hiding to the tray, or exit for real.
-        // Dismissing the dialog keeps the tray path so nothing dies by
-        // accident; the tray menu's 退出 is always available as well.
+        // The window button honors the remembered close behavior; Ask shows
+        // the choice dialog. Dismissing that dialog keeps the tray path so
+        // nothing dies by accident, and the tray menu's 关闭窗口 submenu is
+        // always available to inspect or reset the remembered choice.
         e.Cancel = true;
-        var choice = CloseChoiceDialog.Show(this);
-        if (choice.ExitApplication)
+        BeginCloseFlowAsync();
+    }
+
+    private async void BeginCloseFlowAsync()
+    {
+        try
+        {
+            await RunCloseFlowAsync().ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is HubStorageException or IOException or UnauthorizedAccessException)
+        {
+            // A preference read/write failure must never kill the process:
+            // fall back to the plain hide-to-tray path.
+            MinimizeToTray(showHint: true);
+        }
+    }
+
+    private async Task RunCloseFlowAsync()
+    {
+        if (_closeBehavior == CloseBehavior.Ask)
+        {
+            var choice = CloseChoiceDialog.Show(this);
+            if (choice is null)
+            {
+                MinimizeToTray(showHint: true);
+                return;
+            }
+
+            _closeBehavior = choice.Behavior;
+            if (choice.Remember)
+            {
+                await PersistCloseBehaviorAsync(_closeBehavior).ConfigureAwait(true);
+            }
+
+            ApplyTrayCloseMenu();
+            if (_closeBehavior == CloseBehavior.Exit)
+            {
+                _tray.RequestExit();
+                return;
+            }
+
+            MinimizeToTray(showHint: true);
+            return;
+        }
+
+        if (_closeBehavior == CloseBehavior.Exit)
         {
             _tray.RequestExit();
             return;
         }
 
+        MinimizeToTray(showHint: !_minimizeHintShown);
+    }
+
+    private void MinimizeToTray(bool showHint)
+    {
         Hide();
-        if (!_minimizeHintShown)
+        if (showHint && !_minimizeHintShown)
         {
             _minimizeHintShown = true;
             _tray.ShowBalloonHint("已最小化到托盘", "配对保活继续运行；双击托盘图标重新打开管理窗口。");
         }
     }
+
+    /// <summary>Syncs the tray's 关闭窗口 submenu with the live behavior so
+    /// the remembered choice stays discoverable and resettable.</summary>
+    private void ApplyTrayCloseMenu() =>
+        _tray.UpdateCloseBehaviorMenu(
+            CloseBehaviorToken(_closeBehavior),
+            OnCloseBehaviorSelected);
+
+    private async void OnCloseBehaviorSelected(string token)
+    {
+        try
+        {
+            _closeBehavior = DescribeCloseBehavior(token);
+            await PersistCloseBehaviorAsync(_closeBehavior).ConfigureAwait(true);
+            ApplyTrayCloseMenu();
+        }
+        catch (Exception exception) when (exception is HubStorageException or IOException or UnauthorizedAccessException)
+        {
+            // The menu choice stays for this session; persisting can wait
+            // for the next close or menu use.
+        }
+    }
+
+    private async Task PersistCloseBehaviorAsync(CloseBehavior behavior) =>
+        await _applicationData.WriteCloseBehaviorAsync(CloseBehaviorToken(behavior)).ConfigureAwait(true);
 
     private sealed class TargetRow
     {
