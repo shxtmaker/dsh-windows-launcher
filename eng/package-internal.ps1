@@ -347,18 +347,17 @@ try {
         $verifySummary.source.worktreeState -cne $sourceState.WorktreeState) {
         throw '统一验证摘要未绑定当前 clean 提交。'
     }
-    $governanceSummarySource = Join-Path $verifyDirectory 'webui-governance/webui-governance-summary.json'
-    $compatibilityIdentity = Get-DshWebUiGovernanceIdentity `
-        -RepositoryRoot $repositoryRoot `
-        -SummaryPath $governanceSummarySource `
-        -Constants $constants
-    Assert-DshWebUiCompatibilityIdentity `
-        -Expected $compatibilityIdentity `
-        -Actual $verifySummary.compatibilityIdentity `
-        -RequireGovernanceSummary
     if ($null -eq $verifySummary.verificationImpact -or
         @($verifySummary.verificationImpact.requiredRs).Count -eq 0) {
         throw '统一验证摘要缺少 fail-closed 验证影响证据。'
+    }
+
+    $pairingIdentity = $verifySummary.pairingIdentity
+    if ($null -eq $pairingIdentity -or
+        [string] $pairingIdentity.plugin -cne $constants.pairingBaseline.plugin -or
+        [string] $pairingIdentity.referenceVersion -cne [string] $constants.pairingBaseline.referenceVersion -or
+        [string] $pairingIdentity.cookieName -cne $constants.pairingBaseline.cookieName) {
+        throw '统一验证摘要缺少与发布常量一致的配对基线身份。'
     }
 
     $fileVersion = ConvertTo-DshFileVersion -Version $Version
@@ -476,20 +475,18 @@ try {
     $verifySummaryDestination = Join-Path $releaseDirectory 'verify-summary.json'
     $sbomDestination = Join-Path $releaseDirectory 'sbom.spdx.json'
     $licenseDestination = Join-Path $releaseDirectory 'third-party-licenses.json'
-    $governanceSummaryDestination = Join-Path $releaseDirectory 'webui-governance-summary.json'
     foreach ($evidence in @(
             @{ Source = $verifySummarySource; Destination = $verifySummaryDestination },
             @{ Source = Join-Path $verifyDirectory 'sbom.spdx.json'; Destination = $sbomDestination },
-            @{ Source = Join-Path $verifyDirectory 'third-party-licenses.json'; Destination = $licenseDestination },
-            @{ Source = $governanceSummarySource; Destination = $governanceSummaryDestination })) {
+            @{ Source = Join-Path $verifyDirectory 'third-party-licenses.json'; Destination = $licenseDestination })) {
         if (-not (Test-Path -LiteralPath $evidence.Source -PathType Leaf)) {
             throw '统一验证缺少安装包所需证据文件。'
         }
         Copy-Item -LiteralPath $evidence.Source -Destination $evidence.Destination
     }
-    Assert-DshSbomCompatibilityIdentity `
+    Assert-DshSbomPairingIdentity `
         -Path $sbomDestination `
-        -CompatibilityIdentity $compatibilityIdentity
+        -PairingIdentity $pairingIdentity
 
     $installerHash = Get-DshSha256 -Path $installerPath
     $manifest = [ordered]@{
@@ -508,7 +505,7 @@ try {
             commit = $sourceState.Commit
             worktreeState = $sourceState.WorktreeState
         }
-        compatibilityIdentity = $compatibilityIdentity
+        pairingIdentity = $pairingIdentity
         verificationImpact = $verifySummary.verificationImpact
         identity = [ordered]@{
             appId = $appId
@@ -556,7 +553,6 @@ try {
         }
         evidence = [ordered]@{
             verifySummary = 'verify-summary.json'
-            webUiGovernanceSummary = 'webui-governance-summary.json'
             sbom = 'sbom.spdx.json'
             thirdPartyLicenses = 'third-party-licenses.json'
         }

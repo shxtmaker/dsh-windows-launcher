@@ -508,19 +508,16 @@ try {
         throw 'package-manifest.json 中的 WebView2 Bootstrapper 身份与发布常量不一致。'
     }
 
-    $governanceSummaryPath = Join-Path $releaseDirectory 'webui-governance-summary.json'
-    $compatibilityIdentity = Get-DshWebUiGovernanceIdentity `
-        -RepositoryRoot $repositoryRoot `
-        -SummaryPath $governanceSummaryPath `
-        -Constants $constants
-    Assert-DshWebUiCompatibilityIdentity `
-        -Expected $compatibilityIdentity `
-        -Actual $packageManifest.compatibilityIdentity `
-        -RequireGovernanceSummary
-    if ($packageManifest.governanceSummary.sha256 -cne (Get-DshSha256 -Path $governanceSummaryPath) -or
-        $null -eq $packageManifest.verificationImpact -or
+    $pairingIdentity = $packageManifest.pairingIdentity
+    if ($null -eq $pairingIdentity -or
+        [string] $pairingIdentity.plugin -cne $constants.pairingBaseline.plugin -or
+        [string] $pairingIdentity.referenceVersion -cne [string] $constants.pairingBaseline.referenceVersion -or
+        [string] $pairingIdentity.cookieName -cne $constants.pairingBaseline.cookieName) {
+        throw 'package-manifest.json 未绑定与发布常量一致的配对基线身份。'
+    }
+    if ($null -eq $packageManifest.verificationImpact -or
         @($packageManifest.verificationImpact.requiredRs).Count -eq 0) {
-        throw 'package-manifest.json 未绑定治理摘要或 fail-closed 验证影响证据。'
+        throw 'package-manifest.json 缺少 fail-closed 验证影响证据。'
     }
 
     $signedApplicationSet = $packageManifest.signedApplicationSet
@@ -606,15 +603,15 @@ try {
         $packageManifest.supplyChain.releaseNotesInputSha256 -ne (Get-DshSha256 -Path $releaseNotesPath)) {
         throw 'SBOM、许可证清单或发行说明输入与 package-manifest.json 的冻结哈希不一致。'
     }
-    Assert-DshSbomCompatibilityIdentity `
+    Assert-DshSbomPairingIdentity `
         -Path $sbomPath `
-        -CompatibilityIdentity $compatibilityIdentity
+        -PairingIdentity $pairingIdentity
     $releaseNotes = Get-Content -LiteralPath $releaseNotesPath -Raw -Encoding UTF8
     foreach ($fragment in @(
-            "WebUI contract: $($compatibilityIdentity.contractVersion) ($($compatibilityIdentity.contractCapabilitiesCanonicalSha256))",
-            "WebUI registry: $($compatibilityIdentity.registryVersion) ($($compatibilityIdentity.registryCanonicalSha256))")) {
+            "Pairing plugin: $($pairingIdentity.plugin) ($($pairingIdentity.referenceVersion))",
+            "Pairing cookie: $($pairingIdentity.cookieName)")) {
         if (-not $releaseNotes.Contains($fragment, [StringComparison]::Ordinal)) {
-            throw "发行说明输入未绑定 WebUI 兼容身份：$fragment"
+            throw "发行说明输入未绑定配对基线身份：$fragment"
         }
     }
 
@@ -637,10 +634,6 @@ try {
     if ($packageManifest.verifySummary.sha256 -ne (Get-DshSha256 -Path $VerifySummaryPath)) {
         throw 'verify-summary.json 与 package-manifest.json 记录的哈希不一致。'
     }
-    Assert-DshWebUiCompatibilityIdentity `
-        -Expected $compatibilityIdentity `
-        -Actual $verifySummary.compatibilityIdentity `
-        -RequireGovernanceSummary
     if ((@($verifySummary.verificationImpact.requiredRs) -join '|') -cne
         (@($packageManifest.verificationImpact.requiredRs) -join '|')) {
         throw 'verify-summary.json 与 package-manifest.json 的验证影响集合不一致。'
@@ -819,7 +812,7 @@ try {
             fileVersion = $installerVersion
             signature = $signature
         }
-        compatibilityIdentity = $compatibilityIdentity
+        pairingIdentity = $pairingIdentity
         verificationImpact = $packageManifest.verificationImpact
         signedApplicationSet = [ordered]@{
             apphost = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.apphost
@@ -856,7 +849,6 @@ try {
         [pscustomobject]@{ Path = $sbomPath; Sha256 = Get-DshSha256 -Path $sbomPath },
         [pscustomobject]@{ Path = $licenseInventoryPath; Sha256 = Get-DshSha256 -Path $licenseInventoryPath },
         [pscustomobject]@{ Path = $releaseNotesPath; Sha256 = Get-DshSha256 -Path $releaseNotesPath },
-        [pscustomobject]@{ Path = $governanceSummaryPath; Sha256 = Get-DshSha256 -Path $governanceSummaryPath },
         [pscustomobject]@{ Path = $structuredEvidencePath; Sha256 = Get-DshSha256 -Path $structuredEvidencePath }
         if ($null -ne $rs13RawPath) {
             [pscustomobject]@{ Path = $rs13RawPath; Sha256 = Get-DshSha256 -Path $rs13RawPath }
@@ -872,9 +864,8 @@ try {
     $lines.Add("- Installer file: $InstallerPath")
     $lines.Add("- Installer size: $($installerItem.Length)")
     $lines.Add("- Installer SHA-256: $actualHash")
-    $lines.Add("- WebUI contract: $($compatibilityIdentity.contractVersion); $($compatibilityIdentity.contractCapabilitiesCanonicalSha256)")
-    $lines.Add("- WebUI registry: $($compatibilityIdentity.registryVersion); $($compatibilityIdentity.registryCanonicalSha256)")
-    $lines.Add("- Verification impact map SHA-256: $($compatibilityIdentity.impactMapCanonicalSha256)")
+    $lines.Add("- Pairing plugin: $($pairingIdentity.plugin); $($pairingIdentity.referenceVersion)")
+    $lines.Add("- Pairing cookie: $($pairingIdentity.cookieName)")
     $lines.Add("- Required RS: $($requiredIds -join ', ')")
     $lines.Add("- Installer signature subject and timestamp: $($signature.SignerSubject); $($signature.TimestampSubject); timestamp certificate expires $($signature.TimestampNotAfter)")
     $lines.Add("- Current OS/build: $($hostEvidence.Os.ProductName) $($hostEvidence.Os.DisplayVersion); version $($hostEvidence.Os.Version); build $($hostEvidence.Os.BuildNumber).$($hostEvidence.Os.UpdateBuildRevision); $($hostEvidence.Os.Architecture); $($hostEvidence.Os.LogicalProcessorCount) logical processors")

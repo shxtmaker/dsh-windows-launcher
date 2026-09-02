@@ -262,15 +262,13 @@ try {
         $verifySummary.source.worktreeState -cne $sourceState.WorktreeState) {
         throw '统一验证摘要的源提交或工作树状态与正式打包源不一致。'
     }
-    $governanceSummarySource = Join-Path $verifyArtifacts 'webui-governance/webui-governance-summary.json'
-    $compatibilityIdentity = Get-DshWebUiGovernanceIdentity `
-        -RepositoryRoot $repositoryRoot `
-        -SummaryPath $governanceSummarySource `
-        -Constants $constants
-    Assert-DshWebUiCompatibilityIdentity `
-        -Expected $compatibilityIdentity `
-        -Actual $verifySummary.compatibilityIdentity `
-        -RequireGovernanceSummary
+    $pairingIdentity = $verifySummary.pairingIdentity
+    if ($null -eq $pairingIdentity -or
+        [string] $pairingIdentity.plugin -cne $constants.pairingBaseline.plugin -or
+        [string] $pairingIdentity.referenceVersion -cne [string] $constants.pairingBaseline.referenceVersion -or
+        [string] $pairingIdentity.cookieName -cne $constants.pairingBaseline.cookieName) {
+        throw '统一验证摘要缺少与发布常量一致的配对基线身份。'
+    }
     if ($null -eq $verifySummary.verificationImpact -or
         @($verifySummary.verificationImpact.requiredRs).Count -eq 0) {
         throw '统一验证摘要缺少 fail-closed 验证影响证据。'
@@ -308,9 +306,9 @@ try {
         }
         Copy-Item -LiteralPath $supplyChainFile.Source -Destination $supplyChainFile.Destination
     }
-    Assert-DshSbomCompatibilityIdentity `
+    Assert-DshSbomPairingIdentity `
         -Path $sbomPath `
-        -CompatibilityIdentity $compatibilityIdentity
+        -PairingIdentity $pairingIdentity
 
     $fileVersion = ConvertTo-DshFileVersion -Version $Version
     $desktopProject = Join-Path $repositoryRoot 'src/DshLauncher.Desktop/DshLauncher.Desktop.csproj'
@@ -586,11 +584,8 @@ try {
         "- Included WebView2 offline installer: $webViewVersion",
         "- Included WebView2 repair bootstrapper: $webViewBootstrapperVersion",
         "- Pairing baseline: $($constants.pairingBaseline.plugin) $($constants.pairingBaseline.referenceVersion)",
-        "- WebUI contract: $($compatibilityIdentity.contractVersion) ($($compatibilityIdentity.contractCapabilitiesCanonicalSha256))",
-        "- WebUI descriptor schema SHA-256: $($compatibilityIdentity.descriptorSchemaCanonicalSha256)",
-        "- WebUI registry: $($compatibilityIdentity.registryVersion) ($($compatibilityIdentity.registryCanonicalSha256))",
-        "- Verification impact map SHA-256: $($compatibilityIdentity.impactMapCanonicalSha256)",
-        "- WebUI governance summary SHA-256: $($compatibilityIdentity.governanceSummarySha256)",
+        "- Pairing plugin: $($pairingIdentity.plugin) ($($pairingIdentity.referenceVersion))",
+        "- Pairing cookie: $($pairingIdentity.cookieName)",
         '',
         'Review `sbom.spdx.json`, `third-party-licenses.json`, `verify-summary.json`, and the completed `release-evidence.md` before any separately authorized publication.'
     ) | Set-Content -LiteralPath $releaseNotesPath -Encoding utf8NoBOM
@@ -603,9 +598,6 @@ try {
     }
     $verifySummaryDestination = Join-Path $releaseDirectory 'verify-summary.json'
     Copy-Item -LiteralPath $verifySummarySource -Destination $verifySummaryDestination
-    $governanceSummaryDestination = Join-Path $releaseDirectory 'webui-governance-summary.json'
-    Copy-Item -LiteralPath $governanceSummarySource -Destination $governanceSummaryDestination
-
     $manifest = [ordered]@{
         schemaVersion = 2
         frozenAtUtc = [DateTime]::UtcNow.ToString('O')
@@ -615,7 +607,7 @@ try {
             commit = $sourceState.Commit
             worktreeState = $sourceState.WorktreeState
         }
-        compatibilityIdentity = $compatibilityIdentity
+        pairingIdentity = $pairingIdentity
         verificationImpact = $verifySummary.verificationImpact
         installer = [ordered]@{
             path = $installerPath
@@ -674,10 +666,6 @@ try {
         verifySummary = [ordered]@{
             path = $verifySummaryDestination
             sha256 = Get-DshSha256 -Path $verifySummaryDestination
-        }
-        governanceSummary = [ordered]@{
-            path = $governanceSummaryDestination
-            sha256 = Get-DshSha256 -Path $governanceSummaryDestination
         }
         signedApplicationSet = [ordered]@{
             apphost = [ordered]@{
