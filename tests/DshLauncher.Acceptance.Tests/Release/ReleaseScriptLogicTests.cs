@@ -302,10 +302,10 @@ public sealed class ReleaseScriptLogicTests
         // frozen upstream identity without reading a removed constants
         // section: the literals below are the single source of truth.
         Assert.Contains(
-            "'94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146'",
+            "'17debf797a6c737959bc588236e897936ffac1af5f7e515e674ab32f9edfe719'",
             packageScript,
             StringComparison.Ordinal);
-        Assert.Contains("'1.3.263.3'", packageScript, StringComparison.Ordinal);
+        Assert.Contains("'1.3.265.7'", packageScript, StringComparison.Ordinal);
         Assert.Contains("[string] $WebView2BootstrapperPath", packageScript, StringComparison.Ordinal);
         Assert.Contains("MicrosoftEdgeWebview2Setup.exe", packageScript, StringComparison.Ordinal);
 
@@ -502,10 +502,10 @@ public sealed class ReleaseScriptLogicTests
         Assert.DoesNotContain("-notmatch '(?i)Microsoft'", internalPackageScript, StringComparison.Ordinal);
         Assert.DoesNotContain("-notmatch '(?i)Pyrsys", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains(
-            "'94314d8b20c8a370df81c5cc3d8d7a3e23fe5de14ef5e988229ff3208e449146'",
+            "'17debf797a6c737959bc588236e897936ffac1af5f7e515e674ab32f9edfe719'",
             internalPackageScript,
             StringComparison.Ordinal);
-        Assert.Contains("'1.3.263.3'", internalPackageScript, StringComparison.Ordinal);
+        Assert.Contains("'1.3.265.7'", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains("function Get-InnoCompilerVersion", internalPackageScript, StringComparison.Ordinal);
         Assert.Contains(
             "#pragma message \"DSH_INNO_VERSION=\" + DecodeVer(VER, 4)",
