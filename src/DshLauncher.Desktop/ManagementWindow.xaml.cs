@@ -162,6 +162,19 @@ public partial class ManagementWindow : Window
             return;
         }
 
+        await OpenRemoteForTargetAsync(row.TargetId);
+    }
+
+    /// <summary>Opens (or focuses) one target's remote window. Shared by the
+    /// management list and the sidebar entries inside remote windows.</summary>
+    public async Task OpenRemoteForTargetAsync(Guid targetId)
+    {
+        var row = _rows.FirstOrDefault(candidate => candidate.TargetId == targetId);
+        if (row is null)
+        {
+            return;
+        }
+
         if (_remoteWindows.TryGetValue(row.TargetId, out var existing))
         {
             existing.ShowAndActivate();
@@ -188,7 +201,8 @@ public partial class ManagementWindow : Window
             return;
         }
 
-        var remote = new RemoteWindow(url.Url, row.DisplayName, row.BaseUrl, udfPath);
+        var remote = new RemoteWindow(
+            _hub, row.TargetId, url.Url, row.DisplayName, row.BaseUrl, udfPath, OpenRemoteForTargetAsync);
         remote.Closed += (sender, _) =>
         {
             var window = (RemoteWindow)sender!;
@@ -315,6 +329,9 @@ public partial class ManagementWindow : Window
             TargetId = target.TargetId;
             DisplayName = target.EffectiveDisplayName;
             BaseUrl = target.BaseUrl;
+            AddressDisplay = DescribeAddress(target.BaseUrl);
+            Pairing = target.Pairing;
+            Connectivity = target.Connectivity;
             PairingText = target.Pairing switch
             {
                 PairingState.Paired => "已配对",
@@ -345,6 +362,12 @@ public partial class ManagementWindow : Window
 
         public string BaseUrl { get; }
 
+        public string AddressDisplay { get; }
+
+        public PairingState Pairing { get; }
+
+        public ConnectivityState Connectivity { get; }
+
         public string PairingText { get; }
 
         public string ConnectivityText { get; }
@@ -353,6 +376,22 @@ public partial class ManagementWindow : Window
 
         public string FailureText { get; }
 
+        public bool HasFailure => FailureText.Length > 0;
+
         public bool KeepAliveEnabled { get; }
+
+        // Rows show the bare host:port; the scheme never varies between
+        // targets in practice and only adds noise.
+        private static string DescribeAddress(string baseUrl)
+        {
+            try
+            {
+                return new Uri(baseUrl, UriKind.Absolute).Authority;
+            }
+            catch (UriFormatException)
+            {
+                return baseUrl;
+            }
+        }
     }
 }

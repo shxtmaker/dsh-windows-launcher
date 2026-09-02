@@ -2,19 +2,194 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:ui="clr-namespace:DshLauncher.Desktop"
         Title="远程界面" Width="1280" Height="820"
-        WindowStartupLocation="CenterScreen">
-    <DockPanel>
-        <Border DockPanel.Dock="Top" Background="#F3F4F6" Padding="10,6">
+        WindowStartupLocation="CenterScreen"
+        Background="{x:Static ui:UiPalette.WindowBrush}"
+        Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}"
+        FontFamily="Segoe UI Variable Display, Segoe UI, Microsoft YaHei UI"
+        UseLayoutRounding="True"
+        ui:UiChrome.DarkTitleBar="True">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 目标侧边栏：地址与配对/连接情况；可整体折叠 -->
+        <Border x:Name="Sidebar" Grid.Column="0" Width="236"
+                Background="{x:Static ui:UiPalette.SurfaceBrush}"
+                BorderBrush="{x:Static ui:UiPalette.BorderBrush}"
+                BorderThickness="0,0,1,0">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock x:Name="TargetText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="StateText" Grid.Column="1" Foreground="#667" Margin="10,0,0,0" />
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="14,12,10,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                        <TextBlock Text="远程目标" FontSize="12.5" FontWeight="SemiBold"
+                                   Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}" />
+                        <TextBlock Text="TARGETS" FontSize="9" Margin="0,2,0,0"
+                                   Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Style="{StaticResource TechIconButton}"
+                            Click="OnToggleSidebar" ToolTip="折叠侧边栏">
+                        <Path x:Name="SidebarChevron" Data="M10.5,4 L5.5,9.5 L10.5,15"
+                              Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round" />
+                    </Button>
+                </Grid>
+
+                <ListBox Grid.Row="1" x:Name="SidebarList" Padding="6,0"
+                         SelectionMode="Single"
+                         SelectionChanged="OnSidebarSelectionChanged">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                    <Setter Property="Background" Value="{x:Static ui:UiPalette.SurfaceAltBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ToolTip="{Binding BaseUrl}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 当前目标强调条 -->
+                                <Rectangle Grid.Column="0" Width="3" RadiusX="1.5" RadiusY="1.5"
+                                           Margin="0,0,9,0" Fill="{x:Static ui:UiPalette.AccentBrush}">
+                                    <Rectangle.Style>
+                                        <Style TargetType="Rectangle">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Rectangle.Style>
+                                </Rectangle>
+
+                                <!-- 连接状态点 -->
+                                <Ellipse Grid.Column="1" Width="8" Height="8" VerticalAlignment="Top"
+                                         Margin="0,5,0,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{x:Static ui:UiPalette.NeutralBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Connectivity}" Value="Online">
+                                                    <Setter Property="Fill" Value="{x:Static ui:UiPalette.SuccessBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Connectivity}" Value="Offline">
+                                                    <Setter Property="Fill" Value="{x:Static ui:UiPalette.DangerBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+
+                                <StackPanel Grid.Column="2" Margin="9,0,0,0">
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="12.5" FontWeight="Medium"
+                                               Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding AddressDisplay}" Margin="0,2,0,0"
+                                               FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="10.5"
+                                               Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
+                                </StackPanel>
+
+                                <!-- 未配对/配对中/已失效时显示右侧状态 -->
+                                <TextBlock Grid.Column="3" Text="{Binding PairingLabel}" FontSize="10"
+                                           Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Setter Property="Foreground" Value="{x:Static ui:UiPalette.NeutralBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Pairing}" Value="Pairing">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Setter Property="Foreground" Value="{x:Static ui:UiPalette.AccentBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Pairing}" Value="AwaitingPairing">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Setter Property="Foreground" Value="{x:Static ui:UiPalette.NeutralBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Pairing}" Value="Revoked">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Setter Property="Foreground" Value="{x:Static ui:UiPalette.DangerBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Grid.Row="2" BorderBrush="{x:Static ui:UiPalette.BorderBrush}"
+                        BorderThickness="0,1,0,0" Padding="14,10">
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock x:Name="HubFooterText" FontSize="10.5"
+                                   Foreground="{x:Static ui:UiPalette.TextSecondaryBrush}"
+                                   Text="枢纽状态加载中…" />
+                        <TextBlock Text="点击目标可打开对应远程窗口" FontSize="10" Margin="0,3,0,0"
+                                   Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
-        <wv2:WebView2 x:Name="Web" />
-    </DockPanel>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="{x:Static ui:UiPalette.SurfaceBrush}"
+                    BorderBrush="{x:Static ui:UiPalette.BorderBrush}"
+                    BorderThickness="0,0,0,1" Padding="10,0,14,0" Height="44">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Style="{StaticResource TechIconButton}"
+                            VerticalAlignment="Center"
+                            Click="OnToggleSidebar" ToolTip="展开/折叠侧边栏">
+                        <Path Data="M3,5.5 H15 M3,9.5 H15 M3,13.5 H15"
+                              Stroke="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
+                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Button>
+                    <TextBlock x:Name="TargetText" Grid.Column="1" Margin="10,0,0,0"
+                               VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{x:Static ui:UiPalette.TextSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="StateDot" Width="8" Height="8"
+                                 Fill="{x:Static ui:UiPalette.AccentBrush}" />
+                        <TextBlock x:Name="StateText" Margin="7,0,0,0" FontSize="11.5"
+                                   Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <wv2:WebView2 Grid.Row="1" x:Name="Web" />
+        </Grid>
+    </Grid>
 </Window>

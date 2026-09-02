@@ -1,5 +1,12 @@
-﻿using System.IO;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using DshLauncher.Core;
+using DshLauncher.Core.Hub;
 using Microsoft.Web.WebView2.Core;
 
 using MessageBox = System.Windows.MessageBox;
@@ -9,26 +16,51 @@ namespace DshLauncher.Desktop;
 /// <summary>
 /// The embedded display of one target's remote UI: the harness's
 /// cookieless pair-app entry (pair-app?device=…) hosted in an in-process
-/// WebView2 with a per-target user-data folder. Nothing here launches an
+/// WebView2 with a per-target user-data folder. A collapsible sidebar
+/// mirrors the hub's whole target directory — address plus live pairing
+/// and connectivity — and selecting another entry asks the owner window
+/// to open that target's own remote window (the per-target user-data
+/// folder forbids swapping the view in place). Nothing here launches an
 /// external browser; new-window requests are folded back into this view.
 /// </summary>
 public partial class RemoteWindow : Window
 {
-    public RemoteWindow(string remoteUrl, string displayName, string baseUrl, string userDataFolderPath)
+    public RemoteWindow(
+        PairingHub hub,
+        Guid targetId,
+        string remoteUrl,
+        string displayName,
+        string baseUrl,
+        string userDataFolderPath,
+        Func<Guid, Task> openTargetRequest)
     {
         InitializeComponent();
+        _hub = hub;
+        _targetId = targetId;
+        _openTargetRequest = openTargetRequest;
         Title = "远程界面 — " + displayName;
-        TargetText.Text = displayName + " · " + baseUrl;
+        TargetText.Text = displayName + " · " + DescribeAddress(baseUrl);
         _remoteUrl = remoteUrl;
         _userDataFolderPath = userDataFolderPath;
-        StateText.Text = "正在加载…";
+        SetLoadState(RemoteLoadState.Loading);
+        SidebarList.ItemsSource = _sidebarRows;
+        hub.Changed += OnHubChanged;
+        Closed += static (sender, _) => ((RemoteWindow)sender!).Detach();
+        _ = RefreshSidebarAsync();
         Loaded += OnLoaded;
     }
 
+    private readonly PairingHub _hub;
+    private readonly Guid _targetId;
+    private readonly Func<Guid, Task> _openTargetRequest;
+    private readonly ObservableCollection<RemoteTargetRow> _sidebarRows = [];
     private readonly string _remoteUrl;
     private readonly string _userDataFolderPath;
     private bool _allowClose;
     private bool _initialized;
+    private bool _sidebarExpanded = true;
+
+    private const double SidebarWidth = 236;
 
     public void AllowClose() => _allowClose = true;
 
@@ -42,6 +74,98 @@ public partial class RemoteWindow : Window
 
         Activate();
     }
+
+    private async Task RefreshSidebarAsync()
+    {
+        var snapshot = await _hub.GetSnapshotAsync().ConfigureAwait(true);
+        ApplySnapshot(snapshot);
+    }
+
+    private void OnHubChanged(HubSnapshot snapshot) =>
+        Dispatcher.BeginInvoke(() => ApplySnapshot(snapshot));
+
+    /// <summary>Rebuilds the sidebar from a hub snapshot; runs on the UI
+    /// thread. The selection is pinned to this window's own target so the
+    /// highlight always marks the view being displayed.</summary>
+    private void ApplySnapshot(HubSnapshot snapshot)
+    {
+        _sidebarRows.Clear();
+        foreach (var target in snapshot.Targets)
+        {
+            var row = new RemoteTargetRow(target) { IsCurrent = target.TargetId == _targetId };
+            _sidebarRows.Add(row);
+        }
+
+        SidebarList.SelectedItem = _sidebarRows.FirstOrDefault(row => row.IsCurrent);
+
+        var paired = snapshot.Targets.Count(t => t.Pairing == PairingState.Paired);
+        var online = snapshot.Targets.Count(t => t.Pairing == PairingState.Paired && t.Connectivity == ConnectivityState.Online);
+        HubFooterText.Text = "在线 " + online + " · 已配对 " + paired + " · 共 " + snapshot.Targets.Count
+            + " · 心跳 " + Math.Round(snapshot.HeartbeatInterval.TotalSeconds) + " 秒";
+    }
+
+    private void OnSidebarSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SidebarList.SelectedItem is not RemoteTargetRow row || row.TargetId == _targetId)
+        {
+            return;
+        }
+
+        // Opening another target yields its own window; restore the visual
+        // highlight to the target this window still displays.
+        _ = _openTargetRequest(row.TargetId);
+        SidebarList.SelectedItem = _sidebarRows.FirstOrDefault(candidate => candidate.IsCurrent);
+    }
+
+    private void OnToggleSidebar(object sender, RoutedEventArgs e)
+    {
+        if (_sidebarExpanded)
+        {
+            CollapseSidebar();
+        }
+        else
+        {
+            ExpandSidebar();
+        }
+    }
+
+    private void CollapseSidebar()
+    {
+        _sidebarExpanded = false;
+        SidebarChevron.LayoutTransform = new RotateTransform(180);
+        var animation = CollapseAnimation(0);
+        animation.Completed += (_, _) =>
+        {
+            if (!_sidebarExpanded)
+            {
+                Sidebar.BeginAnimation(WidthProperty, null);
+                Sidebar.Visibility = Visibility.Collapsed;
+            }
+        };
+        Sidebar.BeginAnimation(WidthProperty, animation);
+    }
+
+    private void ExpandSidebar()
+    {
+        _sidebarExpanded = true;
+        SidebarChevron.LayoutTransform = Transform.Identity;
+        Sidebar.Visibility = Visibility.Visible;
+        var animation = CollapseAnimation(SidebarWidth);
+        animation.Completed += (_, _) =>
+        {
+            if (_sidebarExpanded)
+            {
+                Sidebar.BeginAnimation(WidthProperty, null);
+                Sidebar.Width = SidebarWidth;
+            }
+        };
+        Sidebar.BeginAnimation(WidthProperty, animation);
+    }
+
+    private static CubicEase SidebarEase() => new() { EasingMode = EasingMode.EaseInOut };
+
+    private static DoubleAnimation CollapseAnimation(double to) =>
+        new(to, TimeSpan.FromMilliseconds(190)) { EasingFunction = SidebarEase() };
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -68,7 +192,7 @@ public partial class RemoteWindow : Window
                                           InvalidOperationException or
                                           FileNotFoundException)
         {
-            StateText.Text = string.Empty;
+            SetLoadState(RemoteLoadState.Failed);
             MessageBox.Show(
                 this,
                 "无法初始化内嵌浏览器组件（WebView2 Runtime）。请安装 Microsoft Edge WebView2 Evergreen Runtime 后重试。\n\n"
@@ -88,9 +212,44 @@ public partial class RemoteWindow : Window
         Web.Source = new Uri(e.Uri);
     }
 
-    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e) =>
+        SetLoadState(e.IsSuccess ? RemoteLoadState.Loaded : RemoteLoadState.Failed);
+
+    private void SetLoadState(RemoteLoadState state)
     {
-        StateText.Text = e.IsSuccess ? "已加载" : "加载失败（检查 Harness 是否在线）";
+        StateDot.Fill = state switch
+        {
+            RemoteLoadState.Loaded => UiPalette.SuccessBrush,
+            RemoteLoadState.Failed => UiPalette.DangerBrush,
+            _ => UiPalette.AccentBrush,
+        };
+        StateText.Text = state switch
+        {
+            RemoteLoadState.Loaded => "已加载",
+            RemoteLoadState.Failed => "加载失败（检查 Harness 是否在线）",
+            _ => "正在加载…",
+        };
+    }
+
+    private enum RemoteLoadState
+    {
+        Loading,
+        Loaded,
+        Failed,
+    }
+
+    private void Detach() => _hub.Changed -= OnHubChanged;
+
+    private static string DescribeAddress(string baseUrl)
+    {
+        try
+        {
+            return new Uri(baseUrl, UriKind.Absolute).Authority;
+        }
+        catch (UriFormatException)
+        {
+            return baseUrl;
+        }
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -105,5 +264,60 @@ public partial class RemoteWindow : Window
 
         e.Cancel = true;
         Hide();
+    }
+
+    /// <summary>One sidebar entry: the hub snapshot facts the sidebar shows,
+    /// plus a current marker the template turns into the accent bar.</summary>
+    private sealed class RemoteTargetRow : INotifyPropertyChanged
+    {
+        public RemoteTargetRow(TargetSnapshot target)
+        {
+            TargetId = target.TargetId;
+            DisplayName = target.EffectiveDisplayName;
+            BaseUrl = target.BaseUrl;
+            AddressDisplay = DescribeAddress(target.BaseUrl);
+            Pairing = target.Pairing;
+            Connectivity = target.Connectivity;
+            PairingLabel = target.Pairing switch
+            {
+                PairingState.Pairing => "配对中…",
+                PairingState.AwaitingPairing => "待配对",
+                PairingState.Revoked => "已失效",
+                _ => string.Empty,
+            };
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public Guid TargetId { get; }
+
+        public string DisplayName { get; }
+
+        public string BaseUrl { get; }
+
+        public string AddressDisplay { get; }
+
+        public PairingState Pairing { get; }
+
+        public ConnectivityState Connectivity { get; }
+
+        public string PairingLabel { get; }
+
+        public bool IsCurrent
+        {
+            get => _isCurrent;
+            set
+            {
+                if (_isCurrent == value)
+                {
+                    return;
+                }
+
+                _isCurrent = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsCurrent)));
+            }
+        }
+
+        private bool _isCurrent;
     }
 }
