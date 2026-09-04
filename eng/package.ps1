@@ -111,8 +111,12 @@ try {
     $WebView2BootstrapperPath = (Resolve-Path -LiteralPath $WebView2BootstrapperPath).Path
     $InnoSetupInstallerPath = (Resolve-Path -LiteralPath $InnoSetupInstallerPath).Path
 
+    # WebView2 Evergreen Standalone x64 冻结哈希。
+    # 2026-09-04 供应链基线修正：微软对同一版本 1.3.265.7 重新发布/更换签名渠道，
+    # 实得文件（258,510,544 bytes）Microsoft 签名有效且带可信时间戳、FileVersion 仍为 1.3.265.7，
+    # 但字节与旧 pin 不同。旧值：987a9d8b3107e84f9b53b4a077d28ae4814fc3d964d5a55c559e7334bbf24d61
     Assert-FileHash -Path $WebView2OfflineInstallerPath `
-        -ExpectedHash '987a9d8b3107e84f9b53b4a077d28ae4814fc3d964d5a55c559e7334bbf24d61' `
+        -ExpectedHash '1f4638309f3d82c31a3028c3cf7d75998f58e4d1407380f5cb8a8e9172caf17d' `
         -Description 'WebView2 Offline Installer'
     $webViewSignature = Assert-SignedMicrosoftTool -Path $WebView2OfflineInstallerPath -Description 'WebView2 Offline Installer'
     $webViewVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo($WebView2OfflineInstallerPath).ProductVersion).Trim()
