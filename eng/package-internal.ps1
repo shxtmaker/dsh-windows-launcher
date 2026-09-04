@@ -370,7 +370,9 @@ try {
     $installDirectoryName = if ($OfficialUnsignedRelease) { $officialInstallDirectoryName } else { $internalInstallDirectoryName }
     $appId = if ($OfficialUnsignedRelease) { $officialAppId } else { $internalAppId }
     $description = if ($OfficialUnsignedRelease) {
-        'Official release; Authenticode status: NotSigned'
+        # 这个值会以 -p:Description=... 传给 MSBuild，而 MSBuild 用分号分隔属性，
+        # 所以字符串里绝不能出现 ';'，否则会被拆成非法属性导致 MSB1006。
+        'Official release - unsigned (NotSigned)'
     }
     else {
         'UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE'
