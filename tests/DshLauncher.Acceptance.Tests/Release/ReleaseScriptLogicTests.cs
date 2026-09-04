@@ -82,67 +82,6 @@ public sealed class ReleaseScriptLogicTests
     }
 
     [Fact]
-    [Trait("triggerTags", "VFY-01,VFY-07,branding")]
-    public void ApplicationIconIsReproducibleAndWiredIntoEverySurface()
-    {
-        string root = FindRepositoryRoot();
-        string iconPath = Path.Combine(root, "assets", "brand", "app", "DshWindowsLauncher.ico");
-        byte[] icon = File.ReadAllBytes(iconPath);
-        Assert.Equal((ushort)0, BitConverter.ToUInt16(icon, 0));
-        Assert.Equal((ushort)1, BitConverter.ToUInt16(icon, 2));
-        ushort frameCount = BitConverter.ToUInt16(icon, 4);
-        Assert.True(frameCount >= 6, $"图标帧数不足：{frameCount}");
-
-        HashSet<int> frameSizes = new();
-        int expectedOffset = 6 + (16 * frameCount);
-        for (int index = 0; index < frameCount; index++)
-        {
-            int entry = 6 + (index * 16);
-            int width = icon[entry] == 0 ? 256 : icon[entry];
-            Assert.Equal(icon[entry + 1], icon[entry]);
-            uint imageSize = BitConverter.ToUInt32(icon, entry + 8);
-            Assert.Equal((uint)expectedOffset, BitConverter.ToUInt32(icon, entry + 12));
-            expectedOffset += (int)imageSize;
-            frameSizes.Add(width);
-        }
-
-        Assert.Equal(icon.Length, expectedOffset);
-        Assert.Contains(16, frameSizes);
-        Assert.Contains(32, frameSizes);
-        Assert.Contains(256, frameSizes);
-
-        // 圆角遮罩必须把四角切成真透明，否则任务栏上会拖出白边；PNG IHDR 第 25 字节
-        // 是 color type，6 = RGBA。
-        byte[] preview = File.ReadAllBytes(Path.Combine(root, "assets", "brand", "app", "png", "app-256.png"));
-        Assert.Equal((byte)6, preview[25]);
-
-        // 生成器必须逐字节复现已提交产物，阻止图标与工具漂移。
-        string generator = Path.Combine(root, "eng", "make-app-icon.ps1");
-        Assert.Contains("VERIFY PASS", RunPowerShell($"& {QuotePowerShell(generator)} -Verify"), StringComparison.Ordinal);
-
-        string project = File.ReadAllText(
-            Path.Combine(root, "src", "DshLauncher.Desktop", "DshLauncher.Desktop.csproj"));
-        Assert.Contains(
-            "<ApplicationIcon>..\\..\\assets\\brand\\app\\DshWindowsLauncher.ico</ApplicationIcon>",
-            project,
-            StringComparison.Ordinal);
-
-        string[] installerScripts =
-        [
-            "DshWindowsLauncher.iss",
-            "DshWindowsLauncher.UnsignedRelease.iss",
-            "DshWindowsLauncher.InternalTest.iss",
-        ];
-        foreach (string installerScript in installerScripts)
-        {
-            Assert.Contains(
-                "SetupIconFile={#AppIconFile}",
-                File.ReadAllText(Path.Combine(root, "installer", installerScript)),
-                StringComparison.Ordinal);
-        }
-    }
-
-    [Fact]
     [Trait("triggerTags", "VFY-01,VFY-07")]
     public void ProductionProjectReferencesMatchTheFixedArchitecture()
     {
@@ -517,7 +456,6 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("if not ReleaseMaintenanceIpcReservation then", innoScript, StringComparison.Ordinal);
         Assert.Contains("RaiseException('当前用户 IPC 维护占用未能确认释放。')", innoScript, StringComparison.Ordinal);
         Assert.Contains("ValidateRegisteredInstallation", innoScript, StringComparison.Ordinal);
-        Assert.Contains("SetupIconFile={#AppIconFile}", innoScript, StringComparison.Ordinal);
         Assert.DoesNotContain("CertificateSubject", innoScript, StringComparison.Ordinal);
         Assert.DoesNotContain("SignTool=", innoScript, StringComparison.Ordinal);
         Assert.DoesNotContain(

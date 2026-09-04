@@ -17,10 +17,6 @@ DeepSeek Harness 实例的「DSH 远程访问」配对，持续发送心跳保�
   配对与连接状态（心跳实时刷新），点击其他目标可直接打开其远程窗口。
 - 托盘常驻：单实例运行，托盘图标展示实时配对计数，双击重新打开管理窗口，菜单提供
   打开管理窗口、关闭窗口时（询问/最小化/退出，带勾选标记）与退出。
-- 品牌图标：采用原创 mascot 位图（`assets/brand/mascot-source.png`），按尺寸分两档——≥40px 用
-  整幅构图，≤32px 改用脸部放大裁切以保证 16px 仍可读；由 `eng/make-app-icon.ps1` 可复现生成
-  （见 [assets/brand/README.md](assets/brand/README.md) 与
-  [ADR 0009](docs/adr/0009-app-icon-from-original-mascot.md)）。
 - 配对协议完全由 Harness 侧 [dsh-web](https://github.com/zhu1090093659/dsh-web) 的
   **DSH 远程访问（dsh-remote-web-ui）** 插件提供：一次性令牌 `/api/pair/accept` 兑换
   设备凭据，`POST /api/pair/heartbeat` 心跳保活（默认 10 秒一次，低于主机端 25 秒

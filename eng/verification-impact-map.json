@@ -110,22 +110,6 @@
       ]
     },
     {
-      "mappingId": "brand-icon-assets",
-      "pathPatterns": [
-        "assets/**",
-        "eng/make-app-icon.ps1"
-      ],
-      "triggerTags": [
-        "VFY-01",
-        "VFY-07"
-      ],
-      "requiredRs": [
-        "RS-02",
-        "RS-04"
-      ],
-      "identityInputs": []
-    },
-    {
       "mappingId": "documentation-only",
       "pathPatterns": [
         "README.md",

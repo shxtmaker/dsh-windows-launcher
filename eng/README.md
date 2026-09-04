@@ -4,18 +4,6 @@
 脚本内门禁。另有一个与正式身份完全隔离的轻量内网测试打包入口；它不能进入正式发布
 流程。本项目不签名任何自有产物（见 docs/adr/0008），但正式包保留全部安装器安全加固。
 
-## `make-app-icon.ps1`
-
-从 `assets/brand/mascot-source.png`（原创 mascot 位图）生成应用图标：整幅方形源图套上自有圆角遮罩
-把白色四角切成真透明，输出多尺寸 `assets/brand/app/DshWindowsLauncher.ico` 与逐尺寸 PNG 预览。
-按尺寸分两档：≥40px 用整幅构图，≤32px 改用脸部放大裁切（否则 16px 上只剩头发）。
-`-Verify` 重画到临时目录并逐字节比对已提交产物，用于阻止图标与生成器漂移（Acceptance 测试会调用它）。
-
-```powershell
-pwsh -File .\eng\make-app-icon.ps1          # 重新生成
-pwsh -File .\eng\make-app-icon.ps1 -Verify  # 只校验不写盘
-```
-
 ## `verify.ps1`
 
 执行精确 SDK 检查、locked restore、格式检查、Release `win-x64` 构建、全部自动测试、固定项目依赖图、NuGet 来源与锁文件、漏洞/弃用依赖、第三方许可证、SPDX 2.3 SBOM 及仓库秘密扫描。任一步失败均返回非零。

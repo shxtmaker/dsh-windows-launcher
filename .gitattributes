@@ -9,7 +9,3 @@ LICENSE.deepseek-harness text eol=lf
 *.iss    text eol=crlf
 *.props  text eol=crlf
 *.slnx   text eol=crlf
-
-# 二进制品牌资产——禁止换行转换与文本 diff
-*.ico    binary
-*.png    binary

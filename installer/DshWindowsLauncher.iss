@@ -57,14 +57,8 @@
 #define WebView2CoreAssemblyName "Microsoft.Web.WebView2.Core.dll"
 #define WebView2LoaderName "WebView2Loader.dll"
 #define InstallOwnershipMarkerName ".dsh-windows-launcher-install-owner"
-; 应用图标由 eng/make-app-icon.ps1 从 mascot 源图生成；安装向导与卸载条目共用这一份。
-#define AppIconFile AddBackslash(SourcePath) + "..\assets\brand\app\DshWindowsLauncher.ico"
-#if !FileExists(AppIconFile)
-  #error Application icon is missing; run eng/make-app-icon.ps1
-#endif
 
 [Setup]
-SetupIconFile={#AppIconFile}
 AppId={{4440FC88-98CA-403E-8E20-3DFEBEF0E609}
 AppName={#ProductName}
 AppVersion={#AppVersion}

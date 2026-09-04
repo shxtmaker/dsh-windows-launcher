@@ -17,14 +17,8 @@
 #define ProductName "DSH Windows Launcher (INTERNAL TEST)"
 #define ExecutableName "DshWindowsLauncher.InternalTest.exe"
 #define RuntimeBootstrapperName "MicrosoftEdgeWebview2Setup.exe"
-; 应用图标由 eng/make-app-icon.ps1 从 mascot 源图生成；安装向导与卸载条目共用这一份。
-#define AppIconFile AddBackslash(SourcePath) + "..\assets\brand\app\DshWindowsLauncher.ico"
-#if !FileExists(AppIconFile)
-  #error Application icon is missing; run eng/make-app-icon.ps1
-#endif
 
 [Setup]
-SetupIconFile={#AppIconFile}
 AppId={{F3418DD7-58B7-4E0D-B0F7-D77C52FDF91C}
 AppName={#ProductName}
 AppVersion={#AppVersion}
