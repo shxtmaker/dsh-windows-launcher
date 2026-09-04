@@ -1,6 +1,6 @@
 {
   "$schema": "./release-constants.schema.json",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "releaseStatus": "candidate",
   "product": {
     "name": "DSH Windows Launcher",
@@ -35,7 +35,7 @@
     "defaultHeartbeatIntervalSeconds": 10
   },
   "verificationBaseline": {
-    "lastSupportedSignedReleaseCommit": null
+    "lastSupportedReleaseCommit": null
   },
   "distribution": {
     "installerFileNameTemplate": "{Product}-Setup-{SemVer}-win-x64.exe",
@@ -46,10 +46,8 @@
       "sha256": "5ad54ca3def786f8f4212552e54cc6d8d61329e2d24a1cfee0571d42c2684ff1"
     },
     "signing": {
-      "policy": "optional",
-      "publisher": "lqy",
-      "certificateSubject": null,
-      "timestampServerUri": null
+      "policy": "none",
+      "publisher": "lqy"
     },
     "officialReleaseUri": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v2.0.0"
   },

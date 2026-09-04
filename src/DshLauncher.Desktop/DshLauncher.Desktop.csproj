@@ -8,6 +8,10 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <UseAppHost>true</UseAppHost>
+    <!-- 品牌图标：apphost / 任务栏 / Alt+Tab / 快捷方式 / WPF 窗口默认图标共用这一份。
+         由 eng/make-app-icon.ps1 从 assets/brand/mascot-source.png 生成，不要手改。 -->
+    <ApplicationIcon>..\..\assets\brand\app\DshWindowsLauncher.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>

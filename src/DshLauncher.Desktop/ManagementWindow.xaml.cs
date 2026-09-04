@@ -110,24 +110,68 @@ public partial class ManagementWindow : Window
     private void RefreshRows(HubSnapshot snapshot)
     {
         var selectedId = (TargetsList.SelectedItem as TargetRow)?.TargetId;
-        _rows.Clear();
-        foreach (var target in snapshot.Targets)
+        var newTargets = snapshot.Targets;
+        var newIds = new HashSet<Guid>(newTargets.Count);
+        foreach (var target in newTargets)
         {
-            _rows.Add(new TargetRow(target));
+            newIds.Add(target.TargetId);
         }
 
-        if (snapshot.Targets.Count == 0)
+        // Remove rows no longer present in the snapshot.
+        for (var i = _rows.Count - 1; i >= 0; i--)
+        {
+            if (!newIds.Contains(_rows[i].TargetId))
+            {
+                _rows.RemoveAt(i);
+            }
+        }
+
+        // Update existing rows and insert new ones in snapshot order.
+        var existingIndex = 0;
+        foreach (var target in newTargets)
+        {
+            var matchIndex = -1;
+            for (var i = existingIndex; i < _rows.Count; i++)
+            {
+                if (_rows[i].TargetId == target.TargetId)
+                {
+                    matchIndex = i;
+                    break;
+                }
+            }
+
+            if (matchIndex >= 0)
+            {
+                // Move to correct position if needed.
+                if (matchIndex != existingIndex)
+                {
+                    var row = _rows[matchIndex];
+                    _rows.RemoveAt(matchIndex);
+                    _rows.Insert(existingIndex, row);
+                }
+
+                _rows[existingIndex].UpdateFrom(target);
+            }
+            else
+            {
+                _rows.Insert(existingIndex, new TargetRow(target));
+            }
+
+            existingIndex++;
+        }
+
+        if (newTargets.Count == 0)
         {
             HubStatusText.Text = "枢纽运行中 · 心跳间隔 "
                 + Math.Round(snapshot.HeartbeatInterval.TotalSeconds) + " 秒 · 尚无目标，点击右上角“添加目标”";
         }
         else
         {
-            var online = snapshot.Targets.Count(t => t.Pairing == PairingState.Paired && t.Connectivity == ConnectivityState.Online);
-            var paired = snapshot.Targets.Count(t => t.Pairing == PairingState.Paired);
+            var online = newTargets.Count(t => t.Pairing == PairingState.Paired && t.Connectivity == ConnectivityState.Online);
+            var paired = newTargets.Count(t => t.Pairing == PairingState.Paired);
             HubStatusText.Text = "枢纽运行中 · 心跳间隔 "
                 + Math.Round(snapshot.HeartbeatInterval.TotalSeconds) + " 秒 · 已配对 "
-                + paired + "（在线 " + online + "）· 共 " + snapshot.Targets.Count + " 个目标";
+                + paired + "（在线 " + online + "）· 共 " + newTargets.Count + " 个目标";
         }
 
         _tray.UpdateStatus(pairedStatus(snapshot));
@@ -438,63 +482,147 @@ public partial class ManagementWindow : Window
     private async Task PersistCloseBehaviorAsync(CloseBehavior behavior) =>
         await _applicationData.WriteCloseBehaviorAsync(CloseBehaviorToken(behavior)).ConfigureAwait(true);
 
-    private sealed class TargetRow
+    private sealed class TargetRow : INotifyPropertyChanged
     {
         public TargetRow(TargetSnapshot target)
         {
             TargetId = target.TargetId;
+            _displayName = target.EffectiveDisplayName;
+            _baseUrl = target.BaseUrl;
+            _addressDisplay = DescribeAddress(target.BaseUrl);
+            _pairing = target.Pairing;
+            _connectivity = target.Connectivity;
+            _pairingText = DescribePairing(target.Pairing);
+            _connectivityText = DescribeConnectivity(target.Connectivity);
+            _lastHeartbeatText = DescribeHeartbeat(target.LastHeartbeatUtc);
+            _failureText = DescribeFailure(target.LastFailure, target.ConsecutiveFailures);
+            _keepAliveEnabled = target.KeepAliveEnabled;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public Guid TargetId { get; }
+
+        public string DisplayName
+        {
+            get => _displayName;
+            private set => SetField(ref _displayName, value, nameof(DisplayName));
+        }
+
+        public string BaseUrl
+        {
+            get => _baseUrl;
+            private set => SetField(ref _baseUrl, value, nameof(BaseUrl));
+        }
+
+        public string AddressDisplay
+        {
+            get => _addressDisplay;
+            private set => SetField(ref _addressDisplay, value, nameof(AddressDisplay));
+        }
+
+        public PairingState Pairing
+        {
+            get => _pairing;
+            private set => SetField(ref _pairing, value, nameof(Pairing));
+        }
+
+        public ConnectivityState Connectivity
+        {
+            get => _connectivity;
+            private set => SetField(ref _connectivity, value, nameof(Connectivity));
+        }
+
+        public string PairingText
+        {
+            get => _pairingText;
+            private set => SetField(ref _pairingText, value, nameof(PairingText));
+        }
+
+        public string ConnectivityText
+        {
+            get => _connectivityText;
+            private set => SetField(ref _connectivityText, value, nameof(ConnectivityText));
+        }
+
+        public string LastHeartbeatText
+        {
+            get => _lastHeartbeatText;
+            private set => SetField(ref _lastHeartbeatText, value, nameof(LastHeartbeatText));
+        }
+
+        public string FailureText
+        {
+            get => _failureText;
+            private set
+            {
+                if (SetField(ref _failureText, value, nameof(FailureText)))
+                {
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasFailure)));
+                }
+            }
+        }
+
+        public bool HasFailure => _failureText.Length > 0;
+
+        public bool KeepAliveEnabled
+        {
+            get => _keepAliveEnabled;
+            private set => SetField(ref _keepAliveEnabled, value, nameof(KeepAliveEnabled));
+        }
+
+        /// <summary>Updates all mutable properties from a new snapshot entry,
+        /// raising PropertyChanged only for values that actually changed.</summary>
+        public void UpdateFrom(TargetSnapshot target)
+        {
             DisplayName = target.EffectiveDisplayName;
             BaseUrl = target.BaseUrl;
             AddressDisplay = DescribeAddress(target.BaseUrl);
             Pairing = target.Pairing;
             Connectivity = target.Connectivity;
-            PairingText = target.Pairing switch
-            {
-                PairingState.Paired => "已配对",
-                PairingState.Pairing => "配对中…",
-                PairingState.AwaitingPairing => "待配对",
-                _ => "已失效",
-            };
-            ConnectivityText = target.Connectivity switch
-            {
-                ConnectivityState.Online => "在线",
-                ConnectivityState.Offline => "离线",
-                _ => "未知",
-            };
-            LastHeartbeatText = target.LastHeartbeatUtc is { } heartbeat
-                ? heartbeat.ToLocalTime().ToString("MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)
-                : "—";
-            FailureText = target.LastFailure is null
-                ? string.Empty
-                : target.LastFailure + (target.ConsecutiveFailures > 0
-                    ? " × " + target.ConsecutiveFailures
-                    : string.Empty);
+            PairingText = DescribePairing(target.Pairing);
+            ConnectivityText = DescribeConnectivity(target.Connectivity);
+            LastHeartbeatText = DescribeHeartbeat(target.LastHeartbeatUtc);
+            FailureText = DescribeFailure(target.LastFailure, target.ConsecutiveFailures);
             KeepAliveEnabled = target.KeepAliveEnabled;
         }
 
-        public Guid TargetId { get; }
+        private bool SetField<T>(ref T field, T value, string propertyName)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
 
-        public string DisplayName { get; }
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            return true;
+        }
 
-        public string BaseUrl { get; }
+        private static string DescribePairing(PairingState state) => state switch
+        {
+            PairingState.Paired => "已配对",
+            PairingState.Pairing => "配对中…",
+            PairingState.AwaitingPairing => "待配对",
+            _ => "已失效",
+        };
 
-        public string AddressDisplay { get; }
+        private static string DescribeConnectivity(ConnectivityState state) => state switch
+        {
+            ConnectivityState.Online => "在线",
+            ConnectivityState.Offline => "离线",
+            _ => "未知",
+        };
 
-        public PairingState Pairing { get; }
+        private static string DescribeHeartbeat(DateTimeOffset? heartbeatUtc) => heartbeatUtc is { } heartbeat
+            ? heartbeat.LocalDateTime.ToString("MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)
+            : "—";
 
-        public ConnectivityState Connectivity { get; }
-
-        public string PairingText { get; }
-
-        public string ConnectivityText { get; }
-
-        public string LastHeartbeatText { get; }
-
-        public string FailureText { get; }
-
-        public bool HasFailure => FailureText.Length > 0;
-
-        public bool KeepAliveEnabled { get; }
+        private static string DescribeFailure(string? lastFailure, int consecutiveFailures) => lastFailure is null
+            ? string.Empty
+            : lastFailure + (consecutiveFailures > 0
+                ? " × " + consecutiveFailures
+                : string.Empty);
 
         // Rows show the bare host:port; the scheme never varies between
         // targets in practice and only adds noise.
@@ -509,5 +637,16 @@ public partial class ManagementWindow : Window
                 return baseUrl;
             }
         }
+
+        private string _displayName;
+        private string _baseUrl;
+        private string _addressDisplay;
+        private PairingState _pairing;
+        private ConnectivityState _connectivity;
+        private string _pairingText;
+        private string _connectivityText;
+        private string _lastHeartbeatText;
+        private string _failureText;
+        private bool _keepAliveEnabled;
     }
 }

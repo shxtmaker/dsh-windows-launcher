@@ -17,6 +17,10 @@ DeepSeek Harness 实例的「DSH 远程访问」配对，持续发送心跳保�
   配对与连接状态（心跳实时刷新），点击其他目标可直接打开其远程窗口。
 - 托盘常驻：单实例运行，托盘图标展示实时配对计数，双击重新打开管理窗口，菜单提供
   打开管理窗口、关闭窗口时（询问/最小化/退出，带勾选标记）与退出。
+- 品牌图标：采用原创 mascot 位图（`assets/brand/mascot-source.png`），按尺寸分两档——≥40px 用
+  整幅构图，≤32px 改用脸部放大裁切以保证 16px 仍可读；由 `eng/make-app-icon.ps1` 可复现生成
+  （见 [assets/brand/README.md](assets/brand/README.md) 与
+  [ADR 0009](docs/adr/0009-app-icon-from-original-mascot.md)）。
 - 配对协议完全由 Harness 侧 [dsh-web](https://github.com/zhu1090093659/dsh-web) 的
   **DSH 远程访问（dsh-remote-web-ui）** 插件提供：一次性令牌 `/api/pair/accept` 兑换
   设备凭据，`POST /api/pair/heartbeat` 心跳保活（默认 10 秒一次，低于主机端 25 秒
@@ -67,11 +71,19 @@ dotnet restore .\DshWindowsLauncher.slnx --force-evaluate
 pwsh ./eng/verify.ps1
 ```
 
-`eng/release-constants.json` 处于 `candidate` 状态（schemaVersion 4，固定远程访问
+`eng/release-constants.json` 处于 `candidate` 状态（schemaVersion 5，固定远程访问
 配对契约基线）。正式候选必须通过 `verify.ps1` 并完成安装包实机冒烟。
 
 ## 正式安装包
 
-安装包继续采用 Inno Setup 的按用户 EXE 形态（`eng/package.ps1` /
-`eng/package-unsigned.ps1`，开源发行可选 Authenticode 策略并记录 `NotSigned`）。
-`eng/package-internal.ps1` 生成明确标记 `INTERNAL TEST` 的内部测试包，禁止对外交付。
+安装包采用 Inno Setup 的按用户 EXE 形态。本项目**不签名任何自有产物**（见
+[ADR 0008](docs/adr/0008-unsigned-artifacts-with-hash-bound-distribution.md)）：
+
+- `eng/package.ps1`：正式入口。不签名，但保留安装器全部 `[Code]` 安全加固与真实安装/
+  卸载验证，交付冻结 SHA-256 与 `package-manifest.json`。
+- `eng/package-unsigned.ps1`：轻量内网包。同样不签名，但不跑真实安装验证且使用不含
+  `[Code]` 加固的安装器脚本；不能当作正式候选证据。
+- `eng/package-internal.ps1`：生成明确标记 `INTERNAL TEST` 的内部测试包，禁止对外交付。
+
+上游第三方输入（WebView2 Runtime/Bootstrapper、Inno Setup）仍必须是 Microsoft / Pyrsys B.V.
+的有效签名。接收方比对随发布的 SHA-256 来确认完整性。

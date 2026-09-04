@@ -64,7 +64,7 @@ function Escape-MarkdownCell {
     return $Value.Replace('|', '\|').Replace("`r", ' ').Replace("`n", ' ')
 }
 
-function ConvertTo-DshStructuredSignedArtifact {
+function ConvertTo-DshStructuredUnsignedArtifact {
     param(
         [Parameter(Mandatory)]
         [pscustomobject] $ManifestArtifact
@@ -73,16 +73,24 @@ function ConvertTo-DshStructuredSignedArtifact {
     return [ordered]@{
         fileName = [IO.Path]::GetFileName([string] $ManifestArtifact.path)
         sha256 = ([string] $ManifestArtifact.sha256).ToLowerInvariant()
-        signatureStatus = [string] $ManifestArtifact.signature.Status
-        signerSubjectSha256 = Get-DshTextSha256 -Text ([string] $ManifestArtifact.signature.SignerSubject)
-        timestampStatus = if ([string]::IsNullOrWhiteSpace(
-                [string] $ManifestArtifact.signature.TimestampSubject)) {
-            'missing'
-        }
-        else {
-            'trusted'
-        }
+        authenticodeStatus = [string] $ManifestArtifact.authenticodeStatus
     }
+}
+
+function Assert-DshUnsignedArtifact {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path,
+        [Parameter(Mandatory)]
+        [string] $Description
+    )
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path -ErrorAction Stop
+    if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
+        throw "$Description 必须是 NotSigned，实际状态为 $($signature.Status)。"
+    }
+
+    return 'NotSigned'
 }
 
 function Get-InstalledWebView2RuntimeVersion {
@@ -135,10 +143,7 @@ function Get-CurrentHostEvidence {
 function Get-ExecutableIdentityEvidence {
     param(
         [Parameter(Mandatory)]
-        [string] $Path,
-
-        [Parameter(Mandatory)]
-        [string] $ExpectedSignerSubject
+        [string] $Path
     )
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -147,10 +152,6 @@ function Get-ExecutableIdentityEvidence {
     $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
     $item = Get-Item -LiteralPath $resolvedPath
     $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($resolvedPath)
-    $signature = Get-DshAuthenticodeEvidence `
-        -Path $resolvedPath `
-        -ExpectedSubject $ExpectedSignerSubject `
-        -RequireTimestamp
 
     return [pscustomobject][ordered]@{
         Path = $resolvedPath
@@ -159,7 +160,7 @@ function Get-ExecutableIdentityEvidence {
         FileVersion = [string] $version.FileVersion
         ProductVersion = [string] $version.ProductVersion
         Sha256 = Get-DshSha256 -Path $resolvedPath
-        Signature = $signature
+        AuthenticodeStatus = Assert-DshUnsignedArtifact -Path $resolvedPath -Description $item.Name
     }
 }
 
@@ -473,10 +474,8 @@ try {
         throw "安装包 SHA-256 与冻结值不一致。实际：$actualHash；冻结值：$ExpectedSha256"
     }
 
-    $signature = Get-DshAuthenticodeEvidence `
-        -Path $InstallerPath `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
+    # 本项目不签名自有产物：安装包必须明确处于 NotSigned，完整性由冻结 SHA-256 与清单绑定保证。
+    $installerAuthenticodeStatus = Assert-DshUnsignedArtifact -Path $InstallerPath -Description '安装包'
 
     $expectedInstallerVersion = ConvertTo-DshFileVersion -Version $constants.product.version
     $installerVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($InstallerPath).FileVersion
@@ -491,10 +490,11 @@ try {
         throw "缺少 package-manifest.json：$packageManifestPath"
     }
     $packageManifest = Get-Content -LiteralPath $packageManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 50
-    if ($packageManifest.schemaVersion -ne 2 -or
+    if ($packageManifest.schemaVersion -ne 3 -or
         $packageManifest.installer.sha256 -ne $actualHash -or
         [int64] $packageManifest.installer.size -ne (Get-Item -LiteralPath $InstallerPath).Length -or
-        $packageManifest.version -ne $constants.product.version) {
+        $packageManifest.version -ne $constants.product.version -or
+        [string] $packageManifest.installer.authenticodeStatus -cne 'NotSigned') {
         throw '安装包与 package-manifest.json 的冻结身份不一致。'
     }
     if ($packageManifest.source.commit -notmatch '^(?:[0-9a-f]{40}|[0-9a-f]{64})$' -or
@@ -520,41 +520,34 @@ try {
         throw 'package-manifest.json 缺少 fail-closed 验证影响证据。'
     }
 
-    $signedApplicationSet = $packageManifest.signedApplicationSet
+    $unsignedArtifactSet = $packageManifest.unsignedArtifactSet
     foreach ($entry in @(
-            @{ Name = 'apphost'; Value = $signedApplicationSet.apphost },
-            @{ Name = 'managed entry assembly'; Value = $signedApplicationSet.managedEntryAssembly },
-            @{ Name = 'uninstaller'; Value = $signedApplicationSet.uninstaller },
-            @{ Name = 'installer'; Value = $signedApplicationSet.installer })) {
+            @{ Name = 'apphost'; Value = $unsignedArtifactSet.apphost },
+            @{ Name = 'managed entry assembly'; Value = $unsignedArtifactSet.managedEntryAssembly },
+            @{ Name = 'uninstaller'; Value = $unsignedArtifactSet.uninstaller },
+            @{ Name = 'installer'; Value = $unsignedArtifactSet.installer })) {
         if ($null -eq $entry.Value -or [string] $entry.Value.sha256 -cnotmatch '^[A-F0-9]{64}$') {
-            throw "签名应用集缺少冻结身份：$($entry.Name)"
+            throw "未签名产物集缺少冻结身份：$($entry.Name)"
         }
-        Assert-DshRecordedAuthenticodeEvidence `
-            -Evidence $entry.Value.signature `
-            -ExpectedSubject $constants.distribution.signing.certificateSubject `
-            -Description $entry.Name
+        if ([string] $entry.Value.authenticodeStatus -cne 'NotSigned') {
+            throw "未签名产物集的 Authenticode 状态不是 NotSigned：$($entry.Name)"
+        }
     }
-    if ($signedApplicationSet.installer.sha256 -cne $actualHash -or
-        $signedApplicationSet.installer.signature.SignerThumbprint -cne $signature.SignerThumbprint -or
-        $signedApplicationSet.apphost.sha256 -cne $packageManifest.application.sha256 -or
-        $signedApplicationSet.managedEntryAssembly.sha256 -cne $packageManifest.managedEntryAssembly.sha256 -or
-        $signedApplicationSet.uninstaller.signature.SignerThumbprint -cne
-            $packageManifest.uninstaller.signature.SignerThumbprint) {
-        throw '签名应用集与 package-manifest.json 的候选身份不一致。'
+    if ($unsignedArtifactSet.installer.sha256 -cne $actualHash -or
+        $unsignedArtifactSet.apphost.sha256 -cne $packageManifest.application.sha256 -or
+        $unsignedArtifactSet.managedEntryAssembly.sha256 -cne $packageManifest.managedEntryAssembly.sha256 -or
+        $unsignedArtifactSet.uninstaller.sha256 -cne $packageManifest.uninstaller.sha256) {
+        throw '未签名产物集与 package-manifest.json 的候选身份不一致。'
     }
 
-    $managedEntryAssemblyPath = [string] $signedApplicationSet.managedEntryAssembly.path
+    $managedEntryAssemblyPath = [string] $unsignedArtifactSet.managedEntryAssembly.path
     if (-not (Test-Path -LiteralPath $managedEntryAssemblyPath -PathType Leaf) -or
-        (Get-DshSha256 -Path $managedEntryAssemblyPath) -cne $signedApplicationSet.managedEntryAssembly.sha256) {
-        throw '托管主程序集缺失或 SHA-256 与签名应用集不一致。'
+        (Get-DshSha256 -Path $managedEntryAssemblyPath) -cne $unsignedArtifactSet.managedEntryAssembly.sha256) {
+        throw '托管主程序集缺失或 SHA-256 与未签名产物集不一致。'
     }
-    $measuredManagedEntryAssemblySignature = Get-DshAuthenticodeEvidence `
-        -Path $managedEntryAssemblyPath `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
-    if ($measuredManagedEntryAssemblySignature.SignerThumbprint -cne
-        $signedApplicationSet.managedEntryAssembly.signature.SignerThumbprint) {
-        throw '托管主程序集实测签名与 package-manifest.json 不一致。'
+    if ((Assert-DshUnsignedArtifact -Path $managedEntryAssemblyPath -Description '托管主程序集') -cne
+        $unsignedArtifactSet.managedEntryAssembly.authenticodeStatus) {
+        throw '托管主程序集实测 Authenticode 状态与 package-manifest.json 不一致。'
     }
 
     if ($packageManifest.application.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
@@ -576,9 +569,7 @@ try {
         SchemaVersion = 1
         CapturedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         Os = Get-CurrentHostEvidence
-        CandidateExecutable = Get-ExecutableIdentityEvidence `
-            -Path $CandidateExePath `
-            -ExpectedSignerSubject $constants.distribution.signing.certificateSubject
+        CandidateExecutable = Get-ExecutableIdentityEvidence -Path $CandidateExePath
         InstalledExecutable = $null
     }
     if ($hostEvidence.CandidateExecutable.FileName -cne $constants.product.executableName -or
@@ -689,18 +680,15 @@ try {
         }
         if ($item.Id -eq 'RS-02' -and -not $NonInteractive) {
             $null = Read-Host '完成从默认目录全新安装并启动真实 EXE 后，按 Enter 自动采集已安装文件身份'
-            $hostEvidence.InstalledExecutable = Get-ExecutableIdentityEvidence `
-                -Path $InstalledExePath `
-                -ExpectedSignerSubject $constants.distribution.signing.certificateSubject
+            $hostEvidence.InstalledExecutable = Get-ExecutableIdentityEvidence -Path $InstalledExePath
             $hostEvidence.CapturedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
             $hostEvidencePassed = Test-DshReleaseHostEvidence `
                 -Evidence $hostEvidence `
                 -ExpectedVersion $expectedInstallerVersion `
                 -ExpectedExecutableName $constants.product.executableName `
-                -ExpectedSignerSubject $constants.distribution.signing.certificateSubject `
                 -ExpectedSha256 $packageManifest.application.sha256
             if (-not $hostEvidencePassed) {
-                throw '候选与已安装 EXE 的路径、版本、大小、哈希或签名结构化证据不完整或不一致。'
+                throw '候选与已安装 EXE 的路径、版本、大小、哈希或 Authenticode 状态结构化证据不完整或不一致。'
             }
         }
         if ($item.Id -eq 'RS-13') {
@@ -799,7 +787,7 @@ try {
         throw "拒绝覆盖既有结构化发布证据：$structuredEvidencePath"
     }
     $structuredEvidence = [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         candidateVersion = $constants.product.version
         commit = $gitCommit
@@ -810,15 +798,15 @@ try {
             size = [int64] $installerItem.Length
             sha256 = $actualHash
             fileVersion = $installerVersion
-            signature = $signature
+            authenticodeStatus = $installerAuthenticodeStatus
         }
         pairingIdentity = $pairingIdentity
         verificationImpact = $packageManifest.verificationImpact
-        signedApplicationSet = [ordered]@{
-            apphost = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.apphost
-            managedEntryAssembly = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.managedEntryAssembly
-            uninstaller = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.uninstaller
-            installer = ConvertTo-DshStructuredSignedArtifact $signedApplicationSet.installer
+        unsignedArtifactSet = [ordered]@{
+            apphost = ConvertTo-DshStructuredUnsignedArtifact $unsignedArtifactSet.apphost
+            managedEntryAssembly = ConvertTo-DshStructuredUnsignedArtifact $unsignedArtifactSet.managedEntryAssembly
+            uninstaller = ConvertTo-DshStructuredUnsignedArtifact $unsignedArtifactSet.uninstaller
+            installer = ConvertTo-DshStructuredUnsignedArtifact $unsignedArtifactSet.installer
         }
         host = $hostEvidence
         rs13 = if ($null -eq $rs13Verdict) {
@@ -867,17 +855,17 @@ try {
     $lines.Add("- Pairing plugin: $($pairingIdentity.plugin); $($pairingIdentity.referenceVersion)")
     $lines.Add("- Pairing cookie: $($pairingIdentity.cookieName)")
     $lines.Add("- Required RS: $($requiredIds -join ', ')")
-    $lines.Add("- Installer signature subject and timestamp: $($signature.SignerSubject); $($signature.TimestampSubject); timestamp certificate expires $($signature.TimestampNotAfter)")
+    $lines.Add("- Installer Authenticode status: $installerAuthenticodeStatus（本项目不签名自有产物，完整性由冻结 SHA-256 与 package-manifest.json 绑定保证）")
     $lines.Add("- Current OS/build: $($hostEvidence.Os.ProductName) $($hostEvidence.Os.DisplayVersion); version $($hostEvidence.Os.Version); build $($hostEvidence.Os.BuildNumber).$($hostEvidence.Os.UpdateBuildRevision); $($hostEvidence.Os.Architecture); $($hostEvidence.Os.LogicalProcessorCount) logical processors")
     $lines.Add("- Candidate EXE path, size, version and SHA-256: $($hostEvidence.CandidateExecutable.Path); $($hostEvidence.CandidateExecutable.Size); $($hostEvidence.CandidateExecutable.FileVersion); $($hostEvidence.CandidateExecutable.Sha256)")
-    $lines.Add("- Candidate EXE signature subject and timestamp: $($hostEvidence.CandidateExecutable.Signature.SignerSubject); $($hostEvidence.CandidateExecutable.Signature.TimestampSubject); timestamp certificate expires $($hostEvidence.CandidateExecutable.Signature.TimestampNotAfter)")
+    $lines.Add("- Candidate EXE Authenticode status: $($hostEvidence.CandidateExecutable.AuthenticodeStatus)")
     if ($null -eq $hostEvidence.InstalledExecutable) {
         $lines.Add('- Installed EXE path, size, version and SHA-256: MISSING')
-        $lines.Add('- Installed EXE signature subject and timestamp: MISSING')
+        $lines.Add('- Installed EXE Authenticode status: MISSING')
     }
     else {
         $lines.Add("- Installed EXE path, size, version and SHA-256: $($hostEvidence.InstalledExecutable.Path); $($hostEvidence.InstalledExecutable.Size); $($hostEvidence.InstalledExecutable.FileVersion); $($hostEvidence.InstalledExecutable.Sha256)")
-        $lines.Add("- Installed EXE signature subject and timestamp: $($hostEvidence.InstalledExecutable.Signature.SignerSubject); $($hostEvidence.InstalledExecutable.Signature.TimestampSubject); timestamp certificate expires $($hostEvidence.InstalledExecutable.Signature.TimestampNotAfter)")
+        $lines.Add("- Installed EXE Authenticode status: $($hostEvidence.InstalledExecutable.AuthenticodeStatus)")
     }
     $lines.Add("- Pairing baseline: $($constants.pairingBaseline.plugin) $($constants.pairingBaseline.referenceVersion)")
     $lines.Add("- Actual .NET and Inno versions: .NET SDK $($constants.build.dotnetSdkVersion); Inno $($constants.distribution.innoSetup.version)")

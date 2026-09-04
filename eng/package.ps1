@@ -14,12 +14,6 @@ param(
 
     [string] $InnoCompilerPath,
 
-    [Parameter(Mandatory)]
-    [string] $SignToolPath,
-
-    [Parameter(Mandatory)]
-    [string] $CertificateThumbprint,
-
     [string] $DotNetPath,
 
     [string] $OutputDirectory,
@@ -67,53 +61,24 @@ function Assert-SignedMicrosoftTool {
     return $evidence
 }
 
-function Get-CertificateByThumbprint {
+function Assert-Unsigned {
     param(
         [Parameter(Mandatory)]
-        [string] $Thumbprint
+        [string] $Path,
+        [Parameter(Mandatory)]
+        [string] $Description
     )
 
-    $normalized = ($Thumbprint -replace '\s', '').ToUpperInvariant()
-    foreach ($store in @('Cert:\CurrentUser\My', 'Cert:\LocalMachine\My')) {
-        $certificate = Get-ChildItem -Path $store -ErrorAction SilentlyContinue |
-            Where-Object { $_.Thumbprint -eq $normalized } |
-            Select-Object -First 1
-        if ($null -ne $certificate) {
-            return $certificate
-        }
+    # 正式包不再签名：这里反向卡控，确保没有陈旧/意外签名混入发布产物。
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path -ErrorAction Stop
+    if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
+        throw "$Description 必须是 NotSigned，实际状态为 $($signature.Status)。"
     }
 
-    throw "签名证书不存在：$normalized"
-}
-
-function Invoke-SignTool {
-    param(
-        [Parameter(Mandatory)]
-        [string] $FilePath,
-        [Parameter(Mandatory)]
-        [string] $TargetPath,
-        [Parameter(Mandatory)]
-        [string] $Thumbprint,
-        [Parameter(Mandatory)]
-        [string] $TimestampUri,
-        [Parameter(Mandatory)]
-        [string] $ProductName,
-        [Parameter(Mandatory)]
-        [string] $ReleaseUri,
-        [Parameter(Mandatory)]
-        [string] $WorkingDirectory
-    )
-
-    Invoke-DshNative -FilePath $FilePath -WorkingDirectory $WorkingDirectory -Arguments @(
-        'sign',
-        '/sha1', $Thumbprint,
-        '/fd', 'SHA256',
-        '/tr', $TimestampUri,
-        '/td', 'SHA256',
-        '/d', $ProductName,
-        '/du', $ReleaseUri,
-        $TargetPath
-    )
+    return [pscustomobject][ordered]@{
+        Status = 'NotSigned'
+        Path = $Path
+    }
 }
 
 try {
@@ -122,7 +87,7 @@ try {
     }
 
     if (-not $AllowInstallerExecutionForUninstallerVerification) {
-        throw '正式打包必须显式传入 -AllowInstallerExecutionForUninstallerVerification，在干净隔离 Windows runner 安装最终包并验证卸载器签名。'
+        throw '正式打包必须显式传入 -AllowInstallerExecutionForUninstallerVerification，在干净隔离 Windows runner 安装最终包并验证真实卸载器。'
     }
 
     if ([string]::IsNullOrWhiteSpace($UninstallerVerificationDirectory)) {
@@ -136,7 +101,7 @@ try {
         throw "参数版本必须与发布常量完全一致。参数：$Version；常量：$($constants.product.version)"
     }
 
-    foreach ($path in @($WebView2OfflineInstallerPath, $WebView2BootstrapperPath, $InnoSetupInstallerPath, $SignToolPath)) {
+    foreach ($path in @($WebView2OfflineInstallerPath, $WebView2BootstrapperPath, $InnoSetupInstallerPath)) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "输入文件不存在：$path"
         }
@@ -145,7 +110,6 @@ try {
     $WebView2OfflineInstallerPath = (Resolve-Path -LiteralPath $WebView2OfflineInstallerPath).Path
     $WebView2BootstrapperPath = (Resolve-Path -LiteralPath $WebView2BootstrapperPath).Path
     $InnoSetupInstallerPath = (Resolve-Path -LiteralPath $InnoSetupInstallerPath).Path
-    $SignToolPath = (Resolve-Path -LiteralPath $SignToolPath).Path
 
     Assert-FileHash -Path $WebView2OfflineInstallerPath `
         -ExpectedHash '987a9d8b3107e84f9b53b4a077d28ae4814fc3d964d5a55c559e7334bbf24d61' `
@@ -203,29 +167,6 @@ try {
     if ($innoVersion -ne $constants.distribution.innoSetup.version) {
         throw "Inno Setup 安装版本不匹配。实际：$innoVersion；预期：$($constants.distribution.innoSetup.version)"
     }
-
-    $signToolEvidence = Assert-SignedMicrosoftTool -Path $SignToolPath -Description 'SignTool'
-    $certificate = Get-CertificateByThumbprint -Thumbprint $CertificateThumbprint
-    if (-not $certificate.HasPrivateKey) {
-        throw '签名证书没有可用私钥。'
-    }
-    if ($certificate.Subject -ne $constants.distribution.signing.certificateSubject) {
-        throw "证书主体与发布常量不一致。实际：$($certificate.Subject)；预期：$($constants.distribution.signing.certificateSubject)"
-    }
-    if ($certificate.NotAfter.ToUniversalTime() -le [DateTime]::UtcNow) {
-        throw '签名证书已过期。'
-    }
-    if ($certificate.NotBefore.ToUniversalTime() -gt [DateTime]::UtcNow) {
-        throw '签名证书尚未生效。'
-    }
-    $enhancedKeyUsage = $certificate.Extensions |
-        Where-Object { $_ -is [Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension] } |
-        Select-Object -First 1
-    if ($null -eq $enhancedKeyUsage -or
-        @($enhancedKeyUsage.EnhancedKeyUsages | Where-Object { $_.Value -eq '1.3.6.1.5.5.7.3.3' }).Count -eq 0) {
-        throw '签名证书缺少 Code Signing EKU。'
-    }
-    $CertificateThumbprint = $certificate.Thumbprint
 
     $dotnet = Get-DshExactDotNetPath -ExpectedVersion $constants.build.dotnetSdkVersion -DotNetPath $DotNetPath
     $verifyArtifacts = Join-Path $repositoryRoot "artifacts/verify-package-$Version"
@@ -289,9 +230,8 @@ try {
 
     $stagingDirectory = Join-Path $OutputDirectory 'staging'
     $publishDirectory = Join-Path $stagingDirectory 'publish'
-    $signedUninstallerDirectory = Join-Path $stagingDirectory 'signed-uninstaller'
     $releaseDirectory = Join-Path $OutputDirectory 'release'
-    foreach ($directory in @($stagingDirectory, $publishDirectory, $signedUninstallerDirectory, $releaseDirectory)) {
+    foreach ($directory in @($stagingDirectory, $publishDirectory, $releaseDirectory)) {
         $null = New-Item -ItemType Directory -Path $directory
     }
 
@@ -361,31 +301,9 @@ try {
         throw "主程序文件版本不匹配。实际：$publishedVersion；预期：$fileVersion"
     }
 
-    Write-Host '[package] 签名并验证 apphost 与托管主程序集。'
-    Invoke-SignTool `
-        -FilePath $SignToolPath `
-        -TargetPath $applicationExe `
-        -Thumbprint $CertificateThumbprint `
-        -TimestampUri $constants.distribution.signing.timestampServerUri `
-        -ProductName $constants.product.name `
-        -ReleaseUri $constants.distribution.officialReleaseUri `
-        -WorkingDirectory $repositoryRoot
-    $applicationSignature = Get-DshAuthenticodeEvidence `
-        -Path $applicationExe `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
-    Invoke-SignTool `
-        -FilePath $SignToolPath `
-        -TargetPath $managedEntryAssembly `
-        -Thumbprint $CertificateThumbprint `
-        -TimestampUri $constants.distribution.signing.timestampServerUri `
-        -ProductName $constants.product.name `
-        -ReleaseUri $constants.distribution.officialReleaseUri `
-        -WorkingDirectory $repositoryRoot
-    $managedEntryAssemblySignature = Get-DshAuthenticodeEvidence `
-        -Path $managedEntryAssembly `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
+    Write-Host '[package] 断言 apphost 与托管主程序集保持未签名。'
+    $applicationUnsigned = Assert-Unsigned -Path $applicationExe -Description '主程序 apphost'
+    $managedEntryAssemblyUnsigned = Assert-Unsigned -Path $managedEntryAssembly -Description '托管主程序集'
 
     $publishBytes = (Get-ChildItem -LiteralPath $publishDirectory -File -Recurse | Measure-Object -Property Length -Sum).Sum
     $webViewInstallerBytes = (Get-Item -LiteralPath $WebView2OfflineInstallerPath).Length
@@ -397,11 +315,6 @@ try {
         throw "安装包文件名不安全：$installerName"
     }
     $outputBaseFilename = [IO.Path]::GetFileNameWithoutExtension($installerName)
-
-    $signCommand = '$q' + $SignToolPath + '$q sign /sha1 ' + $CertificateThumbprint +
-        ' /fd SHA256 /tr ' + $constants.distribution.signing.timestampServerUri +
-        ' /td SHA256 /d $q' + $constants.product.name + '$q /du ' +
-        $constants.distribution.officialReleaseUri + ' $f'
 
     function New-IsppStringDefine {
         param([string] $Name, [string] $Value)
@@ -444,19 +357,16 @@ try {
         -Path $webView2LoaderPath `
         -Description 'WebView2 native loader'
     $compilerArguments = @(
-        "/Sdshwl=$signCommand",
         (New-IsppStringDefine -Name 'SourceRoot' -Value $publishDirectory),
         (New-IsppStringDefine -Name 'AppVersion' -Value $Version),
         (New-IsppStringDefine -Name 'FileVersion' -Value $fileVersion),
         (New-IsppStringDefine -Name 'Publisher' -Value $constants.distribution.signing.publisher),
-        (New-IsppStringDefine -Name 'CertificateSubject' -Value $constants.distribution.signing.certificateSubject),
         (New-IsppStringDefine -Name 'ReleaseUri' -Value $constants.distribution.officialReleaseUri),
         (New-IsppStringDefine -Name 'WebView2InstallerPath' -Value $WebView2OfflineInstallerPath),
         (New-IsppStringDefine -Name 'WebView2MinimumVersion' -Value '151.0.4129.50'),
         "/DRequiredSpaceBytes=$requiredSpaceBytes",
         (New-IsppStringDefine -Name 'OutputDirectory' -Value $releaseDirectory),
         (New-IsppStringDefine -Name 'OutputBaseFilename' -Value $outputBaseFilename),
-        (New-IsppStringDefine -Name 'SignedUninstallerDirectory' -Value $signedUninstallerDirectory),
         (New-IsppStringDefine -Name 'MaintenanceHelperSha256' -Value $maintenanceHelperSha256),
         (New-IsppStringDefine -Name 'IdentityHelperSha256' -Value $identityHelperSha256),
         (New-IsppStringDefine -Name 'InstallOwnershipMarkerSha256' -Value $installOwnershipMarkerSha256),
@@ -466,7 +376,7 @@ try {
         $innoScript
     )
 
-    Write-Host '[package] 编译并由 Inno Setup 签名安装器与卸载器。'
+    Write-Host '[package] 编译未签名安装器与卸载器。'
     Invoke-DshNative -FilePath $InnoCompilerPath -Arguments $compilerArguments -WorkingDirectory $repositoryRoot
     foreach ($frozenInstallerInput in @(
         @{ Path = $maintenanceHelperPath; Hash = $maintenanceHelperSha256; Description = '当前用户 IPC 辅助程序' },
@@ -486,15 +396,7 @@ try {
     if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
         throw "Inno Setup 未生成预期安装包：$installerPath"
     }
-    $installerSignature = Get-DshAuthenticodeEvidence `
-        -Path $installerPath `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
-
-    $uninstallerCacheFiles = @(Get-ChildItem -LiteralPath $signedUninstallerDirectory -File)
-    if ($uninstallerCacheFiles.Count -eq 0) {
-        throw 'Inno Setup 没有生成已签名卸载器缓存。'
-    }
+    $installerUnsigned = Assert-Unsigned -Path $installerPath -Description '安装包'
 
     $uninstallRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{4440FC88-98CA-403E-8E20-3DFEBEF0E609}_is1'
     if (Test-Path -LiteralPath $uninstallRegistryPath) {
@@ -517,22 +419,18 @@ try {
         throw '验证安装后未找到主程序。'
     }
     if ((Get-DshSha256 -Path $installedApplicationPath) -ne (Get-DshSha256 -Path $applicationExe)) {
-        throw '已安装主程序与签名发布输入的 SHA-256 不一致。'
+        throw '已安装主程序与发布输入的 SHA-256 不一致。'
     }
-    $installedApplicationSignature = Get-DshAuthenticodeEvidence `
-        -Path $installedApplicationPath `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
+    $installedApplicationUnsigned = Assert-Unsigned -Path $installedApplicationPath -Description '已安装主程序'
 
     $installedManagedEntryAssembly = Join-Path $UninstallerVerificationDirectory 'DshWindowsLauncher.dll'
     if (-not (Test-Path -LiteralPath $installedManagedEntryAssembly -PathType Leaf) -or
         (Get-DshSha256 -Path $installedManagedEntryAssembly) -cne (Get-DshSha256 -Path $managedEntryAssembly)) {
-        throw '已安装托管主程序集缺失或与签名发布输入不一致。'
+        throw '已安装托管主程序集缺失或与发布输入不一致。'
     }
-    $installedManagedEntryAssemblySignature = Get-DshAuthenticodeEvidence `
+    $installedManagedEntryAssemblyUnsigned = Assert-Unsigned `
         -Path $installedManagedEntryAssembly `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
+        -Description '已安装托管主程序集'
 
     $installedWebViewBootstrapperPath = Join-Path $UninstallerVerificationDirectory $webViewBootstrapperName
     if (-not (Test-Path -LiteralPath $installedWebViewBootstrapperPath -PathType Leaf) -or
@@ -549,10 +447,7 @@ try {
         throw "验证安装后卸载器数量必须为 1，实际为 $($uninstallerPaths.Count)。"
     }
     $uninstallerPath = $uninstallerPaths[0].FullName
-    $uninstallerSignature = Get-DshAuthenticodeEvidence `
-        -Path $uninstallerPath `
-        -ExpectedSubject $constants.distribution.signing.certificateSubject `
-        -RequireTimestamp
+    $uninstallerUnsigned = Assert-Unsigned -Path $uninstallerPath -Description '已安装卸载器'
     $uninstallerHash = Get-DshSha256 -Path $uninstallerPath
 
     Invoke-DshNative -FilePath $uninstallerPath -WorkingDirectory $UninstallerVerificationDirectory -Arguments @(
@@ -580,6 +475,7 @@ try {
         "- Installer: $installerName",
         "- SHA-256: $installerHash",
         "- Runtime: self-contained $($constants.build.runtimeIdentifier), multi-file, non-trimmed .NET $($constants.build.dotnetSdkVersion)",
+        "- Authenticode: not signed (internal distribution; verify by the SHA-256 above)",
         "- Minimum WebView2 Runtime: $('151.0.4129.50')",
         "- Included WebView2 offline installer: $webViewVersion",
         "- Included WebView2 repair bootstrapper: $webViewBootstrapperVersion",
@@ -599,8 +495,10 @@ try {
     $verifySummaryDestination = Join-Path $releaseDirectory 'verify-summary.json'
     Copy-Item -LiteralPath $verifySummarySource -Destination $verifySummaryDestination
     $manifest = [ordered]@{
-        schemaVersion = 2
+        schemaVersion = 3
         frozenAtUtc = [DateTime]::UtcNow.ToString('O')
+        signingPolicy = $constants.distribution.signing.policy
+        ownArtifactsSigned = $false
         version = $Version
         source = [ordered]@{
             available = $sourceState.Available
@@ -613,25 +511,26 @@ try {
             path = $installerPath
             size = (Get-Item -LiteralPath $installerPath).Length
             sha256 = $installerHash
-            signature = $installerSignature
+            authenticodeStatus = $installerUnsigned.Status
         }
         application = [ordered]@{
             path = $applicationExe
             sha256 = Get-DshSha256 -Path $applicationExe
-            signature = $applicationSignature
-            verifiedInstalledPath = $installedApplicationSignature.Path
-            installedSignature = $installedApplicationSignature
+            authenticodeStatus = $applicationUnsigned.Status
+            verifiedInstalledPath = $installedApplicationUnsigned.Path
+            installedAuthenticodeStatus = $installedApplicationUnsigned.Status
         }
         managedEntryAssembly = [ordered]@{
             path = $managedEntryAssembly
             sha256 = Get-DshSha256 -Path $managedEntryAssembly
-            signature = $managedEntryAssemblySignature
-            verifiedInstalledPath = $installedManagedEntryAssemblySignature.Path
-            installedSignature = $installedManagedEntryAssemblySignature
+            authenticodeStatus = $managedEntryAssemblyUnsigned.Status
+            verifiedInstalledPath = $installedManagedEntryAssemblyUnsigned.Path
+            installedAuthenticodeStatus = $installedManagedEntryAssemblyUnsigned.Status
         }
         uninstaller = [ordered]@{
-            verifiedInstalledPath = $uninstallerSignature.Path
-            signature = $uninstallerSignature
+            verifiedInstalledPath = $uninstallerUnsigned.Path
+            sha256 = $uninstallerHash
+            authenticodeStatus = $uninstallerUnsigned.Status
             verificationDirectory = $UninstallerVerificationDirectory
         }
         inputs = [ordered]@{
@@ -651,9 +550,8 @@ try {
             stagedWebView2BootstrapperSignature = $stagedWebViewBootstrapperSignature
             verifiedInstalledWebView2BootstrapperPath = $installedWebViewBootstrapperSignature.Path
             installedWebView2BootstrapperSignature = $installedWebViewBootstrapperSignature
-            signToolSignature = $signToolEvidence
-            certificateSubject = $certificate.Subject
-            certificateThumbprint = $certificate.Thumbprint
+            ownArtifactsSigned = $false
+            signingPolicy = $constants.distribution.signing.policy
             maintenanceHelperSha256 = $maintenanceHelperSha256
             identityHelperSha256 = $identityHelperSha256
             installOwnershipMarkerSha256 = $installOwnershipMarkerSha256
@@ -667,26 +565,26 @@ try {
             path = $verifySummaryDestination
             sha256 = Get-DshSha256 -Path $verifySummaryDestination
         }
-        signedApplicationSet = [ordered]@{
+        unsignedArtifactSet = [ordered]@{
             apphost = [ordered]@{
                 path = $applicationExe
                 sha256 = Get-DshSha256 -Path $applicationExe
-                signature = $applicationSignature
+                authenticodeStatus = $applicationUnsigned.Status
             }
             managedEntryAssembly = [ordered]@{
                 path = $managedEntryAssembly
                 sha256 = Get-DshSha256 -Path $managedEntryAssembly
-                signature = $managedEntryAssemblySignature
+                authenticodeStatus = $managedEntryAssemblyUnsigned.Status
             }
             uninstaller = [ordered]@{
-                path = $uninstallerSignature.Path
+                path = $uninstallerUnsigned.Path
                 sha256 = $uninstallerHash
-                signature = $uninstallerSignature
+                authenticodeStatus = $uninstallerUnsigned.Status
             }
             installer = [ordered]@{
                 path = $installerPath
                 sha256 = $installerHash
-                signature = $installerSignature
+                authenticodeStatus = $installerUnsigned.Status
             }
         }
         supplyChain = [ordered]@{
@@ -697,14 +595,6 @@ try {
             releaseNotesInputPath = $releaseNotesPath
             releaseNotesInputSha256 = Get-DshSha256 -Path $releaseNotesPath
         }
-        signedUninstallerCache = @(
-            $uninstallerCacheFiles | ForEach-Object {
-                [ordered]@{
-                    name = $_.Name
-                    sha256 = Get-DshSha256 -Path $_.FullName
-                }
-            }
-        )
     }
     $manifestPath = Join-Path $releaseDirectory 'package-manifest.json'
     $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM

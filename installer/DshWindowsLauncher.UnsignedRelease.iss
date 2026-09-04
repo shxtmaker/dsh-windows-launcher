@@ -1,3 +1,11 @@
+; DshWindowsLauncher.UnsignedRelease.iss
+;
+; 轻量内网分发安装器：不包含 Code 段的安全加固（路径验证、重解析点拒绝、
+; 目录句柄锁定、就地升级身份校验等），也不跑真实安装/卸载验证。
+; 本项目已不签名任何自有产物，因此“不签名”不再是这一份与正式份的区别；
+; 区别在于加固。正式入口 eng/package.ps1 使用 DshWindowsLauncher.iss（同样不签名，
+; 但保留全部 Code 段加固与真实安装验证）。两者 AppId 不同，不得在同一用户环境共存。
+
 #ifndef SourceRoot
   #error SourceRoot is required
 #endif
@@ -23,9 +31,15 @@
 #define ProductName "DSH Windows Launcher"
 #define ExecutableName "DshWindowsLauncher.exe"
 #define RuntimeBootstrapperName "MicrosoftEdgeWebview2Setup.exe"
+; 应用图标由 eng/make-app-icon.ps1 从 mascot 源图生成；安装向导与卸载条目共用这一份。
+#define AppIconFile AddBackslash(SourcePath) + "..\assets\brand\app\DshWindowsLauncher.ico"
+#if !FileExists(AppIconFile)
+  #error Application icon is missing; run eng/make-app-icon.ps1
+#endif
 
 [Setup]
-AppId={{4440FC88-98CA-403E-8E20-3DFEBEF0E609}
+SetupIconFile={#AppIconFile}
+AppId={{A7E3F2B1-9C4D-4E8A-B5F6-1D2E3F4A5B6C}
 AppName={#ProductName}
 AppVersion={#AppVersion}
 AppVerName={#ProductName} {#AppVersion}
@@ -62,7 +76,7 @@ RestartApplications=no
 RestartIfNeededByRun=no
 SetupLogging=yes
 SignedUninstaller=no
-UninstallDisplayName={#ProductName}
+UninstallDisplayName={#ProductName} (Unsigned)
 UninstallDisplayIcon={app}\{#ExecutableName}
 WizardStyle=modern
 ShowLanguageDialog=no

@@ -2,15 +2,15 @@
 
 `release-constants.json` 是构建、打包、诊断版本信息和发布证据共同使用的版本化输入。`release-constants.schema.json` 固定字段、常量和正式候选完整性规则。
 
-模式版本 4 固定 `pairingBaseline`（DSH 远程访问配对契约）、`verificationBaseline` 和显式签名策略。`pairingBaseline` 固定插件名、参考版本、设备 Cookie 名、accept/heartbeat/status 路径、25 秒在线窗口与默认心跳间隔；基线只接受上一个已支持正式版本的真实 Git 提交。首个正式版本或无法确定基线时保持 `null`，验证影响推导必须 fail-closed 执行全部 VFY 和 RS，不得填写推测提交。
+模式版本 5 固定 `pairingBaseline`（DSH 远程访问配对契约）、`verificationBaseline` 和不签名策略。`pairingBaseline` 固定插件名、参考版本、设备 Cookie 名、accept/heartbeat/status 路径、25 秒在线窗口与默认心跳间隔；基线只接受上一个已支持正式版本的真实 Git 提交。首个正式版本或无法确定基线时保持 `null`，验证影响推导必须 fail-closed 执行全部 VFY 和 RS，不得填写推测提交。
 
 ## 状态规则
 
 - `development` 允许尚未由发布负责人确定的候选输入为 `null`，只能生成开发或内部测试产物。
 - `candidate` 要求 Inno Setup、Publisher、官方发布地址和 `distribution.signing.policy` 全部有效；`pairingBaseline.defaultHeartbeatIntervalSeconds` 必须严格小于 `onlineWindowSeconds`，且 `PairingProtocol.cs` 的实现必须与常量逐字对齐（verify 与测试双向校验）。
-- `distribution.signing.policy=optional` 允许证书主体和时间戳服务为 `null`，正式 Release 必须记录 `NotSigned` 并发布 SHA-256；`required` 则要求有效证书主体和 HTTPS 时间戳服务。
+- `distribution.signing.policy` 只接受 `none`：本项目不签名任何自有产物（安装包、EXE、托管主程序集、卸载器），打包与冒烟都反向断言 `NotSigned`，完整性由冻结 SHA-256 与 `package-manifest.json` 绑定保证。上游第三方输入（WebView2 Runtime/Bootstrapper、Inno Setup）仍必须是 Microsoft / Pyrsys B.V. 的有效签名。`publisher` 仅作为安装器元数据，不再代表证书主体。
 - 打包流程在正式模式下必须验证 JSON Schema、要求 `releaseStatus=candidate`，并拒绝策略未允许的 `null`、未识别字段或输入哈希不一致。
-- 修改 SDK、配对契约、安装器或签名策略后，必须按发布检查表重新执行受影响的验证集合。
+- 修改 SDK、配对契约、安装器、品牌图标或不签名策略后，必须按发布检查表重新执行受影响的验证集合。
 
 ## 固定值来源
 
@@ -28,6 +28,8 @@
 | `pairingBaseline.onlineWindowSeconds` | `25` | 插件默认 `offlineAfterMs` |
 | `pairingBaseline.defaultHeartbeatIntervalSeconds` | `10` | 保活默认间隔（< 在线窗口） |
 | `distribution.innoSetup` | `7.0.2`（冻结 SHA-256） | 安装器工具基线 |
+| `distribution.signing.policy` | `none` | 内网分发不签名自有产物（见 docs/adr/0008） |
+| 应用图标 | `assets/brand/app/DshWindowsLauncher.ico` | 原创 mascot 位图 `assets/brand/mascot-source.png`，由 `eng/make-app-icon.ps1` 生成（见 docs/adr/0009） |
 | `limits.maxTargets` | `32` | 集中端目标数量上限 |
 
 V1 的 `webUiCompatibility`、`dependencyBaseline`（Harness 指纹、LAN 插件、WebView2 SDK/Runtime）随 WebView2 壳架构一并移除：产品不再内嵌第三方 WebUI，配对连接完全由 Harness 侧远程访问插件提供（见 docs/adr/0006 与 docs/pairing-hub.md）。

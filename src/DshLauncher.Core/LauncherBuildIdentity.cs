@@ -50,8 +50,22 @@ public sealed class LauncherBuildIdentity
 
     public string InstallDirectoryName { get; }
 
+    /// <summary>
+    /// Identifies the application-data ownership token embedded in the assembly
+    /// metadata. Installers and external maintenance tools read this value via
+    /// <see cref="System.Reflection.AssemblyMetadataAttribute"/> to verify they
+    /// are operating on the correct data root before performing destructive
+    /// operations (e.g. uninstall data cleanup).
+    /// </summary>
     public string DataOwnerId { get; }
 
+    /// <summary>
+    /// Identifies the installation ownership token embedded in the assembly
+    /// metadata. The installer writes this value into
+    /// <c>installer/install-owner.txt</c> at packaging time; external tools
+    /// compare the file content against this property to confirm the
+    /// installation was produced by the same build flavor.
+    /// </summary>
     public string InstallOwnerId { get; }
 
     private static LauncherBuildIdentity FromAssembly(Assembly assembly)

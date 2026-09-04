@@ -12,6 +12,11 @@ public sealed class TrayHost : IDisposable
 {
     public TrayHost(string productName, Action openManagement, Action exitRequested)
     {
+        if (_instance is not null)
+        {
+            throw new InvalidOperationException("TrayHost has already been initialized.");
+        }
+
         _productName = productName;
         _openManagement = openManagement;
         _exitRequested = exitRequested;
@@ -29,14 +34,42 @@ public sealed class TrayHost : IDisposable
         exitItem.Click += static (_, _) => _instance?.RaiseExit();
         _instance = this;
 
+        var (trayIcon, ownsTrayIcon) = ResolveTrayIcon();
+        _trayIcon = trayIcon;
+        _ownsTrayIcon = ownsTrayIcon;
         _icon = new System.Windows.Forms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = _trayIcon,
             Text = productName,
             Visible = true,
             ContextMenuStrip = _menu,
         };
         _icon.DoubleClick += static (_, _) => _instance?.RaiseOpen();
+    }
+
+    /// <summary>Resolves the tray icon from the running executable so the
+    /// installed product shows its own brand mark; falls back to the generic
+    /// application icon when extraction is unavailable.</summary>
+    private static (System.Drawing.Icon Icon, bool Owned) ResolveTrayIcon()
+    {
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (processPath is not null)
+            {
+                var extracted = System.Drawing.Icon.ExtractAssociatedIcon(processPath);
+                if (extracted is not null)
+                {
+                    return (extracted, true);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Fall through to the generic icon below.
+        }
+
+        return (System.Drawing.SystemIcons.Application, false);
     }
 
     public void UpdateStatus(string status)
@@ -101,6 +134,10 @@ public sealed class TrayHost : IDisposable
         _icon.Visible = false;
         _icon.Dispose();
         _menu.Dispose();
+        if (_ownsTrayIcon)
+        {
+            _trayIcon.Dispose();
+        }
     }
 
     private static string Truncate(string text)
@@ -123,6 +160,8 @@ public sealed class TrayHost : IDisposable
     private readonly System.Windows.Forms.NotifyIcon _icon;
     private readonly System.Windows.Forms.ContextMenuStrip _menu;
     private readonly System.Windows.Forms.ToolStripMenuItem _closeBehaviorItem;
+    private readonly System.Drawing.Icon _trayIcon;
+    private readonly bool _ownsTrayIcon;
     private Action<string>? _closeBehaviorSelected;
     private bool _disposed;
 }

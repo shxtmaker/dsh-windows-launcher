@@ -1,8 +1,20 @@
 # 工程与发布入口
 
 `eng/` 的正式发布流程只公开三个顺序入口。CI 如存在，也只能调用这些脚本，不复制或跳过
-脚本内门禁。另有一个与正式身份完全隔离的未签名内部测试打包入口；它不能进入正式发布
-流程。
+脚本内门禁。另有一个与正式身份完全隔离的轻量内网测试打包入口；它不能进入正式发布
+流程。本项目不签名任何自有产物（见 docs/adr/0008），但正式包保留全部安装器安全加固。
+
+## `make-app-icon.ps1`
+
+从 `assets/brand/mascot-source.png`（原创 mascot 位图）生成应用图标：整幅方形源图套上自有圆角遮罩
+把白色四角切成真透明，输出多尺寸 `assets/brand/app/DshWindowsLauncher.ico` 与逐尺寸 PNG 预览。
+按尺寸分两档：≥40px 用整幅构图，≤32px 改用脸部放大裁切（否则 16px 上只剩头发）。
+`-Verify` 重画到临时目录并逐字节比对已提交产物，用于阻止图标与生成器漂移（Acceptance 测试会调用它）。
+
+```powershell
+pwsh -File .\eng\make-app-icon.ps1          # 重新生成
+pwsh -File .\eng\make-app-icon.ps1 -Verify  # 只校验不写盘
+```
 
 ## `verify.ps1`
 
@@ -13,7 +25,7 @@ pwsh -File .\eng\verify.ps1 `
   -DotNetPath "$env:LOCALAPPDATA\DshWindowsLauncherDev\dotnet-10.0.400\dotnet.exe"
 ```
 
-四个测试项目（Core、WebUi、Platform.Windows、Acceptance）作为 Microsoft.Testing.Platform 可执行测试模块逐一运行，避免混用 VSTest。脚本先枚举预期测试方法和固定数据集，再用结构化结果核对实际执行、动态 Theory 展开、零跳过和逐数据集 `triggerTags`。结果目录包含逐模块 `.mtp.log`、脱敏 `.test-evidence.json`、夹具清单和 `verify-summary.json`。`releaseStatus=candidate` 时，任何空发布常量、非 HTTPS 发布地址或签名输入缺失都会在构建前阻断。
+三个测试项目（Core、Platform.Windows、Acceptance）作为 Microsoft.Testing.Platform 可执行测试模块逐一运行，避免混用 VSTest。脚本先枚举预期测试方法和固定数据集，再用结构化结果核对实际执行、动态 Theory 展开、零跳过和逐数据集 `triggerTags`。结果目录包含逐模块 `.mtp.log`、脱敏 `.test-evidence.json`、夹具清单和 `verify-summary.json`。`releaseStatus=candidate` 时，任何空发布常量、不符合 `^https?://` 的发布地址或 `distribution.signing.policy` 不等于 `none` 都会在构建前阻断（内网场景允许使用 HTTP）。
 
 ## `package.ps1`
 
@@ -22,9 +34,8 @@ pwsh -File .\eng\verify.ps1 `
 - 参数 SemVer 与候选发布常量完全相同；
 - WebView2 Evergreen Standalone x64、Evergreen Bootstrapper 和 Inno Setup 官方安装包匹配冻结版本、SHA-256、有效 Authenticode 与时间戳；
 - `ISCC.exe` 精确为 Inno Setup `7.0.2` 且由 Pyrsys B.V. 有效签名；
-- `signtool.exe` 由 Microsoft 有效签名；
-- 证书位于 Windows 证书存储区，具有私钥，主体与发布常量完全一致；
-- 用户显式允许在专用固定卷目录短暂安装最终包，以验证真实 `unins*.exe` 的 Authenticode 与时间戳。
+- 自有产物全部保持 `NotSigned`：不需要 `signtool.exe`、证书或时间戳服务；
+- 用户显式允许在专用固定卷目录短暂安装最终包，以验证真实 `unins*.exe` 的身份与未签名状态。
 
 ```powershell
 pwsh -File .\eng\package.ps1 `
@@ -33,15 +44,14 @@ pwsh -File .\eng\package.ps1 `
   -WebView2BootstrapperPath C:\release-inputs\MicrosoftEdgeWebview2Setup.exe `
   -InnoSetupInstallerPath C:\release-inputs\innosetup-7.0.2-x64.exe `
   -InnoCompilerPath "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe" `
-  -SignToolPath C:\release-inputs\signtool.exe `
-  -CertificateThumbprint CERTIFICATE_THUMBPRINT `
   -UninstallerVerificationDirectory C:\release-validation\DshWindowsLauncher `
   -AllowInstallerExecutionForUninstallerVerification
 ```
 
-脚本先完整运行 `verify.ps1`，再发布自包含、多文件、非裁剪应用，把已冻结 Bootstrapper 固定暂存并安装为 `MicrosoftEdgeWebview2Setup.exe`，签名主程序，编译并签名 Inno 安装器和卸载器。Inno 的安装前置只执行 Standalone；Bootstrapper 只供应用运行时修复页使用。最终安装器、`.sha256`、`package-manifest.json`、验证摘要、SPDX 2.3 SBOM、第三方许可证清单和发行说明输入写入 `artifacts/package/<version>/release/`。安装器 SHA-256 只在全部签名和真实卸载器验证完成后冻结。
+脚本先完整运行 `verify.ps1`，再发布自包含、多文件、非裁剪应用，把已冻结 Bootstrapper 固定暂存并安装为 `MicrosoftEdgeWebview2Setup.exe`，断言 apphost 与托管主程序集保持未签名，编译不带签名的 Inno 安装器和卸载器。安装器仍保留全部 `[Code]` 安全加固（路径锁定、重解析点拒绝、IPC 退出、就地升级身份校验）。最终安装器、`.sha256`、`package-manifest.json`（`schemaVersion` 3，`ownArtifactsSigned=false`）、验证摘要、SPDX 2.3 SBOM、第三方许可证清单和发行说明输入写入 `artifacts/package/<version>/release/`。安装器 SHA-256 只在全部真实卸载器验证完成后冻结。
 
-签名凭据和私钥不通过脚本参数传递。证书只按公开 thumbprint 从 Windows 证书存储区选择。
+不再存在签名参数。证书私钥、签名主体和时间戳服务地址不再是发布契约的一部分；
+上游第三方输入的 Microsoft / Pyrsys B.V. 签名校验保留，因为它们验证的是别人交给我们的字节。
 
 ## `package-internal.ps1`
 
@@ -80,9 +90,19 @@ pwsh -File .\eng\package-internal.ps1 `
 `prerelease=true` 的预发布上传；标题、正文和文件名必须完整保留 `INTERNAL TEST`、
 `UNSIGNED`、`NOT FOR PRODUCTION USE`，且不得设为 latest 或正式发布。
 
+## `package-unsigned.ps1`
+
+`package-unsigned.ps1` 是 `package-internal.ps1 -OfficialUnsignedRelease` 的别名入口，用于内网
+快速出正式身份包：使用正式产品名、`DshWindowsLauncher.exe`、正式 AppId 与数据根，但不跑
+真实安装/卸载验证，并使用 `installer/DshWindowsLauncher.UnsignedRelease.iss`——这一份安装器
+**不含** `[Code]` 安全加固。它要求 `releaseStatus=candidate`、`distribution.signing.policy=none`
+且版本与发布常量完全相同，产物写入 `artifacts/package/<version>/release/`。
+
+需要安装器安全加固、真实卸载器验证和完整发布证据时，只能使用 `package.ps1`（同样不签名）。
+
 ## `release-smoke.ps1`
 
-该脚本只接受与 `package-manifest.json`、冻结 SHA-256、有效签名、可信时间戳和 PASS 验证摘要一致的安装包。`FirstRelease` 选择 `RS-01` 至 `RS-15`；`RegularPatch` 选择全部“每次”项目和 `-TriggerTags` 命中的条件项目。
+该脚本只接受与 `package-manifest.json`（`schemaVersion` 3）、冻结 SHA-256、`NotSigned` Authenticode 状态和 PASS 验证摘要一致的安装包；候选与已安装 EXE 也必须实测为 `NotSigned`。`FirstRelease` 选择 `RS-01` 至 `RS-15`；`RegularPatch` 选择全部“每次”项目和 `-TriggerTags` 命中的条件项目。
 
 ```powershell
 pwsh -File .\eng\release-smoke.ps1 `
@@ -98,8 +118,9 @@ pwsh -File .\eng\release-smoke.ps1 `
 - 单实例基础名为 `DshWindowsLauncher.SingleInstance`；实际互斥和 IPC 名包含当前用户 SID，并使用 current-user ACL。
 - 安装器通过 `--request-maintenance-exit --timeout-seconds 30` 请求正常退出。非零、超时或拒绝均在程序文件替换前中止，不强杀进程。
 - 安装器在写入前以不共享删除权限的目录句柄锁定固定卷根至 `{app}` 的每个组件，拒绝重解析点，并用 `GetFinalPathNameByHandleW` 复核最终路径、卷和根边界；句柄保持到安装完成。
-- 应用数据所有权标记固定为 `%LOCALAPPDATA%\DshWindowsLauncher\.dsh-windows-launcher-owner`，内容为 `DshWindowsLauncher:v1`。
+- 应用数据所有权标记固定为 `%LOCALAPPDATA%\DshWindowsLauncher\.dsh-windows-launcher-owner`，内容为 `DshWindowsLauncher:v2`。
 - 普通卸载不删除应用数据。清数据需要两次默认否的确认，且精确根、所有权标记和整棵目录无重解析点全部验证后才逐项删除。
+- 就地升级前的安装身份校验只接受 `NotSigned` 的已登记 EXE 与卸载器，用于拒绝被替换成其他来源（他人签名、`HashMismatch`、`Unknown`）的文件。
 
 ## Linux 夹具
 

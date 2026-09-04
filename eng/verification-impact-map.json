@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baselinePolicy": "last-supported-signed-release",
+  "baselinePolicy": "last-supported-release",
   "unknownInput": {
     "triggerTags": [
       "VFY-01",
@@ -108,6 +108,22 @@
       "identityInputs": [
         "product"
       ]
+    },
+    {
+      "mappingId": "brand-icon-assets",
+      "pathPatterns": [
+        "assets/**",
+        "eng/make-app-icon.ps1"
+      ],
+      "triggerTags": [
+        "VFY-01",
+        "VFY-07"
+      ],
+      "requiredRs": [
+        "RS-02",
+        "RS-04"
+      ],
+      "identityInputs": []
     },
     {
       "mappingId": "documentation-only",

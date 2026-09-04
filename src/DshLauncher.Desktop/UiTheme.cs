@@ -116,7 +116,8 @@ public static class UiChrome
         try
         {
             var handle = new WindowInteropHelper(window).Handle;
-            _ = DwmSetWindowAttribute(handle, DarkModeAttribute, ref EnabledValue, sizeof(int));
+            int enabled = 1;
+            _ = DwmSetWindowAttribute(handle, DarkModeAttribute, ref enabled, sizeof(int));
         }
         catch (DllNotFoundException)
         {
@@ -126,7 +127,6 @@ public static class UiChrome
 
     // DWMWA_USE_IMMERSIVE_DARK_MODE
     private const int DarkModeAttribute = 20;
-    private static int EnabledValue = 1;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);

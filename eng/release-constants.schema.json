@@ -21,7 +21,7 @@
       "const": "./release-constants.schema.json"
     },
     "schemaVersion": {
-      "const": 4
+      "const": 5
     },
     "releaseStatus": {
       "enum": [
@@ -163,10 +163,10 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "lastSupportedSignedReleaseCommit"
+        "lastSupportedReleaseCommit"
       ],
       "properties": {
-        "lastSupportedSignedReleaseCommit": {
+        "lastSupportedReleaseCommit": {
           "oneOf": [
             {
               "type": "string",
@@ -219,27 +219,17 @@
         "signing": {
           "type": "object",
           "additionalProperties": false,
+          "description": "本项目不签名任何自有产物；policy 固定 none，publisher 仅作为安装器元数据。上游第三方输入（WebView2 / Inno Setup）的 Authenticode 校验仍然强制。",
           "required": [
             "policy",
-            "publisher",
-            "certificateSubject",
-            "timestampServerUri"
+            "publisher"
           ],
           "properties": {
             "policy": {
-              "enum": [
-                "optional",
-                "required"
-              ]
+              "const": "none"
             },
             "publisher": {
               "$ref": "#/$defs/pendingString"
-            },
-            "certificateSubject": {
-              "$ref": "#/$defs/pendingString"
-            },
-            "timestampServerUri": {
-              "$ref": "#/$defs/pendingHttpsUri"
             }
           }
         },
@@ -363,54 +353,6 @@
               },
               "officialReleaseUri": {
                 "$ref": "#/$defs/httpUri"
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "releaseStatus": {
-            "const": "candidate"
-          },
-          "distribution": {
-            "properties": {
-              "signing": {
-                "properties": {
-                  "policy": {
-                    "const": "required"
-                  }
-                },
-                "required": [
-                  "policy"
-                ]
-              }
-            },
-            "required": [
-              "signing"
-            ]
-          }
-        },
-        "required": [
-          "releaseStatus",
-          "distribution"
-        ]
-      },
-      "then": {
-        "properties": {
-          "distribution": {
-            "properties": {
-              "signing": {
-                "properties": {
-                  "certificateSubject": {
-                    "$ref": "#/$defs/nonEmptyString"
-                  },
-                  "timestampServerUri": {
-                    "$ref": "#/$defs/httpsUri"
-                  }
-                }
               }
             }
           }

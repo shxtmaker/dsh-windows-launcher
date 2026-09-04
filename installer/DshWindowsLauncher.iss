@@ -28,12 +28,6 @@
 #ifndef OutputBaseFilename
   #error OutputBaseFilename is required
 #endif
-#ifndef SignedUninstallerDirectory
-  #error SignedUninstallerDirectory is required
-#endif
-#ifndef CertificateSubject
-  #error CertificateSubject is required
-#endif
 #ifndef MaintenanceHelperSha256
   #error MaintenanceHelperSha256 is required
 #endif
@@ -63,8 +57,14 @@
 #define WebView2CoreAssemblyName "Microsoft.Web.WebView2.Core.dll"
 #define WebView2LoaderName "WebView2Loader.dll"
 #define InstallOwnershipMarkerName ".dsh-windows-launcher-install-owner"
+; 应用图标由 eng/make-app-icon.ps1 从 mascot 源图生成；安装向导与卸载条目共用这一份。
+#define AppIconFile AddBackslash(SourcePath) + "..\assets\brand\app\DshWindowsLauncher.ico"
+#if !FileExists(AppIconFile)
+  #error Application icon is missing; run eng/make-app-icon.ps1
+#endif
 
 [Setup]
+SetupIconFile={#AppIconFile}
 AppId={{4440FC88-98CA-403E-8E20-3DFEBEF0E609}
 AppName={#ProductName}
 AppVersion={#AppVersion}
@@ -100,13 +100,9 @@ CloseApplications=no
 RestartApplications=no
 RestartIfNeededByRun=no
 SetupLogging=yes
-#ifdef SyntaxOnly
+; 本项目不签名自有产物：卸载器也不走 Inno 的签名回环（SignedUninstaller=no）。
+; Code 段里的路径锁定、重解析点拒绝与安装身份校验全部保留。
 SignedUninstaller=no
-#else
-SignedUninstaller=yes
-SignedUninstallerDir={#SignedUninstallerDirectory}
-SignTool=dshwl
-#endif
 UninstallDisplayName={#ProductName}
 UninstallDisplayIcon={app}\{#ExecutableName}
 WizardStyle=modern
@@ -1145,7 +1141,6 @@ begin
       AddQuotes(IdentityHelperPath) +
       ' -ApplicationPath ' + AddQuotes(ApplicationPath) +
       ' -UninstallerPath ' + AddQuotes(UninstallerPath) +
-      ' -ExpectedSubject ' + AddQuotes('{#CertificateSubject}') +
       ' -ExpectedProductVersion ' + AddQuotes(ExistingVersion);
     if not Exec(
       ExpandConstant('{sys}\' + PowerShellRelativePath),
@@ -1155,7 +1150,7 @@ begin
       ewWaitUntilTerminated,
       ResultCode) or (ResultCode <> 0) then
     begin
-      Reason := '已登记安装的签名、时间戳或版本身份无效。';
+      Reason := '已登记安装的 Authenticode 状态或版本身份无效。';
       Exit;
     end;
 

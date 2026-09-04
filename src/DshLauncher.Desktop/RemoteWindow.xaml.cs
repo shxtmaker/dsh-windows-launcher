@@ -189,11 +189,11 @@ public partial class RemoteWindow : Window
     private const int WmNclButtonDown = 0xA1;
     private const int HtCaption = 0x2;
 
-    [DllImport("user32.dll")]
-    private static extern int ReleaseCapture();
+    [LibraryImport("user32.dll")]
+    private static partial int ReleaseCapture();
 
-    [DllImport("user32.dll")]
-    private static extern int SendMessage(nint hWnd, int message, nint wParam, nint lParam);
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static partial int SendMessage(nint hWnd, int message, nint wParam, nint lParam);
 
     private void CollapseSidebar()
     {

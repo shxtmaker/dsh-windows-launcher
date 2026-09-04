@@ -207,8 +207,8 @@ try {
         if ($Version -cne $constants.product.version) {
             throw "正式版本必须与发布常量一致。参数：$Version；常量：$($constants.product.version)"
         }
-        if ($constants.distribution.signing.policy -cne 'optional') {
-            throw '正式未签名包要求 distribution.signing.policy=optional。'
+        if ($constants.distribution.signing.policy -cne 'none') {
+            throw '正式包要求 distribution.signing.policy=none。'
         }
     }
     else {
@@ -370,7 +370,7 @@ try {
     $installDirectoryName = if ($OfficialUnsignedRelease) { $officialInstallDirectoryName } else { $internalInstallDirectoryName }
     $appId = if ($OfficialUnsignedRelease) { $officialAppId } else { $internalAppId }
     $description = if ($OfficialUnsignedRelease) {
-        'Official release with optional Authenticode signing'
+        'Official release; Authenticode status: NotSigned'
     }
     else {
         'UNSIGNED INTERNAL TEST - NOT FOR PRODUCTION USE'

@@ -264,7 +264,7 @@ function Assert-DshReleaseConstants {
         }
     }
 
-    if ($Constants.schemaVersion -ne 4) {
+    if ($Constants.schemaVersion -ne 5) {
         throw "未知发布常量模式：$($Constants.schemaVersion)"
     }
 
@@ -313,7 +313,11 @@ function Assert-DshReleaseConstants {
         throw '发布常量中的 Inno Setup 版本偏离固定基线。'
     }
 
-    $baselineCommit = [string] $Constants.verificationBaseline.lastSupportedSignedReleaseCommit
+    if ($Constants.distribution.signing.policy -cne 'none') {
+        throw '本项目不签名任何产物；distribution.signing.policy 必须为 none。'
+    }
+
+    $baselineCommit = [string] $Constants.verificationBaseline.lastSupportedReleaseCommit
     if (-not [string]::IsNullOrWhiteSpace($baselineCommit) -and
         $baselineCommit -cnotmatch '^(?:[0-9a-f]{40}|[0-9a-f]{64})$') {
         throw '上一正式支持版本提交必须为空或规范小写 Git 对象 ID。'
@@ -326,15 +330,8 @@ function Assert-DshReleaseConstants {
         }
 
         $emptyPaths = @(Get-DshEmptyValuePaths -InputObject $Constants | Where-Object {
-                $_ -ne '$.verificationBaseline.lastSupportedSignedReleaseCommit'
+                $_ -ne '$.verificationBaseline.lastSupportedReleaseCommit'
             })
-        if ($Constants.distribution.signing.policy -eq 'optional') {
-            $emptyPaths = @($emptyPaths | Where-Object {
-                    $_ -notin @(
-                        '$.distribution.signing.certificateSubject',
-                        '$.distribution.signing.timestampServerUri')
-                })
-        }
         if ($emptyPaths.Count -gt 0) {
             throw "正式候选仍有空发布常量：$($emptyPaths -join ', ')"
         }
@@ -342,12 +339,6 @@ function Assert-DshReleaseConstants {
         if ($Constants.distribution.officialReleaseUri -notmatch '^https?://') {
             throw '正式发布地址必须使用 HTTP 或 HTTPS。'
         }
-
-        if ($Constants.distribution.signing.policy -eq 'required' -and
-            $Constants.distribution.signing.timestampServerUri -notmatch '^https://') {
-            throw '启用强制签名时，时间戳服务必须使用 HTTPS。'
-        }
-
     }
 }
 function Test-DshImpactPathPattern {
@@ -397,7 +388,7 @@ function Resolve-DshVerificationImpact {
     $map = Get-Content -LiteralPath $mapPath -Raw -Encoding UTF8 |
         ConvertFrom-Json -Depth 100
     if ($map.schemaVersion -ne 1 -or
-        $map.baselinePolicy -cne 'last-supported-signed-release') {
+        $map.baselinePolicy -cne 'last-supported-release') {
         throw '验证影响映射模式或基线策略未知。'
     }
 
@@ -473,7 +464,7 @@ function Get-DshCurrentVerificationImpact {
         [pscustomobject] $Constants
     )
 
-    $baselineCommit = [string] $Constants.verificationBaseline.lastSupportedSignedReleaseCommit
+    $baselineCommit = [string] $Constants.verificationBaseline.lastSupportedReleaseCommit
     if ([string]::IsNullOrWhiteSpace($baselineCommit)) {
         return Resolve-DshVerificationImpact `
             -RepositoryRoot $RepositoryRoot `
@@ -517,7 +508,9 @@ function Get-DshCurrentVerificationImpact {
             -Arguments @('-C', $RepositoryRoot, 'show', "$baselineCommit`:eng/release-constants.json") `
             -WorkingDirectory $RepositoryRoot
         $baselineConstants = $baselineConstantsJson | ConvertFrom-Json -Depth 100
-        if ($baselineConstants.schemaVersion -ne 4) {
+        # 基线是历史上已发布的那一份常量：v4（签名时代）与 v5（不签名）都可比较，
+        # 因为下面只用 pairingBaseline 与 product 两个跨版本稳定的子对象。
+        if ($baselineConstants.schemaVersion -notin @(4, 5)) {
             throw 'baseline release constants schema is unsupported'
         }
         $identityChanges = [Collections.Generic.List[string]]::new()
@@ -1232,37 +1225,6 @@ function Get-DshAuthenticodeEvidence {
     }
 }
 
-function Assert-DshRecordedAuthenticodeEvidence {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [pscustomobject] $Evidence,
-
-        [Parameter(Mandatory)]
-        [string] $ExpectedSubject,
-
-        [Parameter(Mandatory)]
-        [string] $Description
-    )
-
-    if ($null -eq $Evidence -or
-        [string] $Evidence.Status -cne 'Valid' -or
-        [string] $Evidence.SignerSubject -cne $ExpectedSubject -or
-        [string] $Evidence.SignerThumbprint -cnotmatch '^[0-9A-Fa-f]{16,}$' -or
-        [string]::IsNullOrWhiteSpace([string] $Evidence.TimestampSubject)) {
-        throw "$Description 缺少有效且匹配的 Authenticode 记录。"
-    }
-    try {
-        $timestampNotAfter = [DateTimeOffset]::Parse([string] $Evidence.TimestampNotAfter)
-    }
-    catch {
-        throw "$Description 的时间戳证书有效期记录无效。"
-    }
-    if ($timestampNotAfter -eq [DateTimeOffset]::MinValue) {
-        throw "$Description 的时间戳证书有效期记录无效。"
-    }
-}
-
 function Test-DshEvidenceTextSafe {
     [CmdletBinding()]
     param(
@@ -1302,9 +1264,6 @@ function Test-DshReleaseHostEvidence {
         [Parameter(Mandatory)]
         [string] $ExpectedExecutableName,
 
-        [Parameter(Mandatory)]
-        [string] $ExpectedSignerSubject,
-
         [string] $ExpectedSha256
     )
 
@@ -1338,14 +1297,8 @@ function Test-DshReleaseHostEvidence {
                 return $false
             }
 
-            $signature = $executable.Signature
-            if ($null -eq $signature -or
-                $signature.Status -ne 'Valid' -or
-                $signature.SignerSubject -cne $ExpectedSignerSubject -or
-                $signature.SignerThumbprint -notmatch '^[0-9A-Fa-f]{16,}$' -or
-                [string]::IsNullOrWhiteSpace([string] $signature.TimestampSubject) -or
-                [DateTimeOffset]::Parse([string] $signature.TimestampNotAfter) -eq
-                    [DateTimeOffset]::MinValue) {
+            # 本项目不签名产物：实测身份必须显式为 NotSigned，不允许拖着一个旧签名进入证据。
+            if ([string] $executable.AuthenticodeStatus -cne 'NotSigned') {
                 return $false
             }
         }
@@ -1622,7 +1575,7 @@ function Get-DshSmokeMatrix {
     param()
 
     return @(
-        [pscustomobject]@{ Id = 'RS-01'; Frequency = '每次'; TriggerTags = @('every', 'installer', 'signing', 'release-constants'); Success = 'PASS'; Environment = 'Windows 11 VM'; Instructions = '核对最终安装包签名、可信时间戳、文件名、大小、版本、SHA-256、Publisher、SBOM 和依赖基线；确认安装包、自有 EXE 和卸载器身份一致。' },
+        [pscustomobject]@{ Id = 'RS-01'; Frequency = '每次'; TriggerTags = @('every', 'installer', 'integrity', 'release-constants'); Success = 'PASS'; Environment = 'Windows 11 VM'; Instructions = '核对最终安装包的文件名、大小、版本、SHA-256、Publisher、SBOM 和依赖基线；确认安装包、自有 EXE 和卸载器身份一致，且三者 Authenticode 状态均为 NotSigned。' },
         [pscustomobject]@{ Id = 'RS-02'; Frequency = '每次'; TriggerTags = @('every', 'installer'); Success = 'PASS'; Environment = '干净 Windows 11 VM'; Instructions = '以标准用户从默认目录全新安装并启动真实 DshWindowsLauncher.exe；确认无提权、无后台进程，开始菜单和卸载登记正确。' },
         [pscustomobject]@{ Id = 'RS-03'; Frequency = '首版或安装器/Runtime 变化'; TriggerTags = @('installer', 'runtime', 'release-constants'); Success = 'PASS'; Environment = 'Windows 11 VM'; Instructions = '分别在 Runtime 已满足、缺失、低于下限和完全离线快照验证检测、离线修复及失败前不替换程序；验证固定卷空目录资格与危险路径拒绝。' },
         [pscustomobject]@{ Id = 'RS-04'; Frequency = '每次'; TriggerTags = @('every', 'windows', 'process'); Success = 'PASS'; Environment = 'Windows 11 实体机'; Instructions = '验证空目录添加流程、重复启动转交、默认目标、同目标窗口去重、纯键盘核心流程、高对比度及 100%/150%/200% DPI。' },

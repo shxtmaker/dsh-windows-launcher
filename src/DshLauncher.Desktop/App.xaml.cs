@@ -108,6 +108,30 @@ public partial class App : Application
             case SingleInstanceRequestKind.MaintenanceExit:
                 Dispatcher.BeginInvoke(BeginExit);
                 return ValueTask.FromResult(SingleInstanceResponse.Accepted);
+            case SingleInstanceRequestKind.OpenTarget:
+                var requestedTargetId = request.TargetId;
+                if (requestedTargetId is null || requestedTargetId == Guid.Empty)
+                {
+                    return ValueTask.FromResult(SingleInstanceResponse.Rejected);
+                }
+
+                var targetId = requestedTargetId.Value;
+                Dispatcher.BeginInvoke(async () =>
+                {
+                    if (_exitRequested || _hub is null)
+                    {
+                        return;
+                    }
+
+                    OpenManagement();
+                    if (_management is not null)
+                    {
+                        await _management
+                            .OpenRemoteForTargetAsync(targetId)
+                            .ConfigureAwait(true);
+                    }
+                });
+                return ValueTask.FromResult(SingleInstanceResponse.Accepted);
             default:
                 return ValueTask.FromResult(SingleInstanceResponse.Rejected);
         }
@@ -138,33 +162,78 @@ public partial class App : Application
         _exitRequested = true;
         Dispatcher.BeginInvoke(async () =>
         {
-            try
+            var cleanupFailures = new List<string>();
+
+            if (_management is not null)
             {
-                if (_management is not null)
+                try
                 {
                     _management.AllowClose();
                     _management.Close();
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add(exception.Message);
+                }
+                finally
+                {
                     _management = null;
                 }
+            }
 
-                if (_hub is not null)
+            if (_hub is not null)
+            {
+                try
                 {
                     await _hub.DisposeAsync().ConfigureAwait(true);
                 }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add(exception.Message);
+                }
+            }
 
-                if (_tray is not null)
+            if (_tray is not null)
+            {
+                try
                 {
                     _tray.Dispose();
                 }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add(exception.Message);
+                }
+            }
 
-                if (_singleInstance is not null)
+            if (_singleInstance is not null)
+            {
+                try
                 {
                     await _singleInstance.DisposeAsync().ConfigureAwait(true);
                 }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add(exception.Message);
+                }
+            }
 
+            try
+            {
                 _applicationData?.Dispose();
             }
-            finally
+            catch (Exception exception)
+            {
+                cleanupFailures.Add(exception.Message);
+            }
+
+            if (cleanupFailures.Count > 0)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "关闭清理失败：{0}",
+                    string.Join(" | ", cleanupFailures));
+                Shutdown(1);
+            }
+            else
             {
                 Shutdown(0);
             }

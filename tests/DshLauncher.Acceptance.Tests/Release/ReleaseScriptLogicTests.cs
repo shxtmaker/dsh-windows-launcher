@@ -62,6 +62,87 @@ public sealed class ReleaseScriptLogicTests
     }
 
     [Fact]
+    [Trait("triggerTags", "VFY-01,VFY-08")]
+    public void CandidateValidationAcceptsOnlyTheNoneSigningPolicy()
+    {
+        string root = FindRepositoryRoot();
+        string rootLiteral = QuotePowerShell(root);
+        string output = RunPowerShell(
+            CommonPrelude(root) +
+            $"$required=Get-DshReleaseConstants -RepositoryRoot {rootLiteral};" +
+            "$required.distribution.signing.policy='required';" +
+            $"$requiredResult=try {{ Assert-DshReleaseConstants -RepositoryRoot {rootLiteral} -Constants $required -RequireCandidate; 'ACCEPTED' }} catch {{ 'REJECTED' }};" +
+            $"$optional=Get-DshReleaseConstants -RepositoryRoot {rootLiteral};" +
+            "$optional.distribution.signing.policy='optional';" +
+            $"$optionalResult=try {{ Assert-DshReleaseConstants -RepositoryRoot {rootLiteral} -Constants $optional -RequireCandidate; 'ACCEPTED' }} catch {{ 'REJECTED' }};" +
+            $"$noneResult=try {{ Assert-DshReleaseConstants -RepositoryRoot {rootLiteral} -Constants (Get-DshReleaseConstants -RepositoryRoot {rootLiteral}) -RequireCandidate; 'ACCEPTED' }} catch {{ 'REJECTED' }};" +
+            "\"$requiredResult;$optionalResult;$noneResult\"");
+
+        Assert.Equal("REJECTED;REJECTED;ACCEPTED", output.Trim());
+    }
+
+    [Fact]
+    [Trait("triggerTags", "VFY-01,VFY-07,branding")]
+    public void ApplicationIconIsReproducibleAndWiredIntoEverySurface()
+    {
+        string root = FindRepositoryRoot();
+        string iconPath = Path.Combine(root, "assets", "brand", "app", "DshWindowsLauncher.ico");
+        byte[] icon = File.ReadAllBytes(iconPath);
+        Assert.Equal((ushort)0, BitConverter.ToUInt16(icon, 0));
+        Assert.Equal((ushort)1, BitConverter.ToUInt16(icon, 2));
+        ushort frameCount = BitConverter.ToUInt16(icon, 4);
+        Assert.True(frameCount >= 6, $"图标帧数不足：{frameCount}");
+
+        HashSet<int> frameSizes = new();
+        int expectedOffset = 6 + (16 * frameCount);
+        for (int index = 0; index < frameCount; index++)
+        {
+            int entry = 6 + (index * 16);
+            int width = icon[entry] == 0 ? 256 : icon[entry];
+            Assert.Equal(icon[entry + 1], icon[entry]);
+            uint imageSize = BitConverter.ToUInt32(icon, entry + 8);
+            Assert.Equal((uint)expectedOffset, BitConverter.ToUInt32(icon, entry + 12));
+            expectedOffset += (int)imageSize;
+            frameSizes.Add(width);
+        }
+
+        Assert.Equal(icon.Length, expectedOffset);
+        Assert.Contains(16, frameSizes);
+        Assert.Contains(32, frameSizes);
+        Assert.Contains(256, frameSizes);
+
+        // 圆角遮罩必须把四角切成真透明，否则任务栏上会拖出白边；PNG IHDR 第 25 字节
+        // 是 color type，6 = RGBA。
+        byte[] preview = File.ReadAllBytes(Path.Combine(root, "assets", "brand", "app", "png", "app-256.png"));
+        Assert.Equal((byte)6, preview[25]);
+
+        // 生成器必须逐字节复现已提交产物，阻止图标与工具漂移。
+        string generator = Path.Combine(root, "eng", "make-app-icon.ps1");
+        Assert.Contains("VERIFY PASS", RunPowerShell($"& {QuotePowerShell(generator)} -Verify"), StringComparison.Ordinal);
+
+        string project = File.ReadAllText(
+            Path.Combine(root, "src", "DshLauncher.Desktop", "DshLauncher.Desktop.csproj"));
+        Assert.Contains(
+            "<ApplicationIcon>..\\..\\assets\\brand\\app\\DshWindowsLauncher.ico</ApplicationIcon>",
+            project,
+            StringComparison.Ordinal);
+
+        string[] installerScripts =
+        [
+            "DshWindowsLauncher.iss",
+            "DshWindowsLauncher.UnsignedRelease.iss",
+            "DshWindowsLauncher.InternalTest.iss",
+        ];
+        foreach (string installerScript in installerScripts)
+        {
+            Assert.Contains(
+                "SetupIconFile={#AppIconFile}",
+                File.ReadAllText(Path.Combine(root, "installer", installerScript)),
+                StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     [Trait("triggerTags", "VFY-01,VFY-07")]
     public void ProductionProjectReferencesMatchTheFixedArchitecture()
     {
@@ -115,18 +196,15 @@ public sealed class ReleaseScriptLogicTests
 
     [Fact]
     [Trait("triggerTags", "VFY-08,smoke-matrix")]
-    public void ReleaseHostEvidenceRequiresMatchingMeasuredExecutableIdentity()
+    public void ReleaseHostEvidenceRequiresMatchingMeasuredUnsignedExecutableIdentity()
     {
         using JsonDocument result = RunCommonJson(
-            "$signature=[pscustomobject]@{Status='Valid';SignerSubject='CN=Publisher';" +
-            "SignerThumbprint='0123456789ABCDEF';TimestampSubject='CN=Timestamp';" +
-            "TimestampNotAfter='2030-01-01T00:00:00Z'};" +
             "$candidate=[pscustomobject]@{Path='C:\\candidate\\DshWindowsLauncher.exe';" +
             "FileName='DshWindowsLauncher.exe';Size=4096;FileVersion='1.0.0.0';" +
-            "Sha256=('A'*64);Signature=$signature};" +
+            "Sha256=('A'*64);AuthenticodeStatus='NotSigned'};" +
             "$installed=[pscustomobject]@{Path='C:\\installed\\DshWindowsLauncher.exe';" +
             "FileName='DshWindowsLauncher.exe';Size=4096;FileVersion='1.0.0.0';" +
-            "Sha256=('A'*64);Signature=$signature};" +
+            "Sha256=('A'*64);AuthenticodeStatus='NotSigned'};" +
             "$os=[pscustomobject]@{Platform='Win32NT';Version='10.0.26100.0';" +
             "BuildNumber='26100';DisplayVersion='25H2';Architecture='X64';" +
             "LogicalProcessorCount=4};" +
@@ -135,30 +213,34 @@ public sealed class ReleaseScriptLogicTests
             "$mismatch=[pscustomobject]@{SchemaVersion=1;CapturedAtUtc='2026-08-30T00:00:00Z';" +
             "Os=$os;CandidateExecutable=$candidate;InstalledExecutable=($installed.PSObject.Copy())};" +
             "$mismatch.InstalledExecutable.Sha256=('B'*64);" +
+            "$signed=[pscustomobject]@{SchemaVersion=1;CapturedAtUtc='2026-08-30T00:00:00Z';" +
+            "Os=$os;CandidateExecutable=$candidate;InstalledExecutable=($installed.PSObject.Copy())};" +
+            "$signed.InstalledExecutable.AuthenticodeStatus='Valid';" +
             "$missing=[pscustomobject]@{SchemaVersion=1;CapturedAtUtc='2026-08-30T00:00:00Z';" +
             "Os=$os;CandidateExecutable=$candidate;InstalledExecutable=($installed.PSObject.Copy())};" +
-            "$missing.InstalledExecutable.Signature=$null;" +
+            "$missing.InstalledExecutable.AuthenticodeStatus=$null;" +
             "$samePath=[pscustomobject]@{SchemaVersion=1;CapturedAtUtc='2026-08-30T00:00:00Z';" +
             "Os=$os;CandidateExecutable=$candidate;InstalledExecutable=($installed.PSObject.Copy())};" +
             "$samePath.InstalledExecutable.Path=$candidate.Path;" +
             "[pscustomobject]@{" +
             "Valid=(Test-DshReleaseHostEvidence -Evidence $valid -ExpectedVersion '1.0.0.0' " +
-            "-ExpectedExecutableName 'DshWindowsLauncher.exe' -ExpectedSignerSubject 'CN=Publisher' " +
-            "-ExpectedSha256 ('A'*64));" +
+            "-ExpectedExecutableName 'DshWindowsLauncher.exe' -ExpectedSha256 ('A'*64));" +
             "FrozenMismatch=(Test-DshReleaseHostEvidence -Evidence $valid -ExpectedVersion '1.0.0.0' " +
-            "-ExpectedExecutableName 'DshWindowsLauncher.exe' -ExpectedSignerSubject 'CN=Publisher' " +
-            "-ExpectedSha256 ('B'*64));" +
+            "-ExpectedExecutableName 'DshWindowsLauncher.exe' -ExpectedSha256 ('B'*64));" +
             "Mismatch=(Test-DshReleaseHostEvidence -Evidence $mismatch -ExpectedVersion '1.0.0.0' " +
-            "-ExpectedExecutableName 'DshWindowsLauncher.exe' -ExpectedSignerSubject 'CN=Publisher');" +
+            "-ExpectedExecutableName 'DshWindowsLauncher.exe');" +
+            "SignedIsRejected=(Test-DshReleaseHostEvidence -Evidence $signed -ExpectedVersion '1.0.0.0' " +
+            "-ExpectedExecutableName 'DshWindowsLauncher.exe');" +
             "SamePath=(Test-DshReleaseHostEvidence -Evidence $samePath -ExpectedVersion '1.0.0.0' " +
-            "-ExpectedExecutableName 'DshWindowsLauncher.exe' -ExpectedSignerSubject 'CN=Publisher');" +
+            "-ExpectedExecutableName 'DshWindowsLauncher.exe');" +
             "Missing=(Test-DshReleaseHostEvidence -Evidence $missing -ExpectedVersion '1.0.0.0' " +
-            "-ExpectedExecutableName 'DshWindowsLauncher.exe' -ExpectedSignerSubject 'CN=Publisher')" +
+            "-ExpectedExecutableName 'DshWindowsLauncher.exe')" +
             "}");
 
         Assert.True(result.RootElement.GetProperty("Valid").GetBoolean());
         Assert.False(result.RootElement.GetProperty("FrozenMismatch").GetBoolean());
         Assert.False(result.RootElement.GetProperty("Mismatch").GetBoolean());
+        Assert.False(result.RootElement.GetProperty("SignedIsRejected").GetBoolean());
         Assert.False(result.RootElement.GetProperty("SamePath").GetBoolean());
         Assert.False(result.RootElement.GetProperty("Missing").GetBoolean());
     }
@@ -435,7 +517,9 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("if not ReleaseMaintenanceIpcReservation then", innoScript, StringComparison.Ordinal);
         Assert.Contains("RaiseException('当前用户 IPC 维护占用未能确认释放。')", innoScript, StringComparison.Ordinal);
         Assert.Contains("ValidateRegisteredInstallation", innoScript, StringComparison.Ordinal);
-        Assert.Contains("CertificateSubject is required", innoScript, StringComparison.Ordinal);
+        Assert.Contains("SetupIconFile={#AppIconFile}", innoScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("CertificateSubject", innoScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("SignTool=", innoScript, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "ApplicationPath := AddBackslash(ExistingInstallPath)",
             innoScript,
@@ -462,13 +546,18 @@ public sealed class ReleaseScriptLogicTests
     }
 
     [Fact]
-    [Trait("triggerTags", "VFY-07,VFY-08,installer,signing")]
+    [Trait("triggerTags", "VFY-07,VFY-08,installer,integrity")]
     public void FormalPackageBindsInstallerHelpersAndInstalledIdentityToFrozenInputs()
     {
         string root = FindRepositoryRoot();
         string packageScript = File.ReadAllText(Path.Combine(root, "eng", "package.ps1"));
 
-        Assert.Contains("CertificateSubject", packageScript, StringComparison.Ordinal);
+        // 正式包不签名：流水线不得残留任何签名工具/证书入口，但必须反向断言 NotSigned。
+        Assert.Contains("function Assert-Unsigned", packageScript, StringComparison.Ordinal);
+        Assert.Contains("ownArtifactsSigned = $false", packageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("Invoke-SignTool", packageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("CertificateThumbprint", packageScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("SignToolPath", packageScript, StringComparison.Ordinal);
         Assert.Contains("MaintenanceHelperSha256", packageScript, StringComparison.Ordinal);
         Assert.Contains("IdentityHelperSha256", packageScript, StringComparison.Ordinal);
         Assert.Contains("InstallOwnershipMarkerSha256", packageScript, StringComparison.Ordinal);

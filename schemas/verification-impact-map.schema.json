@@ -17,7 +17,7 @@
       "const": 1
     },
     "baselinePolicy": {
-      "const": "last-supported-signed-release"
+      "const": "last-supported-release"
     },
     "unknownInput": {
       "$ref": "#/$defs/impact"
@@ -107,7 +107,8 @@
         },
         "triggerTags": {
           "type": "array",
-          "minItems": 1,
+          "description": "该路径变更触发的验证标签；空数组表示该路径变更不触发任何验证标签（如 documentation-only 场景）",
+          "minItems": 0,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/triggerTag"
