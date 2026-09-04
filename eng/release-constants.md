@@ -17,7 +17,7 @@
 | JSON 路径 | 值 | 来源 |
 |---|---|---|
 | `product.name` | `DSH Windows Launcher` | 发布检查表（产品身份延续） |
-| `product.version` | `2.0.0` | 配对集中端重构后的首个候选版本 |
+| `product.version` | `2.0.1` | 取消产物签名要求（ADR 0008）与图标回退后的重建版本；v2.0.0 及其 tag 保持不动 |
 | `build.dotnetSdkVersion` | `10.0.400` | 依赖基线（V1 延续） |
 | `build.targetFramework` | `net10.0-windows` | WPF 托盘宿主技术基线 |
 | `build.runtimeIdentifier` | `win-x64` | 平台基线 |
