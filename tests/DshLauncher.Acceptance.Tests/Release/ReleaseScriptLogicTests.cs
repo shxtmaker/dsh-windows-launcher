@@ -716,6 +716,26 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("source = [ordered]@{", packageScript, StringComparison.Ordinal);
     }
 
+    [Fact]
+    [Trait("triggerTags", "VFY-08,release-identity")]
+    public void InstalledVersionValidationAcceptsBuildMetadataButRejectsDifferentVersions()
+    {
+        string assemblyPath = typeof(DshLauncher.Desktop.App).Assembly.Location;
+        string productVersion = FileVersionInfo.GetVersionInfo(assemblyPath).ProductVersion!;
+        Assert.Contains("+", productVersion, StringComparison.Ordinal);
+        string version = productVersion.Split('+', 2)[0];
+        string scriptPath = Path.Combine(FindRepositoryRoot(), "installer", "validate-installation.ps1");
+        string invocation = $"& {QuotePowerShell(scriptPath)} -ApplicationPath {QuotePowerShell(assemblyPath)} " +
+            $"-UninstallerPath {QuotePowerShell(assemblyPath)} -ExpectedProductVersion ";
+        using JsonDocument result = RunCommonJson(
+            "$accepted=$false; $rejected=$false; " +
+            $"try {{ {invocation}{QuotePowerShell(version)}; $accepted=$true }} catch {{ }}; " +
+            $"try {{ {invocation}'999.0.0' }} catch {{ $rejected=$true }}; " +
+            "[pscustomobject]@{ Accepted=$accepted; Rejected=$rejected }");
+        Assert.True(result.RootElement.GetProperty("Accepted").GetBoolean());
+        Assert.True(result.RootElement.GetProperty("Rejected").GetBoolean());
+    }
+
     private static JsonDocument RunCommonJson(string expression)
     {
         string root = FindRepositoryRoot();

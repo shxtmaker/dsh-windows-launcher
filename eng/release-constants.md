@@ -17,7 +17,7 @@
 | JSON 路径 | 值 | 来源 |
 |---|---|---|
 | `product.name` | `DSH Windows Launcher` | 发布检查表（产品身份延续） |
-| `product.version` | `2.0.5` | 修复 WPF 无法解码图标导致的启动失败，并增加窗口初始化验收 |
+| `product.version` | `2.0.6` | 修复图标启动故障及带 Git 构建元数据的旧版本升级校验 |
 | `build.dotnetSdkVersion` | `10.0.400` | 依赖基线（V1 延续） |
 | `build.targetFramework` | `net10.0-windows` | WPF 托盘宿主技术基线 |
 | `build.runtimeIdentifier` | `win-x64` | 平台基线 |

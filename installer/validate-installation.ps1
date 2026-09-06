@@ -30,9 +30,11 @@ Assert-UnsignedProduct -Path $UninstallerPath
 
 $productVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo(
     $ApplicationPath).ProductVersion
-if (-not [string]::Equals(
-    $productVersion,
-    $ExpectedProductVersion,
-    [StringComparison]::Ordinal)) {
+# SDK builds append the source revision as SemVer build metadata, while
+# Inno records the release version without that suffix. Preserve the exact
+# release/prerelease identity and allow only a valid metadata suffix.
+$expectedPattern = '\A' + [regex]::Escape($ExpectedProductVersion) +
+    '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z'
+if ($productVersion -cnotmatch $expectedPattern) {
     throw [InvalidDataException]::new('The registered version does not match the installed executable.')
 }
