@@ -471,7 +471,7 @@ function Get-DshCurrentVerificationImpact {
             -BaselineUnavailable
     }
 
-    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue
+    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -eq $git) {
         return Resolve-DshVerificationImpact `
             -RepositoryRoot $RepositoryRoot `
@@ -701,7 +701,7 @@ function Get-DshSourceState {
         [string] $RepositoryRoot
     )
 
-    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue
+    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($null -eq $git) {
         return [pscustomobject]@{
             Available = $false

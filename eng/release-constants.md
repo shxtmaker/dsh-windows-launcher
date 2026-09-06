@@ -1,4 +1,4 @@
-# 发布常量清单
+﻿# 发布常量清单
 
 `release-constants.json` 是构建、打包、诊断版本信息和发布证据共同使用的版本化输入。`release-constants.schema.json` 固定字段、常量和正式候选完整性规则。
 
@@ -17,7 +17,7 @@
 | JSON 路径 | 值 | 来源 |
 |---|---|---|
 | `product.name` | `DSH Windows Launcher` | 发布检查表（产品身份延续） |
-| `product.version` | `2.0.8` | 配对与心跳改用 WebView2 网络栈，修复浏览器可访问但客户端 TLS 握手失败的兼容问题 |
+| `product.version` | `2.0.9` | 远程目标使用同一窗口内的并列标签页，保留离线安装包并新增正式联网精简包 |
 | `build.dotnetSdkVersion` | `10.0.400` | 依赖基线（V1 延续） |
 | `build.targetFramework` | `net10.0-windows` | WPF 托盘宿主技术基线 |
 | `build.runtimeIdentifier` | `win-x64` | 平台基线 |

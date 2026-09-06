@@ -735,6 +735,13 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("$verifySummary.source.commit -cne $sourceState.Commit", packageScript, StringComparison.Ordinal);
         Assert.Contains("$verifySummary.source.worktreeState -cne $sourceState.WorktreeState", packageScript, StringComparison.Ordinal);
         Assert.Contains("source = [ordered]@{", packageScript, StringComparison.Ordinal);
+
+        using JsonDocument state = RunCommonJson(
+            "$gitCommand=Microsoft.PowerShell.Core\\Get-Command -Name git -CommandType Application | Select-Object -First 1;" +
+            "function Get-Command { [CmdletBinding()] param($Name,$CommandType); @($gitCommand,$gitCommand) };" +
+            $"Get-DshSourceState -RepositoryRoot {QuotePowerShell(root)}");
+        Assert.True(state.RootElement.GetProperty("Available").GetBoolean());
+        Assert.Matches("^[0-9a-f]{40}$", state.RootElement.GetProperty("Commit").GetString()!);
     }
 
     [Fact]
