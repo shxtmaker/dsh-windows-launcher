@@ -18,6 +18,7 @@ public partial class App : Application
     private CurrentUserSingleInstance? _singleInstance;
     private ApplicationDataStore? _applicationData;
     private PairingHub? _hub;
+    private HttpPairingTransport? _transport;
     private TrayHost? _tray;
     private ManagementWindow? _management;
     private bool _exitRequested;
@@ -77,13 +78,14 @@ public partial class App : Application
         _applicationData = new ApplicationDataStore(new ApplicationDataLayout(dataRoot));
         await _applicationData.InitializeAsync().ConfigureAwait(true);
 
+        _transport = new HttpPairingTransport(new PairingTransportOptions
+        {
+            UserAgent = $"DshWindowsLauncher/{BuildVersionString()}",
+        }, new WebViewHttpMessageHandler(Dispatcher));
         var hub = new PairingHub(
             new PairingHubOptions(),
             new JsonTargetStore(_applicationData),
-            new HttpPairingTransport(new PairingTransportOptions
-            {
-                UserAgent = $"DshWindowsLauncher/{BuildVersionString()}",
-            }),
+            _transport,
             new SystemClock(),
             new GuidIdGenerator());
         _hub = hub;
@@ -191,6 +193,15 @@ public partial class App : Application
                 {
                     cleanupFailures.Add(exception.Message);
                 }
+            }
+
+            try
+            {
+                _transport?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                cleanupFailures.Add(exception.Message);
             }
 
             if (_tray is not null)

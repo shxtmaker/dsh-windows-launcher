@@ -20,11 +20,11 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public HttpPairingTransport(PairingTransportOptions options)
+    public HttpPairingTransport(PairingTransportOptions options, HttpMessageHandler? handler = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
-        _client = new HttpClient(new SocketsHttpHandler
+        _client = new HttpClient(handler ?? new SocketsHttpHandler
         {
             AutomaticDecompression = System.Net.DecompressionMethods.All,
             // Public deployments commonly redirect HTTP to HTTPS. Follow
