@@ -310,6 +310,7 @@ public sealed class PairingHub : IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        Task? stoppedLoop = null;
         TargetSnapshot snapshot;
         try
         {
@@ -325,7 +326,7 @@ public sealed class PairingHub : IAsyncDisposable
             }
             else
             {
-                StopKeepAlive(record);
+                stoppedLoop = StopKeepAlive(record);
             }
 
             await PersistAsync(cancellationToken).ConfigureAwait(false);
@@ -334,6 +335,11 @@ public sealed class PairingHub : IAsyncDisposable
         finally
         {
             _gate.Release();
+        }
+
+        if (stoppedLoop is not null)
+        {
+            await stoppedLoop.ConfigureAwait(false);
         }
 
         await PublishChangedAsync().ConfigureAwait(false);
@@ -374,17 +380,23 @@ public sealed class PairingHub : IAsyncDisposable
         var outcome = await _transport.SendHeartbeatAsync(record.Endpoint, credential, cancellationToken)
             .ConfigureAwait(false);
         var revoked = await ApplyHeartbeatAsync(record, outcome, cancellationToken).ConfigureAwait(false);
+        Task? stoppedLoop = null;
         if (revoked)
         {
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                StopKeepAlive(record);
+                stoppedLoop = StopKeepAlive(record);
             }
             finally
             {
                 _gate.Release();
             }
+        }
+
+        if (stoppedLoop is not null)
+        {
+            await stoppedLoop.ConfigureAwait(false);
         }
 
         await PublishChangedAsync().ConfigureAwait(false);
@@ -401,6 +413,7 @@ public sealed class PairingHub : IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        Task? stoppedLoop = null;
         try
         {
             if (!_targets.Remove(targetId, out var record))
@@ -408,12 +421,17 @@ public sealed class PairingHub : IAsyncDisposable
                 return new HubOperationResult(null, new HubError(HubErrorCode.TargetNotFound, false));
             }
 
-            StopKeepAlive(record);
+            stoppedLoop = StopKeepAlive(record);
             await PersistAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
+        }
+
+        if (stoppedLoop is not null)
+        {
+            await stoppedLoop.ConfigureAwait(false);
         }
 
         await PublishChangedAsync().ConfigureAwait(false);
@@ -476,14 +494,13 @@ public sealed class PairingHub : IAsyncDisposable
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            loops = _targets.Values
-                .Select(record => record.LoopTask)
-                .Where(task => task is not null)
-                .Cast<Task>()
-                .ToList();
+            loops = new List<Task>();
             foreach (var record in _targets.Values)
             {
-                StopKeepAlive(record);
+                if (StopKeepAlive(record) is { } loop)
+                {
+                    loops.Add(loop);
+                }
             }
         }
         finally
@@ -679,10 +696,12 @@ public sealed class PairingHub : IAsyncDisposable
         record.LoopTask = loop;
     }
 
-    private static void StopKeepAlive(TargetRecord record)
+    private static Task? StopKeepAlive(TargetRecord record)
     {
+        var loop = record.LoopCts is null ? null : record.LoopTask;
         record.LoopCts?.Cancel();
         record.LoopCts = null;
+        return loop;
     }
 
     private async Task RunKeepAliveLoopAsync(TargetRecord record, CancellationTokenSource cts)
