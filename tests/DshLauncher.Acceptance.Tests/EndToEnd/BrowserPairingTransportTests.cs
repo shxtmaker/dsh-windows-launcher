@@ -241,5 +241,3 @@ public sealed class BrowserPairingTransportTests
         return completion.Task.WaitAsync(TimeSpan.FromSeconds(60));
     }
 }
-
-

@@ -282,12 +282,3 @@ public sealed class WebViewHttpMessageHandler(Dispatcher dispatcher) : HttpMessa
         public CoreWebView2Controller? Controller { get; set; }
     }
 }
-
-
-
-
-
-
-
-
-
