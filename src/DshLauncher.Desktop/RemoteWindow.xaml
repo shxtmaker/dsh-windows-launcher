@@ -4,6 +4,7 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:ui="clr-namespace:DshLauncher.Desktop"
         Title="远程界面" Width="1280" Height="820"
+        Icon="Assets/dsh-app.ico"
         WindowStartupLocation="CenterScreen"
         Background="{x:Static ui:UiPalette.WindowBrush}"
         Foreground="{x:Static ui:UiPalette.TextPrimaryBrush}"

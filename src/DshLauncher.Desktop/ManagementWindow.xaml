@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:DshLauncher.Desktop"
         Title="DSH 集中配对管理" Width="960" Height="620"
+        Icon="Assets/dsh-app.ico"
         MinWidth="760" MinHeight="420"
         WindowStartupLocation="CenterScreen"
         Background="{x:Static ui:UiPalette.WindowBrush}"

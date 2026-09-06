@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <UseAppHost>true</UseAppHost>
+    <ApplicationIcon>../../assets/icons/dsh-app.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
@@ -15,6 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" />
+    <Resource Include="../../assets/icons/dsh-app.ico" Link="Assets/dsh-app.ico" />
   </ItemGroup>
 
   <ItemGroup>

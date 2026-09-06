@@ -19,6 +19,7 @@
 #define RuntimeBootstrapperName "MicrosoftEdgeWebview2Setup.exe"
 
 [Setup]
+SetupIconFile=..\assets\icons\dsh-app.ico
 AppId={{F3418DD7-58B7-4E0D-B0F7-D77C52FDF91C}
 AppName={#ProductName}
 AppVersion={#AppVersion}

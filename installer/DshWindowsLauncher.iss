@@ -59,6 +59,7 @@
 #define InstallOwnershipMarkerName ".dsh-windows-launcher-install-owner"
 
 [Setup]
+SetupIconFile=..\assets\icons\dsh-app.ico
 AppId={{4440FC88-98CA-403E-8E20-3DFEBEF0E609}
 AppName={#ProductName}
 AppVersion={#AppVersion}

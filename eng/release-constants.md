@@ -17,7 +17,7 @@
 | JSON 路径 | 值 | 来源 |
 |---|---|---|
 | `product.name` | `DSH Windows Launcher` | 发布检查表（产品身份延续） |
-| `product.version` | `2.0.3` | 完善公网隧道配对兼容性与凭据隔离的补丁版本 |
+| `product.version` | `2.0.4` | 应用、窗口、托盘及安装程序统一采用虎鲸图标 |
 | `build.dotnetSdkVersion` | `10.0.400` | 依赖基线（V1 延续） |
 | `build.targetFramework` | `net10.0-windows` | WPF 托盘宿主技术基线 |
 | `build.runtimeIdentifier` | `win-x64` | 平台基线 |
