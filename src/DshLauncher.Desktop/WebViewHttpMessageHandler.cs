@@ -88,19 +88,6 @@ public sealed class WebViewHttpMessageHandler(Dispatcher dispatcher) : HttpMessa
         var core = session.Controller.CoreWebView2;
         var uri = request.RequestUri!;
         core.CookieManager.DeleteAllCookies();
-        if (request.Headers.TryGetValues("Cookie", out var cookieHeaders))
-        {
-            foreach (var pair in string.Join(";", cookieHeaders).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                var separator = pair.IndexOf('=');
-                if (separator <= 0) { continue; }
-                var cookie = core.CookieManager.CreateCookie(pair[..separator], pair[(separator + 1)..], uri.IdnHost, "/");
-                cookie.IsHttpOnly = true;
-                cookie.IsSecure = uri.Scheme == "https";
-                core.CookieManager.AddOrUpdateCookie(cookie);
-            }
-        }
-
         using var body = request.Content is null ? null : new MemoryStream(await request.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(true));
         var headers = new System.Text.StringBuilder();
         foreach (var header in request.Headers)
@@ -170,8 +157,22 @@ public sealed class WebViewHttpMessageHandler(Dispatcher dispatcher) : HttpMessa
                     !payload.TryGetProperty("responseErrorReason", out _))
                 {
                     activeRequestId = id;
+                    // This request originates in the native application. Replace
+                    // about:blank's synthetic Origin only after Chromium has built
+                    // its headers, and bind it to the validated target authority.
+                    var outgoing = intercepted.GetProperty("headers").EnumerateObject()
+                        .Where(header => !header.Name.Equals("Origin", StringComparison.OrdinalIgnoreCase) &&
+                            !header.Name.Equals("Sec-Fetch-Site", StringComparison.OrdinalIgnoreCase) &&
+                            !header.Name.Equals("Cookie", StringComparison.OrdinalIgnoreCase))
+                        .Select(header => new { name = header.Name, value = header.Value.GetString()! }).ToList();
+                    outgoing.Add(new { name = "Origin", value = uri.GetLeftPart(UriPartial.Authority) });
+                    outgoing.Add(new { name = "Sec-Fetch-Site", value = "same-origin" });
+                    if (request.Headers.TryGetValues("Cookie", out var explicitCookies))
+                    {
+                        outgoing.Add(new { name = "Cookie", value = string.Join("; ", explicitCookies) });
+                    }
                     await core.CallDevToolsProtocolMethodAsync("Fetch.continueRequest",
-                        JsonSerializer.Serialize(new { requestId = id, interceptResponse = true })).ConfigureAwait(true);
+                        JsonSerializer.Serialize(new { requestId = id, headers = outgoing, interceptResponse = true })).ConfigureAwait(true);
                     return;
                 }
                 if (id != activeRequestId)
@@ -281,6 +282,7 @@ public sealed class WebViewHttpMessageHandler(Dispatcher dispatcher) : HttpMessa
         public CoreWebView2Controller? Controller { get; set; }
     }
 }
+
 
 
 

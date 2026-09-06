@@ -182,6 +182,28 @@ public sealed class BrowserPairingTransportTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         }
     });
+    [Fact]
+    public Task BrowserRequestsSatisfyThePluginOriginFence() => OnDispatcherAsync(async dispatcher =>
+    {
+        await using var host = await StartHostAsync(async context =>
+        {
+            var origin = context.Request.Headers.Origin.ToString();
+            if (context.Request.Headers["Sec-Fetch-Site"] == "cross-site" ||
+                (origin.Length > 0 && (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri) ||
+                 originUri.Authority != context.Request.Host.Value)))
+            {
+                context.Response.StatusCode = 403;
+                await context.Response.WriteAsJsonAsync(new { ok = false, code = "forbidden" });
+                return;
+            }
+            await context.Response.WriteAsJsonAsync(new { ok = true, deviceId = "fence-device" });
+        });
+        using var transport = CreateTransport(dispatcher);
+        var paired = await transport.AcceptPairingAsync(Endpoint(host), "test-token", TestContext.Current.CancellationToken);
+        Assert.Equal(PairingAcceptStatus.Paired, paired.Status);
+        Assert.Equal(HeartbeatStatus.Alive,
+            (await transport.SendHeartbeatAsync(Endpoint(host), paired.Credential!, TestContext.Current.CancellationToken)).Status);
+    });
     private static HttpPairingTransport CreateTransport(Dispatcher dispatcher) =>
         new(new PairingTransportOptions(), new WebViewHttpMessageHandler(dispatcher));
 
@@ -219,4 +241,5 @@ public sealed class BrowserPairingTransportTests
         return completion.Task.WaitAsync(TimeSpan.FromSeconds(60));
     }
 }
+
 
