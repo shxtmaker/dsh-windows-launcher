@@ -25,6 +25,14 @@ public sealed class PairingLinkTests
         var link = PairingLink.Parse("http://192.168.10.8:3080/pair-accept?pair=abc");
 
         Assert.Equal("http://192.168.10.8:3080/", link.BaseUri.ToString());
+
+        var publicIpLink = PairingLink.Parse("https://203.0.113.42:8443/pair-accept?pair=public-ip");
+
+        Assert.Equal("https://203.0.113.42:8443/", publicIpLink.BaseUri.ToString());
+
+        var publicIpv6Link = PairingLink.Parse("https://[2001:db8::42]:8443/pair-accept?pair=public-ipv6");
+
+        Assert.Equal("https://[2001:db8::42]:8443/", publicIpv6Link.BaseUri.ToString());
     }
 
     [Fact]
@@ -33,6 +41,14 @@ public sealed class PairingLinkTests
         var link = PairingLink.Parse("http://192.168.10.8:80/pair-accept?pair=abc");
 
         Assert.Equal("http://192.168.10.8/", link.BaseUri.ToString());
+
+        var publicDomain = PairingLink.ParseBaseUri("https://例子.测试:443");
+
+        Assert.Equal("https://xn--fsqu00a.xn--0zwm56d/", publicDomain.ToString());
+
+        var publicIpv6 = PairingLink.ParseBaseUri("https://[2001:db8::42]:443");
+
+        Assert.Equal("https://[2001:db8::42]/", publicIpv6.ToString());
     }
 
     [Theory]

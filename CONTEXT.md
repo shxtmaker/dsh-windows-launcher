@@ -13,7 +13,7 @@ _Avoid_: Harness 管理器、远程桌面客户端、启动器服务器
 _Avoid_: 可运行环境、最低启动版本
 
 **Harness 实例**：
-一台 Linux 主机上通过独立端口运行的 DeepSeek Harness 服务及其 Web GUI。同一主机不同端口表示不同实例。
+一台 Linux 主机上通过独立端口运行的 DeepSeek Harness 服务及其 Web GUI。同一主机不同端口表示不同实例；实例可以通过局域网地址、公网 IPv4/IPv6 或公网域名提供服务。
 _Avoid_: Harness 主机、目标列表
 
 **Harness 目标**：
@@ -53,8 +53,12 @@ _Avoid_: 重连风暴、轮询探测
 _Avoid_: 登录会话、全局配对、Token 缓存
 
 **远程访问插件**：
-dsh-web 仓库的 `@linxin666/dsh-remote-web-ui`（「DSH 远程访问」）。它拥有 `/api/pair/*` 路由族、`/remote` 门控通道、设备会话持久化与局域网绑定；集中端是它的一个配对设备。
+dsh-web 仓库的 `@linxin666/dsh-remote-web-ui`（「DSH 远程访问」）。它拥有 `/api/pair/*` 路由族、`/remote` 门控通道、设备会话持久化与局域网绑定；集中端是它的一个配对设备。集中端本身不按私网/公网过滤目标地址。
 _Avoid_: 自研服务端、DSH 官方组件
+
+**公网连接**：
+集中端支持 HTTP(S) 的局域网地址、公网 IPv4/IPv6 和公网域名；公网建议使用有效证书的 HTTPS。
+集中端不提供 TLS 终结、不跳过证书校验，并且只允许同一主机的 HTTP→HTTPS 跳转。
 
 **独立客户端**：
 Windows 上的原生 WPF 管理窗口（托盘常驻）。提供目标列表、添加/重命名/删除、配对与保活控制，并在客户端内以 WebView2 打开远程界面窗口；管理操作与远程界面显示均不调用外部浏览器。

@@ -27,6 +27,11 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
         _client = new HttpClient(new SocketsHttpHandler
         {
             AutomaticDecompression = System.Net.DecompressionMethods.All,
+            // Public deployments commonly redirect HTTP to HTTPS. Follow
+            // only redirects that stay on the same host and preserve the
+            // original API method/body; cross-host redirects must never
+            // receive a pairing token or device credential.
+            AllowAutoRedirect = false,
             ConnectTimeout = options.ConnectTimeout,
         });
     }
@@ -38,12 +43,17 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, Url(endpoint, PairingProtocol.AcceptPath));
-            request.Headers.UserAgent.ParseAdd(_options.UserAgent);
-            request.Headers.Accept.ParseAdd("application/json");
-            request.Content = JsonContent.Create(new AcceptPayload(token), options: RequestJson);
-            using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
-                .ConfigureAwait(false);
+            using var response = await SendAsync(
+                uri =>
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Post, uri);
+                    request.Headers.UserAgent.ParseAdd(_options.UserAgent);
+                    request.Headers.Accept.ParseAdd("application/json");
+                    request.Content = JsonContent.Create(new AcceptPayload(token), options: RequestJson);
+                    return request;
+                },
+                EndpointUri(endpoint, PairingProtocol.AcceptPath),
+                cancellationToken).ConfigureAwait(false);
             var statusCode = (int)response.StatusCode;
             if (response.IsSuccessStatusCode)
             {
@@ -94,13 +104,18 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, Url(endpoint, PairingProtocol.HeartbeatPath));
-            request.Headers.UserAgent.ParseAdd(_options.UserAgent);
-            request.Headers.Accept.ParseAdd("application/json");
-            request.Headers.TryAddWithoutValidation("Cookie", $"{credential.CookieName}={credential.DeviceId}");
-            request.Content = new StringContent("{}", System.Text.Encoding.UTF8, JsonMediaType);
-            using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
-                .ConfigureAwait(false);
+            using var response = await SendAsync(
+                uri =>
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Post, uri);
+                    request.Headers.UserAgent.ParseAdd(_options.UserAgent);
+                    request.Headers.Accept.ParseAdd("application/json");
+                    request.Headers.TryAddWithoutValidation("Cookie", $"{credential.CookieName}={credential.DeviceId}");
+                    request.Content = new StringContent("{}", System.Text.Encoding.UTF8, JsonMediaType);
+                    return request;
+                },
+                EndpointUri(endpoint, PairingProtocol.HeartbeatPath),
+                cancellationToken).ConfigureAwait(false);
             var statusCode = (int)response.StatusCode;
             if (response.IsSuccessStatusCode)
             {
@@ -139,16 +154,21 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, Url(endpoint, PairingProtocol.StatusPath));
-            request.Headers.UserAgent.ParseAdd(_options.UserAgent);
-            request.Headers.Accept.ParseAdd("application/json");
-            if (credential is not null)
-            {
-                request.Headers.TryAddWithoutValidation("Cookie", $"{credential.CookieName}={credential.DeviceId}");
-            }
+            using var response = await SendAsync(
+                uri =>
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                    request.Headers.UserAgent.ParseAdd(_options.UserAgent);
+                    request.Headers.Accept.ParseAdd("application/json");
+                    if (credential is not null)
+                    {
+                        request.Headers.TryAddWithoutValidation("Cookie", $"{credential.CookieName}={credential.DeviceId}");
+                    }
 
-            using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
-                .ConfigureAwait(false);
+                    return request;
+                },
+                EndpointUri(endpoint, PairingProtocol.StatusPath),
+                cancellationToken).ConfigureAwait(false);
             var statusCode = (int)response.StatusCode;
             var payload = await response.Content.ReadFromJsonAsync<StatusResponse>(ResponseJson, cancellationToken)
                 .ConfigureAwait(false);
@@ -180,8 +200,64 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
 
     public void Dispose() => _client.Dispose();
 
-    private static string Url(HarnessEndpoint endpoint, string path) =>
-        $"{endpoint.BaseUri.ToString().TrimEnd('/')}{path}";
+    private static Uri EndpointUri(HarnessEndpoint endpoint, string path) =>
+        new($"{endpoint.BaseUri.ToString().TrimEnd('/')}{path}", UriKind.Absolute);
+
+    private async Task<HttpResponseMessage> SendAsync(
+        Func<Uri, HttpRequestMessage> requestFactory,
+        Uri requestUri,
+        CancellationToken cancellationToken)
+    {
+        var currentUri = requestUri;
+        for (var redirectCount = 0; ; redirectCount++)
+        {
+            using var request = requestFactory(currentUri);
+            var response = await _client.SendAsync(
+                request,
+                HttpCompletionOption.ResponseContentRead,
+                cancellationToken).ConfigureAwait(false);
+
+            if (!IsRedirect(response.StatusCode) ||
+                response.Headers.Location is not { } location ||
+                redirectCount >= MaximumSameHostRedirects ||
+                !TryGetSafeRedirectUri(currentUri, location, out var nextUri))
+            {
+                return response;
+            }
+
+            response.Dispose();
+            currentUri = nextUri;
+        }
+    }
+
+    private static bool IsRedirect(System.Net.HttpStatusCode statusCode) =>
+        statusCode is System.Net.HttpStatusCode.MovedPermanently or
+            System.Net.HttpStatusCode.Found or
+            System.Net.HttpStatusCode.SeeOther or
+            System.Net.HttpStatusCode.TemporaryRedirect or
+            System.Net.HttpStatusCode.PermanentRedirect;
+
+    private static bool TryGetSafeRedirectUri(
+        Uri currentUri,
+        Uri location,
+        out Uri redirectUri)
+    {
+        redirectUri = location.IsAbsoluteUri
+            ? location
+            : new Uri(currentUri, location);
+
+        if (redirectUri.Scheme is not ("http" or "https") ||
+            redirectUri.UserInfo.Length > 0 ||
+            redirectUri.Fragment.Length > 0 ||
+            !string.Equals(currentUri.IdnHost, redirectUri.IdnHost, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // An already secure request must never be downgraded. An HTTP public
+        // endpoint may upgrade to HTTPS on the same host.
+        return currentUri.Scheme != "https" || redirectUri.Scheme == "https";
+    }
 
     private static string? ExtractCookieName(IEnumerable<string>? setCookieHeaders, string deviceId)
     {
@@ -227,6 +303,7 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
     }
 
     private const string JsonMediaType = "application/json";
+    private const int MaximumSameHostRedirects = 3;
 
     private readonly PairingTransportOptions _options;
     private readonly HttpClient _client;

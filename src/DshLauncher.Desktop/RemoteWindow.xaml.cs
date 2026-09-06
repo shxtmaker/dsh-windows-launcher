@@ -308,7 +308,7 @@ public partial class RemoteWindow : Window
     {
         try
         {
-            return new Uri(baseUrl, UriKind.Absolute).Authority;
+            return new Uri(baseUrl, UriKind.Absolute).GetLeftPart(UriPartial.Authority);
         }
         catch (UriFormatException)
         {

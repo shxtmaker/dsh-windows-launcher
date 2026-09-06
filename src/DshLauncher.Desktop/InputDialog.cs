@@ -54,12 +54,12 @@ public partial class InputDialog : Window
             Title = "添加 Harness 目标",
         };
         dialog.LabelText.Text =
-            "配对链接（推荐：在 Harness 桌面端「远程访问」面板复制链接后粘贴）：";
+            "配对链接（支持局域网、公网域名或公网 IP；推荐从 Harness 桌面端「远程访问」面板复制）：";
         dialog.ValueText.Height = 60;
         dialog.ValueText.AcceptsReturn = true;
         dialog.ExtraLabelText.Visibility = Visibility.Visible;
         dialog.ExtraText.Visibility = Visibility.Visible;
-        dialog.HintText.Text = "或者仅填地址（http(s)://主机:端口），稍后配对。";
+        dialog.HintText.Text = "或者仅填地址（http(s)://域名或 IP[:端口]），稍后配对；公网建议使用 HTTPS。";
 
         if (dialog.ShowDialog() is not true)
         {

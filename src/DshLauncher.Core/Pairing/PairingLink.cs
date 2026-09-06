@@ -125,9 +125,18 @@ public sealed record PairingLink(Uri BaseUri, string Token)
         return $"{baseUri.ToString().TrimEnd('/')}/pair-app?device={Uri.EscapeDataString(deviceId)}";
     }
 
-    private static Uri BaseUriOf(Uri uri) => new(
-        $"{uri.Scheme}://{uri.IdnHost}{(uri.IsDefaultPort ? string.Empty : $":{uri.Port}")}",
-        UriKind.Absolute);
+    private static Uri BaseUriOf(Uri uri)
+    {
+        // IdnHost is intentionally used for a stable persisted form. It
+        // omits the brackets around IPv6 literals, so add them back before
+        // rebuilding the authority; otherwise a public IPv6 endpoint would
+        // be normalized into an invalid URI such as http://2001:db8::1/.
+        var host = uri.HostNameType == UriHostNameType.IPv6
+            ? $"[{uri.IdnHost}]"
+            : uri.IdnHost;
+        var port = uri.IsDefaultPort ? string.Empty : $":{uri.Port}";
+        return new Uri($"{uri.Scheme}://{host}{port}", UriKind.Absolute);
+    }
 
     private const string AcceptPagePath = "/pair-accept";
     private const int MaximumLinkCharacters = 2048;

@@ -366,7 +366,7 @@ public partial class ManagementWindow : Window
     private static string DescribeError(HubErrorCode code) => code switch
     {
         HubErrorCode.InvalidPairingLink => "配对链接格式无效，请检查后重新粘贴。",
-        HubErrorCode.InvalidBaseUrl => "Harness 地址无效，应为 http(s)://主机:端口。",
+        HubErrorCode.InvalidBaseUrl => "Harness 地址无效，应为 http(s)://域名或 IP[:端口]。",
         HubErrorCode.TargetLimitReached => "已达目标数量上限。",
         HubErrorCode.TargetNotFound => "目标不存在，请刷新窗口。",
         HubErrorCode.TargetNotPaired => "该目标尚未配对或配对已失效。",
@@ -624,13 +624,14 @@ public partial class ManagementWindow : Window
                 ? " × " + consecutiveFailures
                 : string.Empty);
 
-        // Rows show the bare host:port; the scheme never varies between
-        // targets in practice and only adds noise.
+        // Keep the scheme visible: public targets commonly use HTTPS while
+        // local Harness instances often use HTTP, and the distinction is
+        // important when two targets share the same authority.
         private static string DescribeAddress(string baseUrl)
         {
             try
             {
-                return new Uri(baseUrl, UriKind.Absolute).Authority;
+                return new Uri(baseUrl, UriKind.Absolute).GetLeftPart(UriPartial.Authority);
             }
             catch (UriFormatException)
             {
