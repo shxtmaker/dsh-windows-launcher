@@ -10,6 +10,8 @@ public sealed class PairingLinkTests
     [InlineData("http://192.168.10.8:3080/pair-accept?pair=abc123", "abc123", "http://192.168.10.8:3080/")]
     [InlineData("  http://192.168.10.8:3080/pair-accept?pair=abc123  ", "abc123", "http://192.168.10.8:3080/")]
     [InlineData("https://dsh-tunnel.example.com/pair-accept?pair=deadbeef", "deadbeef", "https://dsh-tunnel.example.com/")]
+    [InlineData("https://example-profile.dsh-market.com/pair-accept?pair=abc_123-xyz", "abc_123-xyz", "https://example-profile.dsh-market.com/")]
+    [InlineData("https://example-quick-tunnel.trycloudflare.com/pair-accept?pair=abc_123-xyz", "abc_123-xyz", "https://example-quick-tunnel.trycloudflare.com/")]
     [InlineData("http://host.lan/pair-accept?pair=token-with-dashes", "token-with-dashes", "http://host.lan/")]
     public void ParsesExactRemoteAccessPairingLinks(string input, string expectedToken, string expectedBase)
     {

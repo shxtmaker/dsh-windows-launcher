@@ -54,12 +54,12 @@ public partial class InputDialog : Window
             Title = "添加 Harness 目标",
         };
         dialog.LabelText.Text =
-            "配对链接（支持局域网、公网域名或公网 IP；推荐从 Harness 桌面端「远程访问」面板复制）：";
+            "配对链接（从 Harness 桌面端「远程访问」面板复制，支持局域网和公网隧道）：";
         dialog.ValueText.Height = 60;
         dialog.ValueText.AcceptsReturn = true;
         dialog.ExtraLabelText.Visibility = Visibility.Visible;
         dialog.ExtraText.Visibility = Visibility.Visible;
-        dialog.HintText.Text = "或者仅填地址（http(s)://域名或 IP[:端口]），稍后配对；公网建议使用 HTTPS。";
+        dialog.HintText.Text = "支持 dsh-market.com 固定域名、Cloudflare 临时域名和自有域名。请粘贴含 pair= 的完整链接；也可仅填 HTTP(S) 地址，稍后配对。";
 
         if (dialog.ShowDialog() is not true)
         {

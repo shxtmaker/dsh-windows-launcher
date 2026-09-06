@@ -32,6 +32,10 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
             // original API method/body; cross-host redirects must never
             // receive a pairing token or device credential.
             AllowAutoRedirect = false,
+            // Credentials belong to a target, not a shared domain cookie jar.
+            // In particular, relay subdomains and same-host ports must never
+            // inherit another target's cookies from an accept response.
+            UseCookies = false,
             ConnectTimeout = options.ConnectTimeout,
         });
     }
@@ -170,9 +174,14 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
                 EndpointUri(endpoint, PairingProtocol.StatusPath),
                 cancellationToken).ConfigureAwait(false);
             var statusCode = (int)response.StatusCode;
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RemoteStatusProbeOutcome(RemoteStatusProbeKind.Failed, null, null, null, statusCode);
+            }
+
             var payload = await response.Content.ReadFromJsonAsync<StatusResponse>(ResponseJson, cancellationToken)
                 .ConfigureAwait(false);
-            if (payload is null)
+            if (payload is not { Ok: true })
             {
                 return new RemoteStatusProbeOutcome(RemoteStatusProbeKind.Failed, null, null, null, statusCode);
             }
@@ -277,7 +286,7 @@ public sealed class HttpPairingTransport : IPairingTransport, IDisposable
 
             var name = pair[..separator].Trim();
             var value = pair[(separator + 1)..].Trim();
-            if (name.Length > 0 && (value == deviceId || name == PairingProtocol.DefaultCookieName))
+            if (name.Length > 0 && value == deviceId)
             {
                 return name;
             }

@@ -44,6 +44,22 @@
 - **同域名升级**：客户端允许 HTTP 端点在同一主机内跳转到 HTTPS，并保留 POST 方法和请求体；
   不会把配对令牌或设备凭据跟随到其他主机，也不会从 HTTPS 降级回 HTTP。
 
+## 公网隧道兼容性
+
+插件生成的 `https://<id>.dsh-market.com` 固定中继、`https://<随机域名>.trycloudflare.com`
+快速隧道及自有域名使用相同配对路由。集中端保留链接中的公网 origin，直接向其发送配对、
+状态探测和心跳请求，并以该 origin 构造内嵌界面的 `/pair-app?device=<id>` 入口。
+无需查询中继注册表或解析背后的临时隧道地址。
+
+HTTP 传输禁用共享 Cookie 容器；每次请求只使用目标保存的设备 Cookie，避免同主机不同端口或
+中继域名之间混用凭据。accept 返回多个 Cookie 时，以值匹配返回设备 id 的 Cookie 为准。
+状态探测仅将 HTTP 成功且 JSON `ok: true` 的响应视为有效插件响应。中继离线页面和非成功
+响应不会被识别为正常 Harness；心跳的 502/503 等错误保留配对并重试，401 才按既有契约吊销。
+
+公网模式依据上游 [远程访问说明](https://github.com/zhu1090093659/dsh-web/blob/dev/packages/dsh-remote-web-ui/README.zh.md)
+及 `src/routes.ts` 核对。自动化验收覆盖链接解析、HTTP 凭据隔离、异常响应和恢复；真实公网
+连通性取决于部署中的隧道、中继和证书。
+
 ## 错误码映射（Core `HubErrorCode`）
 
 | 插件响应 | 集中端错误 | 可重试 |
