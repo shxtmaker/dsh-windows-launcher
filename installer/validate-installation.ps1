@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [string] $ApplicationPath,
@@ -12,6 +12,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+# Inno may inherit PowerShell 7 module paths while launching Windows PowerShell.
+# Load the security module belonging to this host, never another host's manifest.
+Import-Module ($PSHOME + '\Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
 
 function Assert-UnsignedProduct {
     param([Parameter(Mandatory)][string] $Path)
@@ -36,5 +40,5 @@ $productVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo(
 $expectedPattern = '\A' + [regex]::Escape($ExpectedProductVersion) +
     '(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z'
 if ($productVersion -cnotmatch $expectedPattern) {
-    throw [InvalidDataException]::new('The registered version does not match the installed executable.')
+    throw [IO.InvalidDataException]::new('The registered version does not match the installed executable.')
 }

@@ -746,7 +746,7 @@ public sealed class ReleaseScriptLogicTests
 
     [Fact]
     [Trait("triggerTags", "VFY-08,release-identity")]
-    public void InstalledVersionValidationAcceptsBuildMetadataButRejectsDifferentVersions()
+    public async Task InstalledVersionValidationAcceptsBuildMetadataButRejectsDifferentVersions()
     {
         string assemblyPath = typeof(DshLauncher.Desktop.App).Assembly.Location;
         string productVersion = FileVersionInfo.GetVersionInfo(assemblyPath).ProductVersion!;
@@ -762,6 +762,31 @@ public sealed class ReleaseScriptLogicTests
             "[pscustomobject]@{ Accepted=$accepted; Rejected=$rejected }");
         Assert.True(result.RootElement.GetProperty("Accepted").GetBoolean());
         Assert.True(result.RootElement.GetProperty("Rejected").GetBoolean());
+
+        ProcessStartInfo legacyStart = new()
+        {
+            FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "WindowsPowerShell", "v1.0", "powershell.exe"),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        // Inno inherits PSModulePath unchanged when launched from PowerShell 7.
+        legacyStart.Environment["PSModulePath"] = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "Modules")
+            + Path.PathSeparator + Environment.GetEnvironmentVariable("PSModulePath");
+        foreach (string argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+            "-File", scriptPath, "-ApplicationPath", assemblyPath, "-UninstallerPath", assemblyPath,
+            "-ExpectedProductVersion", version })
+        {
+            legacyStart.ArgumentList.Add(argument);
+        }
+        using Process legacy = Process.Start(legacyStart)!;
+        Task<string> legacyOutput = legacy.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+        Task<string> legacyError = legacy.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        Assert.True(legacy.WaitForExit(15000), "Windows PowerShell identity validation timed out.");
+        Assert.True(legacy.ExitCode == 0, (await legacyOutput) + (await legacyError));
     }
 
     private static JsonDocument RunCommonJson(string expression)
