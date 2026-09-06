@@ -167,6 +167,10 @@ public sealed class BrowserPairingTransportTests
         });
         await using var fast = await StartHostAsync(context => context.Response.WriteAsJsonAsync(new { ok = true, paired = false }));
         using var transport = CreateTransport(dispatcher);
+        // Measure isolation between requests, not a cold browser-profile startup
+        // while other acceptance tests are also launching processes.
+        Assert.Equal(RemoteStatusProbeKind.Reached,
+            (await transport.ProbeStatusAsync(Endpoint(fast), null, TestContext.Current.CancellationToken)).Kind);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var pending = transport.ProbeStatusAsync(Endpoint(slow), null, cancellation.Token).AsTask();
         await arrived.Task.WaitAsync(TimeSpan.FromSeconds(20));
