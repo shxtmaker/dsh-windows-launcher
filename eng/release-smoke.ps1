@@ -6,6 +6,9 @@ param(
     [Parameter(Mandatory)]
     [string] $EvidenceDirectory,
 
+    [ValidateSet('Offline', 'Online')]
+    [string] $PackageMode = 'Offline',
+
     [string] $ExpectedSha256,
 
     [string] $VerifySummaryPath,
@@ -452,6 +455,9 @@ try {
     $expectedInstallerName = $constants.distribution.installerFileNameTemplate.
         Replace('{Product}', $constants.product.name, [StringComparison]::Ordinal).
         Replace('{SemVer}', $constants.product.version, [StringComparison]::Ordinal)
+    if ($PackageMode -eq 'Online') {
+        $expectedInstallerName = [IO.Path]::GetFileNameWithoutExtension($expectedInstallerName) + '-online.exe'
+    }
     if ([IO.Path]::GetFileName($InstallerPath) -ne $expectedInstallerName) {
         throw "安装包文件名不匹配。实际：$([IO.Path]::GetFileName($InstallerPath))；预期：$expectedInstallerName"
     }
@@ -501,6 +507,21 @@ try {
         $packageManifest.source.worktreeState -cne 'clean') {
         throw 'package-manifest.json 未绑定有效且干净的候选源码提交。'
     }
+    $manifestMode = if ($packageManifest.PSObject.Properties.Name -contains 'packageMode') {
+        [string] $packageManifest.packageMode
+    } else { 'Offline' }
+    if ($manifestMode -cne $PackageMode) {
+        throw '安装包模式与 package-manifest.json 不一致。'
+    }
+    if ($packageManifest.PSObject.Properties.Name -contains 'includesOfflineWebView2') {
+        if ($packageManifest.includesOfflineWebView2 -isnot [bool] -or
+            $packageManifest.includesOfflineWebView2 -ne ($PackageMode -eq 'Offline')) {
+            throw '清单中的 WebView2 离线载荷标记与安装包模式不一致。'
+        }
+    } elseif ($PackageMode -eq 'Online') {
+        throw '联网精简包清单缺少 WebView2 载荷标记。'
+    }
+
     if ($packageManifest.inputs.webView2BootstrapperVersion -ne
             '1.3.265.7' -or
         $packageManifest.inputs.webView2BootstrapperSha256 -ne
@@ -790,6 +811,7 @@ try {
         schemaVersion = 3
         generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         candidateVersion = $constants.product.version
+        packageMode = $PackageMode
         commit = $gitCommit
         result = $smokeResult
         sensitiveDataExclusionAttestation = $sensitiveExclusion

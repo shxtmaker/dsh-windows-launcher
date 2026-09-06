@@ -1,4 +1,4 @@
-#ifndef SourceRoot
+﻿#ifndef SourceRoot
   #error SourceRoot is required
 #endif
 #ifndef AppVersion
@@ -15,6 +15,20 @@
 #endif
 #ifndef WebView2InstallerPath
   #error WebView2InstallerPath is required
+#endif
+#ifndef WebView2InstallerSha256
+  #error WebView2InstallerSha256 is required
+#endif
+#ifndef PackageMode
+  #define PackageMode "Offline"
+#endif
+#if PackageMode != "Offline" && PackageMode != "Online"
+  #error PackageMode must be Offline or Online
+#endif
+#if PackageMode == "Online"
+  #define PackageLabel "联网精简包"
+#else
+  #define PackageLabel "离线包"
 #endif
 #ifndef WebView2MinimumVersion
   #error WebView2MinimumVersion is required
@@ -49,7 +63,11 @@
 
 #define ProductName "DSH Windows Launcher"
 #define ExecutableName "DshWindowsLauncher.exe"
-#define RuntimeInstallerName "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+#if PackageMode == "Online"
+  #define RuntimeInstallerName "MicrosoftEdgeWebview2Setup.exe"
+#else
+  #define RuntimeInstallerName "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+#endif
 #define RuntimeBootstrapperName "MicrosoftEdgeWebview2Setup.exe"
 #define MaintenanceHelperName "maintenance-ipc.ps1"
 #define IdentityHelperName "validate-installation.ps1"
@@ -63,7 +81,7 @@ SetupIconFile=..\assets\icons\dsh-app.ico
 AppId={{4440FC88-98CA-403E-8E20-3DFEBEF0E609}
 AppName={#ProductName}
 AppVersion={#AppVersion}
-AppVerName={#ProductName} {#AppVersion}
+AppVerName={#ProductName} {#AppVersion}（{#PackageLabel}）
 AppPublisher={#Publisher}
 AppPublisherURL={#ReleaseUri}
 AppSupportURL={#ReleaseUri}
@@ -88,7 +106,7 @@ VersionInfoVersion={#FileVersion}
 VersionInfoProductVersion={#FileVersion}
 VersionInfoProductName={#ProductName}
 VersionInfoCompany={#Publisher}
-VersionInfoDescription={#ProductName} 按用户安装程序
+VersionInfoDescription={#ProductName} {#PackageLabel}按用户安装程序
 Compression=lzma2/max
 SolidCompression=yes
 CloseApplications=no
@@ -111,6 +129,13 @@ DisableReadyPage=no
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+
+[Messages]
+#if PackageMode == "Online"
+ReadyLabel1=准备安装联网精简包。需要补装或修复 WebView2 时，将从微软下载运行时；请保持网络连接。
+#else
+ReadyLabel1=准备安装离线包。安装包已包含 WebView2 离线安装程序。
+#endif
 
 [Files]
 Source: "{#WebView2InstallerPath}"; DestName: "{#RuntimeInstallerName}"; Flags: dontcopy noencryption
@@ -1252,6 +1277,7 @@ var
   InstallerPath: String;
   InstalledVersion: String;
   ResultCode: Integer;
+  InstallerHandle: THandle;
 begin
   Result := False;
   InstalledVersion := GetInstalledWebView2Version;
@@ -1268,15 +1294,29 @@ begin
   ExtractTemporaryFile('{#RuntimeInstallerName}');
   InstallerPath := ExpandConstant('{tmp}\{#RuntimeInstallerName}');
 
-  if not Exec(InstallerPath, '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-  begin
-    Reason := '无法启动 WebView2 Runtime 离线安装程序。';
-    Exit;
+  InstallerHandle := THandle(-1);
+  try
+    if not TryLockTrustedRegularFile(InstallerPath, ExpandConstant('{tmp}'),
+      '{#WebView2InstallerSha256}', InstallerHandle, Reason) then
+      Exit;
+    if not Exec(InstallerPath, '/silent /install', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      Reason := '无法启动 WebView2 Runtime 安装程序（{#PackageLabel}）。';
+      Exit;
+    end;
+  finally
+    if InstallerHandle <> THandle(-1) then
+      CloseHandle(InstallerHandle);
   end;
 
   if (ResultCode <> 0) and (ResultCode <> 3010) then
   begin
+#if PackageMode == "Online"
+    Reason := 'WebView2 Runtime 联网安装或修复失败，退出码 ' + IntToStr(ResultCode) +
+      '。请检查互联网、代理和微软下载服务访问权限，或改用同版本离线包。';
+#else
     Reason := 'WebView2 Runtime 修复失败，退出码 ' + IntToStr(ResultCode) + '。';
+#endif
     Exit;
   end;
 

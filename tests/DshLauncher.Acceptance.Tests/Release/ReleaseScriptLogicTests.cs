@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -664,6 +664,27 @@ public sealed class ReleaseScriptLogicTests
         Assert.Contains("WebView2CoreAssemblySha256", innoScript, StringComparison.Ordinal);
         Assert.Contains("WebView2LoaderSha256", innoScript, StringComparison.Ordinal);
         Assert.Contains("WebView2HealthHelperSha256", packageScript, StringComparison.Ordinal);
+        Assert.Contains("WebView2InstallerSha256", packageScript, StringComparison.Ordinal);
+        Assert.Contains("packageMode = $PackageMode", packageScript, StringComparison.Ordinal);
+        Assert.Contains("$includeOfflineRuntime = $PackageMode -eq 'Offline'", packageScript, StringComparison.Ordinal);
+        Assert.Contains("#if PackageMode == \"Online\"", innoScript, StringComparison.Ordinal);
+        Assert.Contains("同版本离线包", innoScript, StringComparison.Ordinal);
+        string packagePath = QuotePowerShell(Path.Combine(root, "eng", "package.ps1"));
+        string smokePath = QuotePowerShell(Path.Combine(root, "eng", "release-smoke.ps1"));
+        string parameters = RunPowerShell(
+            $"$package=Get-Command {packagePath};$smoke=Get-Command {smokePath};" +
+            "[pscustomobject]@{" +
+            "Modes=@($package.Parameters.PackageMode.Attributes.ValidValues);" +
+            "OfflineRequired=@($package.Parameters.WebView2OfflineInstallerPath.Attributes | " +
+            "Where-Object {$_ -is [System.Management.Automation.ParameterAttribute]}).Mandatory -contains $true;" +
+            "SmokeModes=@($smoke.Parameters.PackageMode.Attributes.ValidValues)" +
+            "}|ConvertTo-Json -Compress");
+        using JsonDocument parameterContract = JsonDocument.Parse(parameters);
+        Assert.False(parameterContract.RootElement.GetProperty("OfflineRequired").GetBoolean());
+        Assert.Equal(["Offline", "Online"], parameterContract.RootElement.GetProperty("Modes")
+            .EnumerateArray().Select(static value => value.GetString()));
+        Assert.Equal(["Offline", "Online"], parameterContract.RootElement.GetProperty("SmokeModes")
+            .EnumerateArray().Select(static value => value.GetString()));
 
         int repairFunction = innoScript.IndexOf(
             "function RepairAndVerifyWebView2",

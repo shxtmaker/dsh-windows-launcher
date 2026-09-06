@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory)]
     [string] $Version,
 
-    [Parameter(Mandatory)]
+    [ValidateSet('Offline', 'Online')]
+    [string] $PackageMode = 'Offline',
+
     [string] $WebView2OfflineInstallerPath,
 
     [Parameter(Mandatory)]
@@ -101,27 +103,41 @@ try {
         throw "参数版本必须与发布常量完全一致。参数：$Version；常量：$($constants.product.version)"
     }
 
-    foreach ($path in @($WebView2OfflineInstallerPath, $WebView2BootstrapperPath, $InnoSetupInstallerPath)) {
+    $includeOfflineRuntime = $PackageMode -eq 'Offline'
+    $inputPaths = @($WebView2BootstrapperPath, $InnoSetupInstallerPath)
+    if ($includeOfflineRuntime) {
+        if ([string]::IsNullOrWhiteSpace($WebView2OfflineInstallerPath)) {
+            throw '离线包必须提供 -WebView2OfflineInstallerPath。'
+        }
+        $inputPaths += $WebView2OfflineInstallerPath
+    }
+    foreach ($path in $inputPaths) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "输入文件不存在：$path"
         }
     }
 
-    $WebView2OfflineInstallerPath = (Resolve-Path -LiteralPath $WebView2OfflineInstallerPath).Path
     $WebView2BootstrapperPath = (Resolve-Path -LiteralPath $WebView2BootstrapperPath).Path
     $InnoSetupInstallerPath = (Resolve-Path -LiteralPath $InnoSetupInstallerPath).Path
 
-    # WebView2 Evergreen Standalone x64 冻结哈希。
-    # 2026-09-04 供应链基线修正：微软对同一版本 1.3.265.7 重新发布/更换签名渠道，
-    # 实得文件（258,510,544 bytes）Microsoft 签名有效且带可信时间戳、FileVersion 仍为 1.3.265.7，
-    # 但字节与旧 pin 不同。旧值：987a9d8b3107e84f9b53b4a077d28ae4814fc3d964d5a55c559e7334bbf24d61
-    Assert-FileHash -Path $WebView2OfflineInstallerPath `
-        -ExpectedHash '1f4638309f3d82c31a3028c3cf7d75998f58e4d1407380f5cb8a8e9172caf17d' `
-        -Description 'WebView2 Offline Installer'
-    $webViewSignature = Assert-SignedMicrosoftTool -Path $WebView2OfflineInstallerPath -Description 'WebView2 Offline Installer'
-    $webViewVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo($WebView2OfflineInstallerPath).ProductVersion).Trim()
-    if ($webViewVersion -ne '1.3.265.7') {
-        throw "WebView2 Offline Installer 版本不匹配。实际：$webViewVersion；预期：" + '1.3.265.7'
+    $webViewSignature = $null
+    $webViewVersion = $null
+    $webViewOfflineHash = $null
+    if ($includeOfflineRuntime) {
+        $WebView2OfflineInstallerPath = (Resolve-Path -LiteralPath $WebView2OfflineInstallerPath).Path
+        # WebView2 Evergreen Standalone x64 冻结哈希。
+        # 2026-09-04 供应链基线修正：微软对同一版本 1.3.265.7 重新发布/更换签名渠道，
+        # 实得文件（258,510,544 bytes）Microsoft 签名有效且带可信时间戳、FileVersion 仍为 1.3.265.7，
+        # 但字节与旧 pin 不同。旧值：987a9d8b3107e84f9b53b4a077d28ae4814fc3d964d5a55c559e7334bbf24d61
+        Assert-FileHash -Path $WebView2OfflineInstallerPath `
+            -ExpectedHash '1f4638309f3d82c31a3028c3cf7d75998f58e4d1407380f5cb8a8e9172caf17d' `
+            -Description 'WebView2 Offline Installer'
+        $webViewSignature = Assert-SignedMicrosoftTool -Path $WebView2OfflineInstallerPath -Description 'WebView2 Offline Installer'
+        $webViewVersion = ([string] [Diagnostics.FileVersionInfo]::GetVersionInfo($WebView2OfflineInstallerPath).ProductVersion).Trim()
+        if ($webViewVersion -ne '1.3.265.7') {
+            throw "WebView2 Offline Installer 版本不匹配。实际：$webViewVersion；预期：" + '1.3.265.7'
+        }
+        $webViewOfflineHash = Get-DshSha256 -Path $WebView2OfflineInstallerPath
     }
 
     Assert-FileHash -Path $WebView2BootstrapperPath `
@@ -137,6 +153,10 @@ try {
     if ($webViewBootstrapperVersion -ne '1.3.265.7') {
         throw "WebView2 Evergreen Bootstrapper 版本不匹配。实际：$webViewBootstrapperVersion；预期：" + '1.3.265.7'
     }
+
+    $runtimeInstallerPath = if ($includeOfflineRuntime) { $WebView2OfflineInstallerPath } else { $WebView2BootstrapperPath }
+    $runtimeInstallerHash = Get-DshSha256 -Path $runtimeInstallerPath
+    $runtimeDescription = if ($includeOfflineRuntime) { '离线包' } else { '联网精简包' }
 
     Assert-FileHash -Path $InnoSetupInstallerPath `
         -ExpectedHash $constants.distribution.innoSetup.sha256 `
@@ -173,7 +193,7 @@ try {
     }
 
     $dotnet = Get-DshExactDotNetPath -ExpectedVersion $constants.build.dotnetSdkVersion -DotNetPath $DotNetPath
-    $verifyArtifacts = Join-Path $repositoryRoot "artifacts/verify-package-$Version"
+    $verifyArtifacts = Join-Path $repositoryRoot "artifacts/verify-package-$Version-$($PackageMode.ToLowerInvariant())"
     Write-Host '[package] 先执行统一 verify 门禁。'
     $pwshExecutable = Join-Path $PSHOME 'pwsh.exe'
     if (-not (Test-Path -LiteralPath $pwshExecutable -PathType Leaf)) {
@@ -220,7 +240,11 @@ try {
     }
 
     if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-        $OutputDirectory = Join-Path $repositoryRoot "artifacts/package/$Version"
+        $OutputDirectory = if ($includeOfflineRuntime) {
+            Join-Path $repositoryRoot "artifacts/package/$Version"
+        } else {
+            Join-Path $repositoryRoot "artifacts/package/$Version-online"
+        }
     }
     $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
     if (Test-Path -LiteralPath $OutputDirectory) {
@@ -310,11 +334,17 @@ try {
     $managedEntryAssemblyUnsigned = Assert-Unsigned -Path $managedEntryAssembly -Description '托管主程序集'
 
     $publishBytes = (Get-ChildItem -LiteralPath $publishDirectory -File -Recurse | Measure-Object -Property Length -Sum).Sum
-    $webViewInstallerBytes = (Get-Item -LiteralPath $WebView2OfflineInstallerPath).Length
+    # Online repair still needs space for the downloaded runtime, not only the bootstrapper.
+    $webViewInstallerBytes = if ($includeOfflineRuntime) {
+        (Get-Item -LiteralPath $runtimeInstallerPath).Length
+    } else { 268435456 }
     $requiredSpaceBytes = [int64] ($publishBytes * 2 + $webViewInstallerBytes + 268435456)
     $installerName = $constants.distribution.installerFileNameTemplate.
         Replace('{Product}', $constants.product.name, [StringComparison]::Ordinal).
         Replace('{SemVer}', $Version, [StringComparison]::Ordinal)
+    if (-not $includeOfflineRuntime) {
+        $installerName = [IO.Path]::GetFileNameWithoutExtension($installerName) + '-online.exe'
+    }
     if ($installerName -notmatch '^[^\\/:*?"<>|]+\.exe$') {
         throw "安装包文件名不安全：$installerName"
     }
@@ -366,7 +396,9 @@ try {
         (New-IsppStringDefine -Name 'FileVersion' -Value $fileVersion),
         (New-IsppStringDefine -Name 'Publisher' -Value $constants.distribution.signing.publisher),
         (New-IsppStringDefine -Name 'ReleaseUri' -Value $constants.distribution.officialReleaseUri),
-        (New-IsppStringDefine -Name 'WebView2InstallerPath' -Value $WebView2OfflineInstallerPath),
+        (New-IsppStringDefine -Name 'WebView2InstallerPath' -Value $runtimeInstallerPath),
+        (New-IsppStringDefine -Name 'WebView2InstallerSha256' -Value $runtimeInstallerHash),
+        (New-IsppStringDefine -Name 'PackageMode' -Value $PackageMode),
         (New-IsppStringDefine -Name 'WebView2MinimumVersion' -Value '151.0.4129.50'),
         "/DRequiredSpaceBytes=$requiredSpaceBytes",
         (New-IsppStringDefine -Name 'OutputDirectory' -Value $releaseDirectory),
@@ -383,6 +415,7 @@ try {
     Write-Host '[package] 编译未签名安装器与卸载器。'
     Invoke-DshNative -FilePath $InnoCompilerPath -Arguments $compilerArguments -WorkingDirectory $repositoryRoot
     foreach ($frozenInstallerInput in @(
+        @{ Path = $runtimeInstallerPath; Hash = $runtimeInstallerHash; Description = 'WebView2 安装程序' },
         @{ Path = $maintenanceHelperPath; Hash = $maintenanceHelperSha256; Description = '当前用户 IPC 辅助程序' },
         @{ Path = $identityHelperPath; Hash = $identityHelperSha256; Description = '安装身份验证辅助程序' },
         @{ Path = $installOwnershipMarkerPath; Hash = $installOwnershipMarkerSha256; Description = '安装所有权标记' },
@@ -481,7 +514,8 @@ try {
         "- Runtime: self-contained $($constants.build.runtimeIdentifier), multi-file, non-trimmed .NET $($constants.build.dotnetSdkVersion)",
         "- Authenticode: not signed (internal distribution; verify by the SHA-256 above)",
         "- Minimum WebView2 Runtime: $('151.0.4129.50')",
-        "- Included WebView2 offline installer: $webViewVersion",
+        "- Package mode: $PackageMode ($runtimeDescription)",
+        "- Includes WebView2 offline runtime: $includeOfflineRuntime",
         "- Included WebView2 repair bootstrapper: $webViewBootstrapperVersion",
         "- Pairing baseline: $($constants.pairingBaseline.plugin) $($constants.pairingBaseline.referenceVersion)",
         "- Pairing plugin: $($pairingIdentity.plugin) ($($pairingIdentity.referenceVersion))",
@@ -504,6 +538,8 @@ try {
         signingPolicy = $constants.distribution.signing.policy
         ownArtifactsSigned = $false
         version = $Version
+        packageMode = $PackageMode
+        includesOfflineWebView2 = $includeOfflineRuntime
         source = [ordered]@{
             available = $sourceState.Available
             commit = $sourceState.Commit
@@ -545,7 +581,7 @@ try {
             innoCompilerSignature = $innoCompilerSignature
             innoInstallationUninstallerSignature = $innoInstallationUninstallerSignature
             webView2OfflineInstallerVersion = $webViewVersion
-            webView2OfflineInstallerSha256 = Get-DshSha256 -Path $WebView2OfflineInstallerPath
+            webView2OfflineInstallerSha256 = $webViewOfflineHash
             webView2OfflineInstallerSignature = $webViewSignature
             webView2BootstrapperVersion = $webViewBootstrapperVersion
             webView2BootstrapperSha256 = Get-DshSha256 -Path $WebView2BootstrapperPath

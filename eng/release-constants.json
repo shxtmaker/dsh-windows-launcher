@@ -8,7 +8,7 @@
     "applicationDataId": "DshWindowsLauncher",
     "applicationDataRoot": "%LOCALAPPDATA%\\DshWindowsLauncher",
     "defaultInstallRoot": "%LOCALAPPDATA%\\Programs\\DshWindowsLauncher",
-    "version": "2.0.8"
+    "version": "2.0.9"
   },
   "platform": {
     "supportedWindows": "Windows 11 25H2+ x64",
@@ -49,7 +49,7 @@
       "policy": "none",
       "publisher": "lqy"
     },
-    "officialReleaseUri": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v2.0.8"
+    "officialReleaseUri": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v2.0.9"
   },
   "limits": {
     "maxTargets": 32

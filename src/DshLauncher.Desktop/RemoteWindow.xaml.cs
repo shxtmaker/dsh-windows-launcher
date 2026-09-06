@@ -12,19 +12,11 @@ using DshLauncher.Core;
 using DshLauncher.Core.Hub;
 using Microsoft.Web.WebView2.Core;
 
-using MessageBox = System.Windows.MessageBox;
-
 namespace DshLauncher.Desktop;
 
 /// <summary>
-/// The embedded display of one target's remote UI: the harness's
-/// cookieless pair-app entry (pair-app?device=…) hosted in an in-process
-/// WebView2 with a per-target user-data folder. A collapsible sidebar
-/// mirrors the hub's whole target directory — address plus live pairing
-/// and connectivity — and selecting another entry asks the owner window
-/// to open that target's own remote window (the per-target user-data
-/// folder forbids swapping the view in place). Nothing here launches an
-/// external browser; new-window requests are folded back into this view.
+/// A shared remote workspace with persistent, per-target browser pages.
+/// Each page owns its isolated WebView2 user-data folder.
 /// </summary>
 public partial class RemoteWindow : Window
 {
@@ -41,26 +33,21 @@ public partial class RemoteWindow : Window
         _hub = hub;
         _targetId = targetId;
         _openTargetRequest = openTargetRequest;
-        Title = "远程界面 — " + displayName;
-        TargetText.Text = displayName + " · " + DescribeAddress(baseUrl);
-        _remoteUrl = remoteUrl;
-        _userDataFolderPath = userDataFolderPath;
-        SetLoadState(RemoteLoadState.Loading);
         SidebarList.ItemsSource = _sidebarRows;
         hub.Changed += OnHubChanged;
         Closed += static (sender, _) => ((RemoteWindow)sender!).Detach();
         _ = RefreshSidebarAsync();
-        Loaded += OnLoaded;
+        OpenPage(targetId, remoteUrl, displayName, baseUrl, userDataFolderPath);
     }
 
     private readonly PairingHub _hub;
-    private readonly Guid _targetId;
+    private Guid _targetId;
     private readonly Func<Guid, Task> _openTargetRequest;
     private readonly ObservableCollection<RemoteTargetRow> _sidebarRows = [];
-    private readonly string _remoteUrl;
-    private readonly string _userDataFolderPath;
+    private readonly Dictionary<Guid, RemotePage> _pages = [];
+    private bool _detached;
+    private bool _updatingSelection;
     private bool _allowClose;
-    private bool _initialized;
     private bool _sidebarExpanded = true;
 
     private const double SidebarWidth = 236;
@@ -87,11 +74,24 @@ public partial class RemoteWindow : Window
     private void OnHubChanged(HubSnapshot snapshot) =>
         Dispatcher.BeginInvoke(() => ApplySnapshot(snapshot));
 
-    /// <summary>Rebuilds the sidebar from a hub snapshot; runs on the UI
-    /// thread. The selection is pinned to this window's own target so the
-    /// highlight always marks the view being displayed.</summary>
+    /// <summary>Updates page lifetimes and sidebar status on the UI thread.</summary>
     private void ApplySnapshot(HubSnapshot snapshot)
     {
+        if (_detached) return;
+        foreach (var page in _pages.Values.ToArray())
+        {
+            var target = snapshot.Targets.FirstOrDefault(target => target.TargetId == page.TargetId);
+            if (target is null || target.Pairing != PairingState.Paired)
+            {
+                RemovePage(page.TargetId);
+            }
+            else
+            {
+                page.DisplayName = target.EffectiveDisplayName;
+                page.Tab.Content = page.DisplayName;
+            }
+        }
+        _updatingSelection = true;
         _sidebarRows.Clear();
         foreach (var target in snapshot.Targets)
         {
@@ -101,6 +101,9 @@ public partial class RemoteWindow : Window
 
         SidebarList.SelectedItem = _sidebarRows.FirstOrDefault(row => row.IsCurrent);
 
+        _updatingSelection = false;
+        UpdateActivePage();
+
         var paired = snapshot.Targets.Count(t => t.Pairing == PairingState.Paired);
         var online = snapshot.Targets.Count(t => t.Pairing == PairingState.Paired && t.Connectivity == ConnectivityState.Online);
         HubFooterText.Text = "在线 " + online + " · 已配对 " + paired + " · 共 " + snapshot.Targets.Count
@@ -109,13 +112,11 @@ public partial class RemoteWindow : Window
 
     private void OnSidebarSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (SidebarList.SelectedItem is not RemoteTargetRow row || row.TargetId == _targetId)
+        if (_updatingSelection || SidebarList.SelectedItem is not RemoteTargetRow row || row.TargetId == _targetId)
         {
             return;
         }
 
-        // Opening another target yields its own window; restore the visual
-        // highlight to the target this window still displays.
         _ = _openTargetRequest(row.TargetId);
         SidebarList.SelectedItem = _sidebarRows.FirstOrDefault(candidate => candidate.IsCurrent);
     }
@@ -231,53 +232,113 @@ public partial class RemoteWindow : Window
     private static DoubleAnimation CollapseAnimation(double to) =>
         new(to, TimeSpan.FromMilliseconds(190)) { EasingFunction = SidebarEase() };
 
-    private async void OnLoaded(object sender, RoutedEventArgs e)
+    public void OpenPage(Guid targetId, string remoteUrl, string displayName, string baseUrl, string userDataFolderPath)
     {
-        if (_initialized)
+        if (_detached) return;
+        if (!_pages.TryGetValue(targetId, out var page))
         {
-            return;
+            page = new RemotePage(targetId, remoteUrl, displayName, baseUrl, userDataFolderPath);
+            _pages.Add(targetId, page);
+            page.Web.Loaded += (_, _) => EnsurePageInitialized(page);
+            PageHost.Children.Add(page.Web);
+            PageTabs.Items.Add(page.Tab);
         }
+        PageTabs.SelectedItem = page.Tab;
+        UpdateActivePage();
+        if (page.Web.IsLoaded) EnsurePageInitialized(page);
+    }
 
-        _initialized = true;
+    private void EnsurePageInitialized(RemotePage page)
+    {
+        if (page.Initialized || page.Disposed) return;
+        page.Initialized = true;
+        SetPageState(page, RemoteLoadState.Loading);
+        _ = InitializePageAsync(page);
+    }
+
+    public void RemovePage(Guid targetId)
+    {
+        if (!_pages.Remove(targetId, out var page)) return;
+        page.Disposed = true;
+        PageHost.Children.Remove(page.Web);
+        page.Web.Dispose();
+        PageTabs.Items.Remove(page.Tab);
+        if (PageTabs.SelectedItem is null && PageTabs.Items.Count > 0)
+            PageTabs.SelectedIndex = 0;
+        UpdateActivePage();
+    }
+
+    private void OnPageSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateActivePage();
+
+    private void UpdateActivePage()
+    {
+        var active = _pages.Values.FirstOrDefault(page => page.Tab == PageTabs.SelectedItem);
+        _targetId = active?.TargetId ?? Guid.Empty;
+        foreach (var page in _pages.Values)
+            page.Web.Visibility = page == active ? Visibility.Visible : Visibility.Hidden;
+        foreach (var row in _sidebarRows) row.IsCurrent = row.TargetId == _targetId;
+        _updatingSelection = true;
+        SidebarList.SelectedItem = _sidebarRows.FirstOrDefault(row => row.IsCurrent);
+        _updatingSelection = false;
+        Title = active is null ? "远程界面" : "远程界面 — " + active.DisplayName;
+        TargetText.Text = active is null ? "选择一个已配对目标" : active.DisplayName + " · " + DescribeAddress(active.BaseUrl);
+        SetLoadState(active?.State ?? RemoteLoadState.Loaded);
+        if (active is null) StateText.Text = "尚未打开页面";
+    }
+
+    private async Task InitializePageAsync(RemotePage page)
+    {
         try
         {
             var environment = await CoreWebView2Environment.CreateAsync(
-                userDataFolder: _userDataFolderPath).ConfigureAwait(true);
-            await Web.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
-            var core = Web.CoreWebView2;
+                userDataFolder: page.UserDataFolderPath).ConfigureAwait(true);
+            if (page.Disposed) return;
+            await page.Web.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
+            if (page.Disposed) return;
+            var core = page.Web.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
-            core.NewWindowRequested += OnNewWindowRequested;
-            Web.NavigationCompleted += OnNavigationCompleted;
-            Web.Source = new Uri(_remoteUrl);
+            core.NewWindowRequested += (_, e) =>
+            {
+                e.Handled = true;
+                if (!page.Disposed) page.Web.Source = new Uri(e.Uri);
+            };
+            page.Web.NavigationStarting += (_, _) => SetPageState(page, RemoteLoadState.Loading);
+            page.Web.NavigationCompleted += (_, e) =>
+                SetPageState(page, e.IsSuccess ? RemoteLoadState.Loaded : RemoteLoadState.Failed);
+            page.Web.Source = new Uri(page.RemoteUrl);
         }
         catch (Exception exception) when (exception is WebView2RuntimeNotFoundException or
-                                          InvalidOperationException or
-                                          FileNotFoundException)
+                                          InvalidOperationException or FileNotFoundException or COMException)
         {
-            SetLoadState(RemoteLoadState.Failed);
-            MessageBox.Show(
-                this,
-                "无法初始化内嵌浏览器组件（WebView2 Runtime）。请安装 Microsoft Edge WebView2 Evergreen Runtime 后重试。\n\n"
-                + exception.Message,
-                "远程界面",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            Close();
+            if (page.Disposed) return;
+            page.Initialized = false;
+            SetPageState(page, RemoteLoadState.Failed);
+            page.Tab.ToolTip = "浏览器初始化失败：" + exception.Message;
         }
     }
 
-    private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    private void SetPageState(RemotePage page, RemoteLoadState state)
     {
-        // Keep the user inside the standalone client: popups navigate this
-        // view in place instead of spawning an external browser.
-        e.Handled = true;
-        Web.Source = new Uri(e.Uri);
+        if (page.Disposed) return;
+        page.State = state;
+        if (page.TargetId == _targetId) SetLoadState(state);
     }
 
-    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e) =>
-        SetLoadState(e.IsSuccess ? RemoteLoadState.Loaded : RemoteLoadState.Failed);
+    private sealed class RemotePage(Guid targetId, string remoteUrl, string displayName, string baseUrl, string userDataFolderPath)
+    {
+        public Guid TargetId { get; } = targetId;
+        public string RemoteUrl { get; } = remoteUrl;
+        public string DisplayName { get; set; } = displayName;
+        public string BaseUrl { get; } = baseUrl;
+        public string UserDataFolderPath { get; } = userDataFolderPath;
+        public Microsoft.Web.WebView2.Wpf.WebView2 Web { get; } = new();
+        public ListBoxItem Tab { get; } = new() { Content = displayName, ToolTip = baseUrl };
+        public bool Initialized { get; set; }
+        public bool Disposed { get; set; }
+        public RemoteLoadState State { get; set; } = RemoteLoadState.Loading;
+    }
 
     private void SetLoadState(RemoteLoadState state)
     {
@@ -302,7 +363,12 @@ public partial class RemoteWindow : Window
         Failed,
     }
 
-    private void Detach() => _hub.Changed -= OnHubChanged;
+    private void Detach()
+    {
+        _detached = true;
+        _hub.Changed -= OnHubChanged;
+        foreach (var id in _pages.Keys.ToArray()) RemovePage(id);
+    }
 
     private static string DescribeAddress(string baseUrl)
     {

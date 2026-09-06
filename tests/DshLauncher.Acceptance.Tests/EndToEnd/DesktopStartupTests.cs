@@ -35,12 +35,37 @@ public sealed class DesktopStartupTests
                     Assert.NotNull(management.Icon);
                     management.AllowClose();
                     management.Close();
-                    var remote = new RemoteWindow(hub, Guid.NewGuid(), "https://example.invalid/",
+                    var firstTarget = Guid.NewGuid();
+                    var remote = new RemoteWindow(hub, firstTarget, "https://example.invalid/",
                         "Startup test", "https://example.invalid", Path.Combine(root, "webview"),
                         static _ => Task.CompletedTask);
                     Assert.NotNull(remote.Icon);
+                    var host = Assert.IsType<System.Windows.Controls.Grid>(remote.FindName("PageHost"));
+                    var tabs = Assert.IsType<System.Windows.Controls.ListBox>(remote.FindName("PageTabs"));
+                    var firstView = Assert.Single(host.Children.Cast<System.Windows.UIElement>());
+                    var secondTarget = Guid.NewGuid();
+                    var windowCount = app.Windows.Count;
+                    remote.OpenPage(secondTarget, "https://second.invalid/", "Second target",
+                        "https://second.invalid", Path.Combine(root, "second-webview"));
+                    Assert.Equal(windowCount, app.Windows.Count);
+                    Assert.Equal(2, tabs.Items.Count);
+                    Assert.Equal(System.Windows.Visibility.Hidden, firstView.Visibility);
+                    var secondView = host.Children[1];
+                    Assert.Equal(System.Windows.Visibility.Visible, secondView.Visibility);
+                    remote.OpenPage(firstTarget, "https://example.invalid/", "Startup test",
+                        "https://example.invalid", Path.Combine(root, "webview"));
+                    Assert.Equal(2, host.Children.Count);
+                    Assert.Same(firstView, host.Children[0]);
+                    Assert.Equal(System.Windows.Visibility.Visible, firstView.Visibility);
+                    Assert.Equal(System.Windows.Visibility.Hidden, secondView.Visibility);
+                    tabs.SelectedIndex = 1;
+                    Assert.Equal(System.Windows.Visibility.Visible, secondView.Visibility);
+                    remote.RemovePage(secondTarget);
+                    Assert.Single(tabs.Items.Cast<object>());
+                    Assert.Equal(System.Windows.Visibility.Visible, firstView.Visibility);
                     remote.AllowClose();
                     remote.Close();
+                    Assert.Empty(host.Children.Cast<System.Windows.UIElement>());
                 }
                 finally
                 {

@@ -58,7 +58,7 @@ public partial class ManagementWindow : Window
     private readonly ApplicationDataStore _applicationData;
     private readonly TrayHost _tray;
     private readonly ObservableCollection<TargetRow> _rows = [];
-    private readonly Dictionary<Guid, RemoteWindow> _remoteWindows = new();
+    private RemoteWindow? _remoteWindow;
     private bool _allowClose;
     private bool _minimizeHintShown;
     private CloseBehavior _closeBehavior = CloseBehavior.Ask;
@@ -93,10 +93,8 @@ public partial class ManagementWindow : Window
     public void AllowClose()
     {
         _allowClose = true;
-        foreach (var remote in _remoteWindows.Values)
-        {
-            remote.AllowClose();
-        }
+        _remoteWindow?.AllowClose();
+        _remoteWindow?.Close();
     }
 
     private void Detach()
@@ -242,19 +240,12 @@ public partial class ManagementWindow : Window
         await OpenRemoteForTargetAsync(row.TargetId);
     }
 
-    /// <summary>Opens (or focuses) one target's remote window. Shared by the
-    /// management list and the sidebar entries inside remote windows.</summary>
+    /// <summary>Opens or selects a target page in the shared remote workspace.</summary>
     public async Task OpenRemoteForTargetAsync(Guid targetId)
     {
         var row = _rows.FirstOrDefault(candidate => candidate.TargetId == targetId);
         if (row is null)
         {
-            return;
-        }
-
-        if (_remoteWindows.TryGetValue(row.TargetId, out var existing))
-        {
-            existing.ShowAndActivate();
             return;
         }
 
@@ -278,18 +269,18 @@ public partial class ManagementWindow : Window
             return;
         }
 
-        var remote = new RemoteWindow(
-            _hub, row.TargetId, url.Url, row.DisplayName, row.BaseUrl, udfPath, OpenRemoteForTargetAsync);
-        remote.Closed += (sender, _) =>
+        if (_allowClose || !_rows.Any(candidate => candidate.TargetId == targetId)) return;
+        if (_remoteWindow is null)
         {
-            var window = (RemoteWindow)sender!;
-            foreach (var entry in _remoteWindows.Where(entry => entry.Value == window).ToArray())
-            {
-                _remoteWindows.Remove(entry.Key);
-            }
-        };
-        _remoteWindows[row.TargetId] = remote;
-        remote.Show();
+            _remoteWindow = new RemoteWindow(
+                _hub, row.TargetId, url.Url, row.DisplayName, row.BaseUrl, udfPath, OpenRemoteForTargetAsync);
+            _remoteWindow.Closed += (_, _) => _remoteWindow = null;
+        }
+        else
+        {
+            _remoteWindow.OpenPage(row.TargetId, url.Url, row.DisplayName, row.BaseUrl, udfPath);
+        }
+        _remoteWindow.ShowAndActivate();
     }
 
     private async void OnRePair(object sender, RoutedEventArgs e)
@@ -343,12 +334,6 @@ public partial class ManagementWindow : Window
         if (confirmation != MessageBoxResult.OK)
         {
             return;
-        }
-
-        if (_remoteWindows.Remove(row.TargetId, out var remote))
-        {
-            remote.AllowClose();
-            remote.Close();
         }
 
         var result = await _hub.RemoveAsync(row.TargetId).ConfigureAwait(true);

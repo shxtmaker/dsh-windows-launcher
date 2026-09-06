@@ -1,4 +1,4 @@
-# 工程与发布入口
+﻿# 工程与发布入口
 
 `eng/` 的正式发布流程只公开三个顺序入口。CI 如存在，也只能调用这些脚本，不复制或跳过
 脚本内门禁。另有一个与正式身份完全隔离的轻量内网测试打包入口；它不能进入正式发布
@@ -20,14 +20,14 @@ pwsh -File .\eng\verify.ps1 `
 正式打包必须在没有安装本产品的干净隔离 Windows runner 上进行。脚本要求：
 
 - 参数 SemVer 与候选发布常量完全相同；
-- WebView2 Evergreen Standalone x64、Evergreen Bootstrapper 和 Inno Setup 官方安装包匹配冻结版本、SHA-256、有效 Authenticode 与时间戳；
+- Evergreen Bootstrapper 和 Inno Setup 官方安装包匹配冻结版本、SHA-256、有效 Authenticode 与时间戳；离线模式额外要求 WebView2 Evergreen Standalone x64 符合冻结身份；
 - `ISCC.exe` 精确为 Inno Setup `7.0.2` 且由 Pyrsys B.V. 有效签名；
 - 自有产物全部保持 `NotSigned`：不需要 `signtool.exe`、证书或时间戳服务；
 - 用户显式允许在专用固定卷目录短暂安装最终包，以验证真实 `unins*.exe` 的身份与未签名状态。
 
 ```powershell
 pwsh -File .\eng\package.ps1 `
-  -Version 1.0.0-rc.1 `
+  -Version 2.0.9 `
   -WebView2OfflineInstallerPath C:\release-inputs\MicrosoftEdgeWebView2RuntimeInstallerX64.exe `
   -WebView2BootstrapperPath C:\release-inputs\MicrosoftEdgeWebview2Setup.exe `
   -InnoSetupInstallerPath C:\release-inputs\innosetup-7.0.2-x64.exe `
@@ -37,6 +37,40 @@ pwsh -File .\eng\package.ps1 `
 ```
 
 脚本先完整运行 `verify.ps1`，再发布自包含、多文件、非裁剪应用，把已冻结 Bootstrapper 固定暂存并安装为 `MicrosoftEdgeWebview2Setup.exe`，断言 apphost 与托管主程序集保持未签名，编译不带签名的 Inno 安装器和卸载器。安装器仍保留全部 `[Code]` 安全加固（路径锁定、重解析点拒绝、IPC 退出、就地升级身份校验）。最终安装器、`.sha256`、`package-manifest.json`（`schemaVersion` 3，`ownArtifactsSigned=false`）、验证摘要、SPDX 2.3 SBOM、第三方许可证清单和发行说明输入写入 `artifacts/package/<version>/release/`。安装器 SHA-256 只在全部真实卸载器验证完成后冻结。
+
+### 联网精简包
+
+同一正式入口支持 `-PackageMode Offline`（默认）和 `-PackageMode Online`。联网模式不要求
+`-WebView2OfflineInstallerPath`，不打入离线运行时，仍自包含 .NET 并保留全部安装保护。
+两种模式使用同一 AppId 和数据身份，便于互相升级；文件名、输出目录和清单中的模式字段分别区分。
+
+```powershell
+pwsh -File .\eng\package.ps1 `
+  -Version 2.0.9 `
+  -PackageMode Online `
+  -WebView2BootstrapperPath C:\release-inputs\MicrosoftEdgeWebview2Setup.exe `
+  -InnoSetupInstallerPath C:\release-inputs\innosetup-7.0.2-x64.exe `
+  -InnoCompilerPath "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe" `
+  -UninstallerVerificationDirectory C:\release-validation\DshWindowsLauncher-online `
+  -AllowInstallerExecutionForUninstallerVerification
+```
+
+离线输出仍位于 `artifacts/package/<version>/release/`；联网输出位于
+`artifacts/package/<version>-online/release/`，安装文件增加 `-online.exe` 后缀。
+每个目录独立保存清单、校验值、安装/卸载验证和供应链证据，禁止混用。
+清单维持 schemaVersion 3，增加 `packageMode` 和 `includesOfflineWebView2`；
+联网包的三个 `webView2OfflineInstaller*` 输入字段为 `null`，表示未包含该输入。
+
+运行时版本和隔离环境健康检查通过后，两种包均直接复用已安装的 WebView2。检查未通过时，
+离线包调用 Standalone Installer，联网包调用已冻结且校验哈希的 Bootstrapper；两者执行后
+都重新检查版本和环境健康。在线下载由微软 Bootstrapper 负责，使用官方 `/silent /install`
+方式，见[微软分发文档](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)。
+联网失败时安装中止并提示检查网络或改用同版本离线包，不继续覆盖应用文件。
+
+对联网包执行 `release-smoke.ps1` 时也须指定 `-PackageMode Online`。冒烟入口会核对文件名、
+冻结哈希和清单模式，避免把一类包的证据用于另一类包。正式发行前应在隔离系统中覆盖运行时
+缺失、旧版、损坏和健康状态，以及断网、代理失败和同版本两种包互换；开发机上的健康运行时
+安装验证不能替代这些场景。
 
 不再存在签名参数。证书私钥、签名主体和时间戳服务地址不再是发布契约的一部分；
 上游第三方输入的 Microsoft / Pyrsys B.V. 签名校验保留，因为它们验证的是别人交给我们的字节。
