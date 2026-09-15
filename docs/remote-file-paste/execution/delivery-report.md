@@ -9,8 +9,14 @@
 > `tests/fixtures/.d20-probe-tmp.mjs`（含硬编码本机绝对路径）；插件 tarball 因此变为
 > `a6f865a4…`（165 802 B / 59 文件），本报告与 Windows 交接文档已同步。同候选门禁复跑
 > **32/32、546/546、worktree clean、零身份违规**（runId `d24-2026-09-15T16-25-41-981Z-3c29392e`）。
-> ⚠️ v2.1.0 release 的插件 tarball 资产仍为更正前的 `f8961215…`。详见
 > [rounds/R30-plugin-readme-fix.md](rounds/R30-plugin-readme-fix.md)。
+>
+> **更新（R31）**：更正以 **v2.1.1** 重新发布（`v2.1.0` 保持不可变）——被验证提交 `c2cae9b`、
+> 附注标签 `v2.1.1`，两平台各 7 个资产；插件 tarball = `a6f865a4…`（165 802 B）。
+> 独立插件仓库 `shxtmaker/dsh-remote-attachments` 收敛为 **v0.1.1**（README 与上游逐字节相同，
+> 两处构建的 tarball 亦逐字节一致）。同候选门禁 **32/32、546/546、worktree clean**
+> （runId `d24-2026-09-15T17-11-50-245Z-b1a9284d`）。详见
+> [rounds/R31-release-v2.1.1.md](rounds/R31-release-v2.1.1.md)。
 
 方案版本 2.0。本报告在 **D25（冻结开发交付并移交 Windows 实机验证）**冻结；状态唯一真值仍是
 [state.json](state.json)，逐轮细节见 [rounds/](rounds/)，恢复入口见 [handoff.md](handoff.md)。

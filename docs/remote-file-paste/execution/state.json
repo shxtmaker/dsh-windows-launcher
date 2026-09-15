@@ -3,7 +3,7 @@
   "planRevision": "2.0",
   "initializedByExecutor": true,
   "initializedAt": "2026-09-13",
-  "round": "R30",
+  "round": "R31",
   "currentTask": null,
   "baseline": {
     "file": "execution/baseline.json",
@@ -2416,13 +2416,14 @@
     "releaseEligible": false
   },
   "release": {
-    "version": "2.1.0",
-    "tag": "v2.1.0",
-    "tagObject": "f654e8f4eb7ca854dca3053095a132647b5b5732",
-    "commit": "676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8",
+    "version": "2.1.1",
+    "tag": "v2.1.1",
+    "tagObject": "e670b9252de731f0e6e70deb351bc5be8874a662",
+    "commit": "c2cae9b5adcdca35d0ab056cac9ca335fae3cac3",
     "commits": {
-      "feature": "8e6ae616c5bbacaab8cf458584d855271e127ae4",
-      "handoffDocs": "676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8"
+      "prepared": "c2cae9b5adcdca35d0ab056cac9ca335fae3cac3",
+      "readmeFix": "aecb3f3e6e9c80616e84aa803b8ef2850fa16194",
+      "previousRelease": "676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8"
     },
     "branch": "main",
     "prerelease": true,
@@ -2432,18 +2433,18 @@
     },
     "releases": {
       "github": {
-        "id": 389136149,
-        "url": "https://github.com/shxtmaker/dsh-windows-launcher/releases/tag/v2.1.0"
+        "id": 389349012,
+        "url": "https://github.com/shxtmaker/dsh-windows-launcher/releases/tag/v2.1.1"
       },
       "gitea": {
-        "id": 30,
-        "url": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v2.1.0"
+        "id": 33,
+        "url": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v2.1.1"
       }
     },
     "assets": [
       "shxtmaker-dsh-remote-attachments-0.1.0.tgz",
-      "dsh-windows-launcher-2.1.0-source.tar.gz",
-      "dsh-windows-launcher-2.1.0-source.zip",
+      "dsh-windows-launcher-2.1.1-source.tar.gz",
+      "dsh-windows-launcher-2.1.1-source.zip",
       "SHA256SUMS.txt",
       "portable-verify-summary.json",
       "d24-linux-report.json",
@@ -2451,9 +2452,18 @@
     ],
     "installerBuilt": false,
     "installerNote": "Windows Launcher 安装包（Setup-2.1.0-win-x64.exe）未构建：构建机为 Linux，eng/package.ps1 需要 Windows + Inno Setup 7.0.2 + WebView2 输入并在隔离 runner 做真实安装/卸载验证；eng/verify.ps1 正式门禁与 RS-01…RS-15 亦未执行。由 Windows 轨道（windows-runbook.md W00/W05）产出后另行附加。",
-    "linuxGateRunId": "d24-2026-09-15T12-16-27-474Z-ed8d444f",
-    "linuxGateChecks": "32/32 pass、cases 546/546、portableStatus=pass、crossBuildStatus=pass",
-    "roundRecord": "docs/remote-file-paste/execution/rounds/R29-release-v2.1.0.md"
+    "linuxGateRunId": "d24-2026-09-15T17-11-50-245Z-b1a9284d",
+    "linuxGateChecks": "32/32 pass、cases 546/546、portableStatus=pass、crossBuildStatus=pass、worktree clean",
+    "roundRecord": "docs/remote-file-paste/execution/rounds/R31-release-v2.1.1.md",
+    "previousReleaseNote": "v2.1.0（tag 676f6a0，release id 389136149 / 30）保持不可变，其插件 tarball 资产仍为 f8961215…。",
+    "pluginTarballSha256": "a6f865a439297307501a58c9491e75aafb4438ad05c9f58a723a84923b55aac1",
+    "pluginStandaloneRepo": {
+      "github": "https://github.com/shxtmaker/dsh-remote-attachments",
+      "gitea": "http://192.168.3.100:3300/lqy/dsh-remote-attachments",
+      "tag": "v0.1.1",
+      "commit": "c1d9f08c98213e8b440c47d09557cba0ded68727",
+      "tarballByteIdenticalToUpstream": true
+    }
   },
   "postRelease": {
     "fixes": [
@@ -2474,7 +2484,15 @@
           "v2.1.0 release 资产仍为更正前的插件 tarball（未擅自变更已发布 release）",
           "独立仓库与上游副本仍同源但非逐字节相同（布局相关路径解析 + README 文本）"
         ],
-        "roundRecord": "docs/remote-file-paste/execution/rounds/R30-plugin-readme-fix.md"
+        "roundRecord": "docs/remote-file-paste/execution/rounds/R30-plugin-readme-fix.md",
+        "followUp": {
+          "round": "R31",
+          "released": "v2.1.1",
+          "resolved": [
+            "v2.1.0 资产不置换，改以 v2.1.1 重新发布",
+            "独立仓库收敛并发布 v0.1.1（tarball 与上游逐字节一致）"
+          ]
+        }
       }
     ],
     "lastFixRound": "R30"
