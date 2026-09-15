@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "planRevision": "2.0",
+  "task": "D04",
+  "capturedAt": "2026-09-13",
+  "note": "Linux 开发夹具的固定版本与完整性清单。所有版本均为精确值，禁止浮动 latest。integrity 取自实际安装后 pnpm-lock.yaml 的 resolution 记录。",
+
+  "selection": {
+    "policy": "followLocalDeployment",
+    "decidedBy": "user",
+    "decidedAt": "2026-09-13",
+    "rationale": "沿用本机实际部署组合（all/remote 0.3.20 + Harness 0.1.5-rc.1），避免引入未经验证的新组合。",
+    "deviationFromResearchSnapshot": {
+      "researchSnapshot": {
+        "dshWebCommit": "0d78d391b5f67ec4d9f04d47558b76352c74ee48",
+        "dshWebAll": "0.3.21",
+        "dshRemoteWebUi": "0.3.21",
+        "harnessCommit": "c291e7961a515f6d7af9304e7fd1d257929aef26",
+        "harness": "0.1.5-rc.2"
+      },
+      "selected": {
+        "dshWebAll": "0.3.20",
+        "dshRemoteWebUi": "0.3.20",
+        "harness": "0.1.5-rc.1"
+      },
+      "npmLatestAtDecision": { "dshWebAll": "0.3.22", "dshRemoteWebUi": "0.3.22" },
+      "consequence": "研究快照中的 dsh-web commit 与 0.3.21 不被本夹具使用；0.3.21 的 integrity 仅保留在 execution/baseline.json 作候选记录。若后续需要对齐快照，必须重新核对 remote 的 index-inject 契约并重跑 D04–D09。"
+    }
+  },
+
+  "harness": {
+    "package": "@deepseek-ai/dsh",
+    "version": "0.1.5-rc.1",
+    "cliPath": "$HOME/.npm-global/bin/dsh",
+    "source": "本机已安装的全局 CLI（未从源码构建）",
+    "note": "Harness 源码 commit 未核实：本机无 Harness git checkout。"
+  },
+
+  "profile": {
+    "name": "dsh-attachments-fixture",
+    "template": "web",
+    "bundles": [
+      "@deepseek-ai/dsh-base",
+      "@deepseek-ai/dsh-web-app",
+      "@linxin666/dsh-web-all",
+      "@shxtmaker/dsh-remote-attachments"
+    ]
+  },
+
+  "packages": [
+    {
+      "name": "@linxin666/dsh-web-all",
+      "version": "0.3.20",
+      "integrity": "sha512-fIgbqpnXSsWTWndG/9SmQhtrQzDl1ck6OVvag8VVFoUeXh7X9cVq71DcTwMvu2D5opDsbJze+8SpVkI9Nqdq4Q==",
+      "role": "全家桶：host 通过 shell 加载 remote，client 内联子插件",
+      "mustInstallExactlyOnce": true
+    },
+    {
+      "name": "@linxin666/dsh-remote-web-ui",
+      "version": "0.3.20",
+      "integrity": "sha512-sR7eO20EGXo3vGTw6KyiQPsOj1L/SyumCjXDeNePQvlxizGdy/UU0/itzrQxO2uL5p0Bgu0oFzYdkOE2TrJQ==",
+      "role": "唯一配对、设备凭据、心跳与 /remote 代理提供者（由全家桶依赖引入，不单独安装）",
+      "mustInstallExactlyOnce": true,
+      "installedAsDirectDependency": false
+    },
+    {
+      "name": "@shxtmaker/dsh-remote-attachments",
+      "version": "0.1.0",
+      "role": "本仓库的独立附件附加插件（D03 产物，经本地 tarball 安装）",
+      "tarball": "plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz",
+      "tarballSha256": "5d4016be6635c93692e64ec173eb227811928152c4ff23e984e782eb3ed4f1d5",
+      "integrity": "sha512-SUqZ3BK8ATsrEmHR9CaexsoHucf2Epb9kS3Pd9+CZjOpY2GGfWz0K7Dhh/Qt/hcOLAjq8eTCgYYmR8uYF89j+A=="
+    }
+  ],
+
+  "isolation": {
+    "privateDshHome": "artifacts/fixture/dsh-home（相对仓库根；不触碰 $HOME/.dsh）",
+    "productionProfile": "$HOME/.dsh/profiles/web —— 夹具绝不读写",
+    "workspace": "artifacts/fixture/workspace",
+    "bindHost": "127.0.0.1",
+    "port": 3099,
+    "portIsConfigurable": true,
+    "disabledSideEffects": [
+      "dsh 主动更新（未配置更新源，夹具 profile 不含 market/update 相关写入）",
+      "自动隧道（cloudflared 仅在 remote 显式开启时启用，夹具不开启）",
+      "无关外网任务（夹具只访问本机回环与已固定的 npm 包）"
+    ]
+  },
+
+  "evidenceGates": [
+    { "id": "F01", "description": "私有 DSH_HOME 与 fixture profile 由 web 模板创建，且生产 profile 未被触碰" },
+    { "id": "F02", "description": "组合配置含本插件行，且 remote 行恰好出现一次（未额外安装 remote）" },
+    { "id": "F03", "description": "关键包版本与 compatibility-lock.json 完全一致" },
+    { "id": "F04", "description": "服务真实启动并输出带 token 的 URL（就绪检测在超时内成功）" },
+    { "id": "F05", "description": "原始页面可加载（HTTP 200 + DSH 页面骨架）" },
+    { "id": "F06", "description": "client 模块 roster 真实包含本插件条目，且 remote 不在 client roster（host-only）" },
+    { "id": "F07", "description": "合并 client bundle 真实含本插件 client 代码" },
+    { "id": "F08", "description": "启动日志无模块降级/缺失错误" },
+    { "id": "F09", "description": "停止与清理只影响夹具自有资源；重复启停后状态一致" }
+  ],
+
+  "notRun": [
+    "HTTP 非 loopback 的真实 remote 模式（属 D05）",
+    "测试配对与 /remote 门控（属 D05）",
+    "确定性 provider stub 与真实工具读取（属 D06）",
+    "上传 hook 与草稿入口（属 D07/D08）",
+    "Windows 实机（属 WindowsPending）"
+  ]
+}

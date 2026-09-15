@@ -188,6 +188,10 @@
                                  Fill="{x:Static ui:UiPalette.AccentBrush}" />
                         <TextBlock x:Name="StateText" Margin="7,0,0,0" FontSize="11.5"
                                    Foreground="{x:Static ui:UiPalette.TextMutedBrush}" />
+                        <!-- D16 原生粘贴手势的确定结果（含"现在不能导入"的原因码） -->
+                        <TextBlock x:Name="PasteStatusText" Margin="12,0,0,0" FontSize="11.5"
+                                   Foreground="{x:Static ui:UiPalette.TextSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="320" />
                     </StackPanel>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"
                                 Margin="0,0,8,0"

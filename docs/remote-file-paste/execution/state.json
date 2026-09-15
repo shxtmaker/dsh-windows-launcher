@@ -1,0 +1,2418 @@
+{
+  "schemaVersion": 1,
+  "planRevision": "2.0",
+  "initializedByExecutor": true,
+  "initializedAt": "2026-09-13",
+  "round": "R28",
+  "currentTask": null,
+  "baseline": {
+    "file": "execution/baseline.json",
+    "task": "D00",
+    "round": "R00",
+    "capturedAt": "2026-09-13",
+    "platform": "linux",
+    "commit": "df68795c3f7a0a34d6ed4fdd7804e369bdd0258b",
+    "branch": "feat/remote-file-paste-attachments",
+    "workingTreeDirty": false,
+    "matchesResearchSnapshot": true,
+    "sdk": "10.0.400",
+    "node": "v22.23.2",
+    "pnpm": "11.7.0",
+    "powershell": "7.5.4",
+    "note": "上游版本与本机部署不一致（研究快照 all/remote 0.3.21 + Harness 0.1.5-rc.2；实际部署 all/remote 0.3.20 + Harness 0.1.5-rc.1），版本固定决策留给 D04。"
+  },
+  "tasks": [
+    {
+      "id": "D00",
+      "status": "done",
+      "lastRound": "R00",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R00-D00.md",
+      "remaining": [
+        "按用户决策处理阻断：(a) 等上游修复后重跑，或 (b) 在隔离副本（不碰已安装包与生产 profile）验证最小补丁 <script type=\"module\" src=…> 是否修复，并把补丁/原因/影响范围登记入兼容清单。",
+        "阻断解除后执行 D08 全部真实 Chromium UI 判据：卡片定位、卡片内唯一 file input、change 恰好一次且不冒泡到 document、同步 ACK（旧 ID 保留 + 新增数/顺序）、已有附件保留、切会话、无 session 首页、txt/PNG 与图片校验拒绝；并建议把『页面能渲染 composer』补进夹具判据（D04 的 F05 只查骨架，漏过了本缺陷）。"
+      ],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "baseline",
+          "path": "docs/remote-file-paste/execution/baseline.json",
+          "summary": "实测基线：HEAD df68795（与研究快照一致）、工作树干净、26 任务图无环、工具链 .NET SDK 10.0.400 / Node 22.23.2 / pnpm 11.7.0 / PowerShell 7.5.4 / Chrome 151 / playwright chromium-1243。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "verification",
+          "path": "docs/remote-file-paste/execution/rounds/R00-D00.md",
+          "summary": "git 基线、方案复制一致性（diff -r 38 文件）、任务图无环与一致性、65 条文档链接、工具版本查询；全部退出码 0。",
+          "platform": "linux",
+          "command": "git rev-parse/status/rev-list; diff -r; python3 图校验与链接扫描; dotnet/node/npm/pnpm/pwsh --version; npm view（只读）",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "scope",
+          "path": "docs/remote-file-paste/execution/rounds/R00-D00.md",
+          "summary": "未修改业务代码/项目文件/锁文件/eng 脚本/生产 profile；未安装发布任何包；未推送远端；未运行构建或测试（全部记 notRun）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "root-cause-located",
+          "summary": "根因实证：出错脚本 URL 与 lineNumber=161538 由 Runtime.exceptionThrown 给出；该 URL 响应 200 / text/javascript / 14616357 字节；bundle 含顶层 import 1 条、export 5 条、__ModuleLoader__.load 55 次；而页面里该 bootstrap 的 script 标签无 type=module（Debugger.scriptParsed 亦报告 isModule=false）。注入路径为 dsh-client-modules 的 script-src 行 + host-webserver 的 renderRow 渲染。",
+          "platform": "linux",
+          "result": "notPass",
+          "note": "已定位根因；补丁决策待用户确认，故仍为阻断。"
+        },
+        {
+          "kind": "notRun",
+          "summary": "restore/format/build、Core 测试与用例数、L12 交叉构建、verify-portable.ps1、probe、真实宿主夹具、浏览器测试、Windows 全部项均未执行。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D01",
+      "status": "done",
+      "lastRound": "R01",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R01-D01.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "platform-evaluation",
+          "summary": "六个项目最终 MSBuild 求值：Core/Core.Tests = net10.0 + 空 RID；Platform.Windows/Desktop/Platform.Windows.Tests/Acceptance.Tests = net10.0-windows + win-x64 + x64。",
+          "platform": "linux",
+          "command": "dotnet msbuild <proj> -getProperty:TargetFramework|RuntimeIdentifier|PlatformTarget -nologo",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "restore-format-build",
+          "summary": "locked restore（可移植子集与完整 solution）、dotnet format --verify-no-changes（两者）、Release --warnaserror 构建（两者）全部退出码 0；六个项目交叉构建 0 警告 0 错误。",
+          "platform": "linux",
+          "command": "dotnet restore/format/build DshWindowsLauncher.Portable.slnx 与 DshWindowsLauncher.slnx",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d01-evidence.log"
+        },
+        {
+          "kind": "core-tests",
+          "summary": "原有 Core 用例实际执行 49/49 通过，skipped=0、notRun=0；实际用例 SHA-256 集合与 eng/expected-test-dataset.json 的 49 条逐条一致（未删减基线）。",
+          "platform": "linux",
+          "command": "dotnet run --project tests/DshLauncher.Core.Tests/... -- -explicit on -failSkips -preEnumerateTheories -printMaxStringLength 0 -reporter quiet -result-xml artifacts/verify-portable/core-results.xml",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/core-results.xml",
+          "caseCount": {
+            "discovered": 49,
+            "total": 49,
+            "passed": 49,
+            "failed": 0,
+            "skipped": 0,
+            "notRun": 0
+          }
+        },
+        {
+          "kind": "lock-diff",
+          "summary": "两个受影响 lock 显式重建，仅 TFM 键由 net10.0-windows7.0(+win-x64) 变为 net10.0；包增删 0、版本/哈希/依赖变化 0。另四份 lock 未变。",
+          "platform": "linux",
+          "command": "dotnet restore DshWindowsLauncher.Portable.slnx --force-evaluate; 与 HEAD 做 JSON 结构比对",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "gate-falsifiability",
+          "summary": "从 eng/verify.ps1 提取新增平台核对块执行：真实工作树通过；篡改期望值后正确抛出偏离错误，证明不是永远通过的断言。另有改动前 NU1004 失败作为门禁有效性的反证。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "architecture",
+          "summary": "Get-DshArchitectureViolations 违规数 0：Core 无任何 Reference、未启用 WPF、无禁止命名空间，固定项目引用图成立。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "eng/verify.ps1 完整运行（Windows 正式门禁，属 W-01）；eng/verify-portable.ps1 等（属 D02）；两个 Windows 测试程序集在 Linux 的实际执行（Platform.Windows.Tests 25 例中 10 通过 15 因 Win32 API 不可用失败；Acceptance.Tests 因缺 Microsoft.WindowsDesktop.App 无法启动）——均记 notRun，属 WindowsPending，不计为通过。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D02",
+      "status": "done",
+      "lastRound": "R02",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R02-D02.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "portable-gate-core-profile",
+          "summary": "-Profile Core 可重复通过（连续 3 次一致）：7 项必需检查全 pass，Core 用例 49/49、failed=0、skipped=0；摘要中 portableStatus=fail、developmentReady=false，12 项 Development 检查记 incomplete，未冒充完整通过。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Core -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d02-evidence.log",
+          "caseCount": {
+            "discovered": 49,
+            "total": 49,
+            "passed": 49,
+            "failed": 0,
+            "skipped": 0,
+            "notRun": 0
+          }
+        },
+        {
+          "kind": "portable-gate-development-profile",
+          "summary": "-Profile Development：9 项已实现检查全 pass（cross-build-l12=pass、supply-chain-scan=pass），10 项未实现检查记 incomplete；摘要字段符合 portable-validation-plan 第 6 节 schema，portableStatus=fail、releaseEligible=false。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json"
+        },
+        {
+          "kind": "negative-missing-required-items",
+          "summary": "必需项缺失不被吞掉：Core profile 在 6 项必需检查全 pass、49/49 用例通过的情况下仍报 portableStatus=fail（12 项 incomplete）。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "negative-dataset-drift",
+          "summary": "零用例/基线被改动即失败：临时删除一条固定哈希并加入伪哈希后 core-test-execution 判 fail，报 missing=1 unexpected=1，退出码 1；数据集已还原（git diff 无差异）。",
+          "platform": "linux",
+          "exitCode": 1,
+          "result": "pass",
+          "note": "负向用例：期望失败并已确认失败。"
+        },
+        {
+          "kind": "negative-release-credential-guard",
+          "summary": "发布入口拒绝 portable 摘要：6 个独立用例全部符合预期（拒绝真实可移植摘要/缺字段/非 PASS/错误 RID/缺失文件；接受合法 Windows 形态摘要）。eng/package.ps1 与 package-internal.ps1 已在打包前调用该断言。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "negative-config-tamper",
+          "summary": "配置篡改即失败：把 Core 声明为 Windows 项目后入口报「可移植项目 DshLauncher.Core 的平台声明不合法」，退出码 1；配置已还原。",
+          "platform": "linux",
+          "exitCode": 1,
+          "result": "pass",
+          "note": "负向用例：期望失败并已确认失败。"
+        },
+        {
+          "kind": "notRun",
+          "summary": "Development profile 的 10 项未实现检查（plugin-*、host-fixture-minimal-loop、production-interop-l13、final-tarball-install、resource-and-failure-suites）、eng/verify.ps1 完整运行（W-01）、两个 Windows 测试程序集执行（WindowsPending）均记 notRun/incomplete。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D03",
+      "status": "done",
+      "lastRound": "R03",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R03-D03.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "plugin-verify-chain",
+          "summary": "从清理态执行 typecheck/build/test:unit/test:pack 全部退出码 0：单测 18/18 通过，打包判据 10/10 通过，冻结安装通过。",
+          "platform": "linux",
+          "command": "pnpm --dir plugins/dsh-remote-attachments run {typecheck,build,test:unit,test:pack}；pnpm install --frozen-lockfile",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d03-evidence.log",
+          "caseCount": {
+            "unitTests": 18,
+            "unitPassed": 18,
+            "packCriteria": 10,
+            "packPassed": 10
+          }
+        },
+        {
+          "kind": "tarball-identity",
+          "summary": "实际 tarball shxtmaker-dsh-remote-attachments-0.1.0.tgz（19 文件）含 host/client 双面入口、类型声明与 cordis.patch.yml；包身份与全家桶、remote 插件不同；未声明第二份配对服务。",
+          "platform": "linux",
+          "command": "npm pack 后解析 tar 归档并逐条核对",
+          "exitCode": 0,
+          "result": "pass",
+          "sha256": "5d4016be6635c93692e64ec173eb227811928152c4ff23e984e782eb3ed4f1d5"
+        },
+        {
+          "kind": "negative-falsifiability",
+          "summary": "两条负向探针均按预期失败：注入类型错误 → tsc 报 TS2322；向 tarball 植入含 dsh_pair= 与本机绝对路径的文件 → P07 报两类命中。探针均已还原。",
+          "platform": "linux",
+          "exitCode": 1,
+          "result": "pass",
+          "note": "负向用例：期望失败并已确认失败。"
+        },
+        {
+          "kind": "portable-gate-integration",
+          "summary": "-Profile Development：14 项已实现检查全 pass（新增 plugin-preflight/typecheck/build/unit-tests/pack）；未实现项由 10 降为 6，portableStatus 仍为 fail、developmentReady=false。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "test:browser 与 test:integration 未实现（需真实 Chromium/宿主，属 D12/D18）；host-fixture-minimal-loop、production-interop-l13、final-tarball-install、resource-and-failure-suites 记 incomplete；真实 Harness 安装本插件属 D04；Windows 与发布未执行。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D04",
+      "status": "done",
+      "lastRound": "R04",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R04-D04.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "host-fixture-gates",
+          "summary": "真实 Harness 0.1.5-rc.1 + 全家桶 0.3.20 + 本插件 tarball 启动，9/9 判据通过且连续两轮一致：本插件 host 行 1 个、remote 聚合行恰好 1 个、client roster 含本插件且不含 remote、合并 bundle 含本插件代码、页面 HTTP 200、无降级日志。",
+          "platform": "linux",
+          "command": "bash tests/fixtures/setup.sh && node tests/fixtures/run-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d04-fixture-gates.json",
+          "caseCount": {
+            "gates": 9,
+            "passed": 9,
+            "failed": 0
+          }
+        },
+        {
+          "kind": "fixture-lifecycle",
+          "summary": "fixture:down 正确停止夹具服务并删除夹具目录；之后无残留夹具进程，生产 profile 指纹前后不变（271599176bf4e3e0）。耐久证据写入 artifacts/verify-portable/ 以免被清理连带删除。",
+          "platform": "linux",
+          "command": "bash tests/fixtures/down.sh",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d04-evidence.log"
+        },
+        {
+          "kind": "version-lock",
+          "summary": "版本与 integrity 固定在 tests/fixtures/compatibility-lock.json，并与 npm registry 交叉核对一致：all/remote 0.3.20、Harness 0.1.5-rc.1、插件 tarball SHA-256 5d4016be…。偏离研究快照的后果已登记。",
+          "platform": "linux",
+          "command": "npm view <pkg> dist.integrity 与锁定值比对",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "portable-gate-integration",
+          "summary": "-Profile Development：15 项已实现检查全 pass（新增 host-fixture-bundle，会真实启停夹具并在 finally 中收拢）；未实现项仍为 6，portableStatus=fail、developmentReady=false。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "HTTP 非 loopback 的真实 remote 模式、测试配对与 /remote 门控（属 D05）；确定性 provider stub 与真实工具读取（D06）；上传 hook 与草稿入口（D07/D08）；Windows 实机（WindowsPending）。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D05",
+      "status": "done",
+      "lastRound": "R05",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R05-D05.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "pairing-gates-http-lan",
+          "summary": "HTTP 非 loopback（http://192.168.3.190:3099）12/12 判据通过且连续两轮一致：未配对访问 /remote 与本地 /api 均被拒且零宿主数据泄漏；cookie 流与免 Cookie 流都能经 /remote 取回真实宿主数据；配对控制面与插件管理不经 /remote 放开；吊销后两条流都被拒。",
+          "platform": "linux",
+          "command": "bash tests/fixtures/setup.sh && node tests/fixtures/pairing-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d05-pairing-gates.json",
+          "caseCount": {
+            "gates": 12,
+            "passed": 12,
+            "failed": 0
+          }
+        },
+        {
+          "kind": "redacted-trace",
+          "summary": "14 行脱敏网络 trace 耐久落盘；H12 判据扫描确认不含原始 token、设备 ID、cookie 值或 JWT。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d05-pairing-trace.jsonl"
+        },
+        {
+          "kind": "fixture-fence-hardening",
+          "summary": "发现并修复夹具放水：绑定 0.0.0.0 会让 SDK 自动信任私网 IP 字面量，未配对 LAN 客户端可直连整套桌面 API。夹具已复现生产 profile 的 connection.trustedHosts: [] 加固；修复前后 H02 由 200+hostDataLeaked=true 变为 403 forbidden。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "portable-gate-integration",
+          "summary": "-Profile Development：17 项已实现检查全 pass（新增 pairing-fixture 与 pairing-fixture-https，两者都能在夹具缺失时自行补建）；未实现仍为 6 项，portableStatus=fail、developmentReady=false。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "pairing-gates-https-test-ca",
+          "summary": "HTTPS + 受信任测试 CA（本地 TLS 反向代理，镜像生产形态）9/9 判据通过且连续两轮一致：TLS 校验真实生效（不给 CA 时 UNABLE_TO_VERIFY_LEAF_SIGNATURE）；未配对经 HTTPS 访问 /remote 与本地 /api 均被拒且零宿主数据泄漏；cookie 与免 Cookie 两流都能取回宿主数据；吊销后拒绝；HTTPS 与 HTTP 两个 origin 判定一致。",
+          "platform": "linux",
+          "command": "bash tests/fixtures/tls-setup.sh && node tests/fixtures/https-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d05-https-gates.json",
+          "caseCount": {
+            "gates": 9,
+            "passed": 9,
+            "failed": 0
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "真实 Chromium UI 级配对（D12/D18）；provider stub 与真实工具读取（D06）；上传 hook 与草稿入口（D07/D08）；Windows 实机（WindowsPending）。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D06",
+      "status": "done",
+      "lastRound": "R06",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R06-D06.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "provider-stub-tool-readback",
+          "summary": "本地确定性 provider stub 驱动真实 Harness headless 回合，9/9 判据通过且连续两轮一致：真实执行 read 与 read_image；文本读回按行号剥离后重建哈希等于磁盘 fixture 的 sha256；read_image 结果回报的 sha256 等于磁盘哈希；每步只下发一次工具调用；收尾发生在两条真实工具结果之后。",
+          "platform": "linux",
+          "command": "bash tests/fixtures/setup.sh && node tests/fixtures/provider/run-provider-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d06-provider-gates.json",
+          "caseCount": {
+            "gates": 9,
+            "passed": 9,
+            "failed": 0
+          }
+        },
+        {
+          "kind": "fixture-determinism",
+          "summary": "fixture 由脚本内生成，哈希可重复：文本 213B sha256 a18d294312da…（含唯一标识 DSH-ATTACH-D06-MARKER-7f3a91c4 与多行中文）；PNG 82B sha256 383d0033f3ee…（8×8 四象限固定图案）。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "request-counters",
+          "summary": "提供受控请求计数与图像载荷记录供后续任务断言：requests/agentRequests/sideChannelRequests/toolCallRequests/toolResultRequests、seenToolNames、imagePayloads、以及逐请求落盘的真实请求体。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/fixture/provider/record/"
+        },
+        {
+          "kind": "portable-gate-integration",
+          "summary": "-Profile Development：18 项已实现检查全 pass（新增 provider-fixture，夹具缺失时会自行补建无头 profile）；未实现仍为 6 项，portableStatus=fail、developmentReady=false。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "上传 hook 与草稿入口（D07/D08）；最小真实闭环（D09）；附件的图像载荷断言（D09/D18 复用本轮计数与哈希能力）；Windows 实机（WindowsPending）。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D07",
+      "status": "done",
+      "lastRound": "R07",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R07-D07.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "upload-hook-browser-gates",
+          "summary": "真实 Chromium（Chrome 151 headless=new，自实现 CDP）9/9 判据通过且连续两轮一致：承载脚本在 remote boot entry 之前注入 head；上传只改写一次为 /remote/api/session/uploadFileBinary 并带设备头；跨源零泄露；abort 以 AbortError 拒绝；HTTP 200 业务失败原样交给调用方；未知全局不被覆盖并记 conflict。",
+          "platform": "linux",
+          "command": "bash tests/fixtures/install-plugin.sh && node tests/fixtures/upload-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d07-upload-gates.json",
+          "caseCount": {
+            "gates": 9,
+            "passed": 9,
+            "failed": 0
+          }
+        },
+        {
+          "kind": "plugin-check-chain",
+          "summary": "typecheck、build、单测 28/28（含 9 条新增的承载脚本契约测试）、打包判据 10/10 全部通过。",
+          "platform": "linux",
+          "command": "pnpm --dir plugins/dsh-remote-attachments run {typecheck,build,test:unit,test:pack}",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "unitTests": 28,
+            "unitPassed": 28,
+            "packCriteria": 10,
+            "packPassed": 10
+          }
+        },
+        {
+          "kind": "stale-artifact-prevention",
+          "summary": "发现并修复夹具跑旧产物的问题：pnpm 按 tarball 路径缓存 file: 依赖 integrity，重新打包后不会重新解析。新增 install-plugin.sh 清 lock 条目与模块后重装，并校验 lib/host/upload-hook.js 存在；setup.sh 统一走该脚本。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "portable-gate-integration",
+          "summary": "-Profile Development：19 项已实现检查全 pass（新增 upload-hook-fixture，会先 build+pack 并确保夹具装到当前产物）；未实现仍为 6 项，portableStatus=fail、developmentReady=false。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "真实 Harness FileUploadRuntime 端到端上传（属 D09）；草稿入口与原生适配（D08）；Windows 实机（WindowsPending）。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    },
+    {
+      "id": "D08",
+      "status": "done",
+      "lastRound": "R08",
+      "checkpoint": "docs/remote-file-paste/execution/rounds/R08-D08.md",
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "client-bridge-implementation",
+          "summary": "新增 src/client/bridge.ts：版本化附件桥（页面全局 __DSH_ATTACHMENTS_BRIDGE__，version 1），把外部导入请求翻译成对 draft-adapter 的一次调用并返回原生 ACK。归属确认四道判据：scope 可解析、目标是当前会话（把可见卡片钉到会话身份）、文档内恰好一个 [data-composer-card]、卡片内恰好一个 input[type=file]。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/src/client/bridge.ts"
+        },
+        {
+          "kind": "lazy-service-resolution-fix",
+          "summary": "实测缺陷：第一版在 apply 时取一次 ctx.get(\"sessions\") 并缓存，而宿主在 apply 期间还没有该服务，导致桥永久失效（真实会话里表现为会话已打开却报 unsupported）。改为每次调用惰性解析（getSessions 取值函数）后通过，并加单测锁定形状。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "session-acquisition-recipe",
+          "summary": "独立侦察实测：会话按 DSH_HOME 共享、跨 profile 可见（sessions/<slug>/session-<uuid>/session.v3.jsonl.zstd，zstd JSONL）；会话选择没有 URL 路由，是客户端持久化状态 localStorage[\"dsh.sessions.current\"]，必须在页面脚本前写入（Page.addScriptToEvaluateOnNewDocument）；无会话首页只在没有工作区时出现（有已持久化会话时 host 按 session cwd 自动 bootstrap 工作区并自动导航）；非 loopback 下必须走配对门控 /remote/api/* 并带 x-dsh-remote-device，payload 需包一层 args；配对页限流 10 次/30 秒。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "ui-ack-gates",
+          "summary": "tests/fixtures/d08-ui-gates.mjs：真实 Chromium + 真实会话，ACK 一律取自 ctx.conversation.input.for(scope).state.attachmentIds。13/13 通过——桥版本、无会话首页 no-session 且零事件、两条可打开会话、会话态 composer、当前会话与卡片唯一性、txt 导入 ACK（真实原生 ID）、change 恰好一次且 document 零 drop/drag、已有附件逐位保留、PNG 走原校验通过、校验边界单次尝试、无自动发送、切会话后旧会话导入 context-changed 且不触碰 DOM、边界后草稿未被污染。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d08-ui-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d08-ui-gates.json",
+          "caseCount": {
+            "gates": 13,
+            "passed": 13
+          }
+        },
+        {
+          "kind": "unit-tests",
+          "summary": "单测 61/61 通过（新增桥的 15 条归属与拒绝判据）。",
+          "platform": "linux",
+          "command": "node --test \"test/unit/**/*.test.mjs\"",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tests": 61,
+            "passed": 61
+          }
+        },
+        {
+          "kind": "pack-gates",
+          "summary": "test-pack.mjs 10/10 通过（P05 断言 client 入口经典包裹形态与注册契约）。",
+          "platform": "linux",
+          "command": "node scripts/test-pack.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "gates": 10,
+            "passed": 10
+          }
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "verify-portable.ps1 Development profile 自身范围通过：已实现 21 项全部 pass、0 fail、6 项 incomplete。新增必需项 draft-adapter-fixture 已实现并通过。portableStatus 仍为 fail（存在 incomplete 必需项），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 27,
+            "passed": 21,
+            "fail": 0,
+            "incomplete": 6
+          }
+        },
+        {
+          "kind": "contract-finding",
+          "summary": "与预期相反的实测契约（已写入轮次记录，未写成判据）：宿主 intake 的原校验只看声明的 media type，不做字节级校验——声明 image/png 而内容非 PNG 的文件被正常加入草稿并拿到真实 ID；image/tiff 等不在支持列表的类型也不被拒绝，而按普通文件走 verbatim 路径（isImageMediaType 只把 png/jpeg/webp/gif 选进图片路径）。因此判据改为\"每次导入只尝试一次 + 失败必带已知失败码 + 旧附件不丢\"。可能存在的字节级校验在提交/上传阶段，属 D09 及之后。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "侧栏点击切换会话的 UI 路径未实测（本轮用客户端持久化选择预置 + 重新导航切换）；字节级图片校验（若在提交阶段）未覆盖；Windows 实机验收、安装、发布与推送未开始。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ],
+      "artifacts": [
+        "plugins/dsh-remote-attachments/src/client/bridge.ts",
+        "plugins/dsh-remote-attachments/test/unit/bridge.test.mjs",
+        "plugins/dsh-remote-attachments/tests/fixtures/d08-ui-gates.mjs",
+        "artifacts/verify-portable/d08-ui-gates.json"
+      ],
+      "doneAt": {
+        "round": "R10",
+        "platform": "linux"
+      }
+    },
+    {
+      "id": "D09",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "product-defect-found",
+          "summary": "闸门首次运行 6/11，定位到真实产品缺陷：src/host/upload-hook.ts 把 __DSH_FILE_UPLOAD__ 装成裸函数，而锁定消费者 @deepseek-ai/dsh-client-file-upload@0.1.5-rc.2/lib/client.js:161 读 hook.fetch（README: \"Fetch-shaped carrier\"）→ customTransport(undefined) → 文本附件上传必然 TypeError，芯片停在\"重试上传\"，uploadsPending 让发送永久禁用，网络层 0 条上传请求。PNG 不受影响（图片不走上传）。既有 D07 判据 upload-gates.mjs 的 U03 断言 typeof hook === \"function\"，把错误契约固化成了判据，所以 D07 全绿也拦不住。",
+          "platform": "linux",
+          "result": "notPass"
+        },
+        {
+          "kind": "minimal-fix",
+          "summary": "最小修复（任务卡允许的\"直接验证/局部修复\"）：1) 载体改为 fetch 形状 w[G]={fetch:carrier}（carrier 仍在调用时读 w.fetch，不提前捕获裸 fetch），注释写明锁定契约与消费者行号；2) upload-gates.mjs U03 改断言 typeof hook===\"object\" && typeof hook.fetch===\"function\"，三处直接调用改 hook.fetch(...)；3) 单测新增\"装成 fetch 形状\"判据，\"调用时才读 fetch\"改为断言安装点之后不再出现 w.fetch。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/src/host/upload-hook.ts"
+        },
+        {
+          "kind": "loop-gates",
+          "summary": "tests/fixtures/d09-loop-gates.mjs：真实 Chromium + 真实会话，合成 File 经 D08 版本化桥进入原生草稿、点 composer 主按钮显式发送、真实 Harness 上传、真实 read 工具读回。四层证据一致（草稿 id 62d3db8e…；网络 POST <lanBase>/remote/api/session/uploadFileBinary 200 + x-dsh-remote-device；receipt attachmentId=sha256:ce91062b… bytes=85；工具读回 85B 逐行一致，含非 ASCII/emoji）。PNG 轮 image_url 载荷 75B sha256 与源文件相等；cookie-free 轮删 dsh_pair 后仅凭设备头走通并读回 91B/4f795854…。独立复跑 13/13、负向探针 8/8、exit 0、无垫片（observations.shim=\"none\"）。",
+          "platform": "linux",
+          "command": "DEEPSEEK_API_KEY=stub-key node tests/fixtures/d09-loop-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d09-loop-gates.json",
+          "caseCount": {
+            "gates": 13,
+            "passed": 13,
+            "negativeProbes": 8
+          }
+        },
+        {
+          "kind": "negative-probes",
+          "summary": "8 条可证伪探针全部按预期失败：N1 非当前会话导入→context-changed；N2 空草稿点发送→不发送；N3 receipt.bytes+1→判定 false；N4 期望 marker 改一字→读回判定 false；N5 未改写的同源 /api URL→路由判定 false；N6 裸函数形状承载→契约判定 false（防回归）；N7 用 CDP Fetch 域真实挂起上传请求制造 uploadsPending→发送禁用且点击无 agent 请求；N8 放行挂起请求→恢复 ready。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "unit-tests",
+          "summary": "单测 62/62 通过（含新的承载形状契约判据）。",
+          "platform": "linux",
+          "command": "node --test \"test/unit/**/*.test.mjs\"",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tests": 62,
+            "passed": 62
+          }
+        },
+        {
+          "kind": "pack-gates",
+          "summary": "test-pack 10/10 通过。",
+          "platform": "linux",
+          "command": "node scripts/test-pack.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "gates": 10,
+            "passed": 10
+          }
+        },
+        {
+          "kind": "d07-regression",
+          "summary": "D07 上传判据回归 9/9 通过（改写后的 U03 断言正确契约）。",
+          "platform": "linux",
+          "command": "node tests/fixtures/upload-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "gates": 9,
+            "passed": 9
+          }
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "verify-portable.ps1 Development profile 自身范围通过：已实现 22 项全部 pass、0 fail、5 项 incomplete。原本长期记为 incomplete 的必需项 host-fixture-minimal-loop（D08–D09 最小闭环）本轮实现并通过。portableStatus 仍为 fail（存在 incomplete 必需项），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 27,
+            "passed": 22,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：真实截图的图片规范化（合成 2x2 PNG 为恒等变换；真实截图被 request-image-v5 重编码后载荷哈希将不等于源文件哈希，属预期语义）；宿主主动中断在途上传的能力；Windows 实机验收/安装/发布/推送。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R11",
+        "platform": "linux"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/tests/fixtures/d09-loop-gates.mjs",
+        "plugins/dsh-remote-attachments/src/host/upload-hook.ts",
+        "plugins/dsh-remote-attachments/tests/fixtures/upload-gates.mjs",
+        "artifacts/verify-portable/d09-loop-gates.json"
+      ]
+    },
+    {
+      "id": "D10",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "schema-frozen",
+          "summary": "schemas/remote-attachments/v1/：schema.json（draft 2020-12，11 类消息、additionalProperties:false、显式整数范围与枚举）、README.md（冻结决定）、expected.json（语言中立的逐样本期望：canonical 解码结果或精确拒绝码 + setup 序列 + per-file 断言）。11 类消息：hello/capabilities/context/batch-begin/file-begin/chunk/ack/file-end/import-result/batch-end/cancel。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "schemas/remote-attachments/v1/schema.json"
+        },
+        {
+          "kind": "identity-and-limits-frozen",
+          "summary": "operationId 首期就是 batchId（不维护两套身份）；fileId 绑定 targetId+documentEpoch+composerEpoch+sessionId+batchId；sessionId 在 schema 中可选但状态机对 8 种操作消息强制（缺失=no-session，不匹配=context-changed），因此\"无有效 sessionId 不接收批次\"落在状态机。seq 每文件从 0、offset 连续、≤2 块在途；限额 20MiB/文件、10/批、50MiB/批、100MiB 暂存、2 目标、256KiB 块、消息≤512KiB；超时 5/10/30/60s；36 个 WIRE_ERROR_CODES 与 19 个结果码分工不混用。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "replay-cache",
+          "summary": "重放缓存键 documentEpoch:composerEpoch:batchId:fileId，容量 64、TTL 120s、查询时淘汰；活动操作被钉住不可淘汰，压力只淘汰已完成条目，无可淘汰时拒绝淘汰并计数（宁超容量不重放）；批次关闭后必须经 batch-begin 才建立新操作。W06 实测 pinnedAfterFirstEnd=2 pressureEvicted=1 refused=1。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "three-state-separation",
+          "summary": "transport{idle,buffering,buffered} / draft{none,staged,failed,partial} / upload{none,harness-owned} 三态分离，枚举里没有 ready/uploaded——上传就绪与发送仍归 Harness。实测：status:\"upload-ready\" 的样本被判 unknown-enum-value；G07/G08 断言 ack 后 buffered+none+none，G10 断言 staged 后 staged+harness-owned；两侧各含\"三态被顶替必须失败\"的负向断言。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "dual-codec",
+          "summary": "TS 生产 codec 在 plugins/dsh-remote-attachments/src/shared/wire/（messages/session/replay-cache/sha256/base64，复用既有 protocol.ts 常量）；C# 生产 codec 在 src/DshLauncher.Core/Attachments/（System.Text.Json + IncrementalHash）。TS apply 为 async（WebCrypto），C# Apply 同步，契约一致。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "shared-corpus",
+          "summary": "37 条 golden（34 文件，11/11 消息类型与边界：256KiB 满块、seq=79、fileCount=10、50MiB 批、20MiB 文件、0 字节文件、inFlight=2、submittedItems=2、幂等重放）+ 49 条 malicious（覆盖任务卡全部 17 类并额外 18 类，35 个不同拒绝码，含 localPath=/etc/passwd 多余字段、绝对路径文件名、跨 fileId 的 chunk、seq 跳跃/回绕、batch-end 后迟到 file-end、冲突的重复 file-end、复用已关闭 batchId）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "schemas/remote-attachments/v1"
+        },
+        {
+          "kind": "cross-language-agreement",
+          "summary": "TS 与 C# 都读同一份 schemas/remote-attachments/v1/expected.json：TS test/unit/wire-corpus.test.mjs 86/86、C# WireCorpusTests 86/86。两侧各有负向对照（逐样本变异期望后同一条判定路径必须报错：TS 86/86、C# 86/86）。另有跨语言差分：332 条敌意变异输入的 TS 结论写入 d10-wire-parity-cases.json，C# WireParityTests 逐条比对（316 条一致）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d10-wire-parity-cases.json"
+        },
+        {
+          "kind": "wire-gates",
+          "summary": "plugins/dsh-remote-attachments/scripts/wire-contract-gates.mjs（npm run test:wire）：10/10 闸门、86/86 样本、exit 0。含 W00 拒绝\"对旧构建给出假绿\"（lib/ 不早于 src/*.ts）、W04 用 NIST 向量 + coreutils sha256sum 交叉验证纯 JS 增量 SHA-256、W07 负向对照、W09 332 条敌意变异输入下只返回冻结拒绝码。",
+          "platform": "linux",
+          "command": "pnpm --dir plugins/dsh-remote-attachments run test:wire",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d10-wire-gates.json",
+          "caseCount": {
+            "gates": 10,
+            "passed": 10,
+            "samples": 86
+          }
+        },
+        {
+          "kind": "unit-and-core-tests",
+          "summary": "插件单测 77/77 通过（新增 wire 语料与会话判据）；C# Core 测试 68/68 通过（新增 Attachments 语料/会话/差分测试）。",
+          "platform": "linux",
+          "command": "node --test \"test/unit/**/*.test.mjs\" + dotnet run --project tests/DshLauncher.Core.Tests",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tsTests": 77,
+            "tsPassed": 77,
+            "csTests": 68,
+            "csPassed": 68
+          }
+        },
+        {
+          "kind": "repo-discipline-fixes",
+          "summary": "新增测试触发了仓库自身的三道纪律门，均已按规则修正而非绕过：(1) dotnet format --verify-no-changes 失败→跑 dotnet format 修正格式；(2) 19 个新用例缺少合法 VFY triggerTags（子代理写了无效的 VFY-D10）→按 eng/verification-impact-map.json 中 \"tests/DshLauncher.Core.Tests/**\" 的映射改为 VFY-02,VFY-03,VFY-04,VFY-05；(3) eng/expected-test-dataset.json 固定哈希清单不一致→重新生成，49→68，missing=0（只增不减，新增前先断言基线条目未消失）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "verify-portable.ps1 Development profile 自身范围通过：已实现 23 项全部 pass、0 fail、5 项 incomplete。新增必需项 wire-contract-goldens 已实现并通过。portableStatus 仍为 fail（存在 incomplete），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 28,
+            "passed": 23,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "contract-defect-fixed",
+          "summary": "R14 记录的契约缺陷已修复（R15）：cancel 只置 cancelled 不置 closed，而三处准入/路由只看 closed，导致取消后同会话永久无法开新批次（batch-in-progress）。三处一致修正：TS 状态机 session.ts（取消视同关闭；只有复用同一 batchId 才判 duplicate-operation）、TS 接收端 receiver.ts（取消的批次不再占用会话，新 batchId 走新建状态机+内部预热身份）、C# 镜像 AttachmentSession.cs（同一规则）。判据三层：TS 单测（修复前确实失败：先 batch-in-progress 后 batch-not-open）、C# WireSessionTests.CancelReleasesTheSessionSoANewBatchIdIsAdmitted、真实 Chromium G12（cancel→新批次被承认→完成导入→读回字节一致；复用被取消 batchId 仍 duplicate-operation）。语料未改（全库确认无样本固化旧语义）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "docs/remote-file-paste/execution/rounds/R15-D10-fix.md"
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：Windows 实机 / WebView2 原生消息通路；schema 未用 JSON-Schema 库机器校验（不新增依赖，改以 W08 语料↔schema 一致性 + codec 作可执行校验器）；JSON 数字极端形态（8.0/1e2/超 int32）未进语料；超时为策略常量 + 纯判定，无后台定时器。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R12",
+        "platform": "linux"
+      },
+      "artifacts": [
+        "schemas/remote-attachments/v1/schema.json",
+        "plugins/dsh-remote-attachments/src/shared/wire/",
+        "src/DshLauncher.Core/Attachments/",
+        "plugins/dsh-remote-attachments/scripts/wire-contract-gates.mjs",
+        "artifacts/verify-portable/d10-wire-gates.json",
+        "artifacts/verify-portable/d10-wire-parity-cases.json"
+      ]
+    },
+    {
+      "id": "D11",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "coordinator-implementation",
+          "summary": "新增 src/DshLauncher.Core/Attachments/：AttachmentTransferPorts.cs（注入端口 IAttachmentByteSource/IAttachmentChannel/IAttachmentClock + SystemAttachmentClock + AttachmentConcurrencyGate 全局并发闸门 + 本地码表）、AttachmentTransferCoordinator.cs（发送端生产状态机）、AttachmentTransferTrace.cs（结构化确定性 trace）。D10 的 codec/session/replay-cache/protocol 四个文件零改动（mtime 未变），协调器复用它们，无第二套实现。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "src/DshLauncher.Core/Attachments/AttachmentTransferCoordinator.cs"
+        },
+        {
+          "kind": "deterministic-test-seams",
+          "summary": "注入端口使测试确定性：Read(Span<byte>) 允许短读、0=EOF、异常→source-error；Send 立即返回 + TryReceive 非阻塞（无线程/定时器/sleep）；IAttachmentClock.NowMs 承载全部超时与缓存 TTL，测试用 ManualClock.Advance 推进。已 grep 核实测试中无 Thread.Sleep/Task.Delay——按任务卡失败条件用可控时钟复现竞态，而非延长 sleep。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "state-machine-rules",
+          "summary": "批次 None→Open→Closed/Cancelled，文件 Pending→Transferring→AwaitingImport→Staged/Failed/Partial/Cancelled。每条出站帧先过冻结 AttachmentCodec 再喂生产 AttachmentSession（镜像），镜像拒绝的帧绝不发出；入站 ack/import-result/cancel/batch-end 同样由镜像判定。D10 规则落点：重复 ack/import-result 幂等（importInvocations 不增）；重复 batch-end 按 digest 比对（一致幂等、冲突 duplicate-operation）；批次关闭后迟到消息一律 batch-closed 且 0 新帧；sessionId 缺失/不符在 apply 之前返回 no-session/context-changed；staged 写台账，跨批次命中即 duplicate-operation（已确认成功项永不重导）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "bounds",
+          "summary": "上界均有逐步断言：待确认字节 ≤512KiB（2×256KiB，MaxPendingBytes）；队列 ≤fileCount(≤10)/闸门 queueCapacity；去重缓存 ≤max(capacity,pinned)+1 且 pinned ≤fileCount+1（capacity=4 时 Evicted>0 且不随批次数增长）；Scratch ≤256KiB 且 file-end 后归零。dataBase64 只对单块编码（ReadOnlySpan<byte> 来自 256KiB scratch），无全文件 Base64；无 System.Windows/DllImport/Marshal（已 grep）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "behaviour-tests",
+          "summary": "CoordinatorTransferTests.cs 18 例 + CoordinatorTraceTests.cs 1 例，覆盖短读、源错误、乱序/重复/未知 ack、两类超时、取消与迟到结果、每条退出路径的流释放、每目标一次一个文件、≤2 块在途、全局并发上限、待确认字节/队列/缓存有界、已确认项不重导、document/session 失效。Core 测试 87/87 通过（基线 68，+19）。",
+          "platform": "linux",
+          "command": "dotnet run --project tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj -c Release -- -result-xml /tmp/d11-verify.xml",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tests": 87,
+            "passed": 87,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "kind": "protocol-trace",
+          "summary": "artifacts/verify-portable/d11-coordinator-trace.json：happy-path 与 cancel-path 两场景，逐条 seq/atMs/kind(message-out|message-in|state|decision)/type/batchId/fileId/detail/canonical(chunk 载荷记为 data:{bytes,sha256})/bounds。确定性经独立复验：连续两次运行 sha256 相同（7ab1c5d3a75535e6…）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d11-coordinator-trace.json"
+        },
+        {
+          "kind": "repo-discipline",
+          "summary": "dotnet format --verify-no-changes exit 0；eng/expected-test-dataset.json 纯插入（git diff 38 插入 0 删除；逐 assembly 核对 removed=0：Acceptance 35→35、Core.Tests 49→87、Platform.Windows 25→25）；19 个新用例全部带合法 class 级 Trait(\"triggerTags\",\"VFY-02,VFY-03,VFY-04,VFY-05\")。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "verify-portable.ps1 Development profile 自身范围通过：已实现 23 项全部 pass、0 fail、5 项 incomplete；Core 用例数 87/87（failed=0 skipped=0）。portableStatus 仍为 fail（存在 incomplete 必需项），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 28,
+            "passed": 23,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "cross-task-open-item",
+          "summary": "需要 D12/D13 确认的语义缺口（如实记录，未擅自改 D10）：D10 的 AttachmentSession 在没有新 context 时拒绝对同一会话的第二个 batch-begin（保留 Closed 批次），而协调器允许用新 batchId 开新批（镜像按批重建 + 缓存判重）。方案原文支持后者（批次关闭后新批次须经 batch-begin 承认；重导失败项要生成新 batchId/fileId），故协调器行为正确；但若真实接收端直接以 AttachmentSession 为状态载体，同会话第二个批次可能被误拒。D12 落接收端时必须明确\"同会话新批次是否需要重发 context\"并把结论写回 D10 契约或调整 AttachmentSession。",
+          "platform": "linux",
+          "result": "notPass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：只验证了 C# 两端（D11 协调器 ↔ D10 AttachmentSession）；真实 WebView2/Chromium 消息边界与 TS 接收端属 D13/D14/D16；通道是进程内接口，未接真实 WebMessage/网络传输；本地码（source-error/ack-timeout/import-timeout/idle-timeout/queue-starved/disposed）绝不入线协议，UI 若需统一码表应另立任务。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R13",
+        "platform": "linux"
+      },
+      "artifacts": [
+        "src/DshLauncher.Core/Attachments/AttachmentTransferCoordinator.cs",
+        "src/DshLauncher.Core/Attachments/AttachmentTransferPorts.cs",
+        "tests/DshLauncher.Core.Tests/Attachments/CoordinatorTransferTests.cs",
+        "artifacts/verify-portable/d11-coordinator-trace.json"
+      ]
+    },
+    {
+      "id": "D12",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "receiver-implementation",
+          "summary": "新增 src/client/receiver.ts：生产接收端（AttachmentReceiver/createAttachmentReceiver/createReceiverHost），复用 D10 的 WireSession/createSha256/ReplayCache/decodeMessage，每批次一个 WireSession；client 入口 apply() 安装页面全局 __DSH_ATTACHMENTS_RECEIVER__（version 1，导入回调=生产 bridge.importFiles）。D10 wire 模块语义与所有 C# 文件零改动。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/src/client/receiver.ts"
+        },
+        {
+          "kind": "real-chromium-file-bytes",
+          "summary": "tests/fixtures/d12-receiver-gates.mjs：520 KiB 文件按 256 KiB 满块×2+尾块×1 传输→真实浏览器 File；在页面里读回字节并由 Node 用 node:crypto 与源逐字节+SHA-256 比对一致；该 File 经 __DSH_ATTACHMENTS_BRIDGE__.importFiles 进入原生草稿，下一次导入的 previous 出现同一原生 attachmentId。独立复跑 12/12 gates、7/7 负向探针、exit 0。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d12-receiver-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d12-receiver-gates.json",
+          "caseCount": {
+            "gates": 12,
+            "passed": 12,
+            "negativeProbes": 7
+          }
+        },
+        {
+          "kind": "no-webcrypto-integrity",
+          "summary": "夹具 LAN 页面实测 isSecureContext=false、crypto.subtle=undefined，接收端报 hashBackend=pure-js，组装与 SHA-256 校验照常成功；再用 Object.defineProperty(crypto,\"subtle\",{value:undefined}) 强制关闭复验，坏哈希仍被 hash-mismatch 拒绝（N7）。代码中不存在\"HTTP 跳过校验\"分支。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "cancel-and-bounds",
+          "summary": "cancel 前 16 KiB 在缓冲、cancel 后页面内记账回到 0（releasedBytes=16384），迟到块判 cancelled 且不再入缓冲；全程峰值 532480B ≤ 目标暂存上限，结束后 bufferedBytes=0。四类超限（字段上限 20MiB+1、生效批次限额、目标暂存上限、累计越界）都在写入缓冲前拒绝。File 由各块 Uint8Array 组成（new File(parts,...)），无整文件 base64。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "unit-tests",
+          "summary": "插件单测 100/100 通过（新增 receiver 协议级/内存级 23 条）；pnpm run verify（typecheck+build+unit+pack）exit 0、pack 10/10；D10 线协议门禁回归 pass（86 样本）。",
+          "platform": "linux",
+          "command": "pnpm --dir plugins/dsh-remote-attachments run verify",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tests": 100,
+            "passed": 100
+          }
+        },
+        {
+          "kind": "regression-d08-d09",
+          "summary": "D08 与 D09 判据回归通过：d08-ui-gates 13/13、d09-loop-gates 13/13（负向 8/8）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "contract-defect-found-then-fixed",
+          "summary": "本轮发现并如实保留的契约缺陷（cancel 后同会话无法开新批次，根因 session.ts:383 准入只看 !closed），已于 R15 三处一致修复并三层加锁（TS 单测 / C# 测试 / 真实 Chromium G12）。详见 rounds/R15-D10-fix.md。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "defect-deferral-then-fixed",
+          "summary": "R14 完整回退的理由（正确修法需同时改 TS 状态机、TS 接收端路由、C# 镜像三处并保持一致；只改一处时新批次 file-begin 报 batch-not-open）已在 R15 得到验证：三处同改后三条判据全绿。回退期间 D10 交付未被破坏。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "verify-portable.ps1 Development profile 自身范围通过：已实现 24 项全部 pass、0 fail、5 项 incomplete；新增必需项 browser-receiver-fixture 已实现并通过；Core 用例 87/87。portableStatus 仍为 fail（存在 incomplete 必需项），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 29,
+            "passed": 24,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：未接真实传输通道（accept()/drainOutgoing() 的调用方留待 D13）；未在 Windows/真机验证；接收端内存上界是记账+断言层面的证据，未做浏览器进程级内存剖析。",
+          "platform": "linux",
+          "result": "notRun"
+        },
+        {
+          "kind": "reopened-after-fix",
+          "summary": "R15 修复后 D12 判据扩到 13 条并全部通过（新增 G12-cancel-then-new-batch），因此 D12 的\"取消回收/取消后重开\"路径现已被真实浏览器判据覆盖。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/tests/fixtures/d12-receiver-gates.mjs"
+        }
+      ],
+      "doneAt": {
+        "round": "R14",
+        "platform": "linux"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/src/client/receiver.ts",
+        "plugins/dsh-remote-attachments/tests/fixtures/d12-receiver-gates.mjs",
+        "artifacts/verify-portable/d12-receiver-gates.json"
+      ]
+    },
+    {
+      "id": "D13",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "handshake-implementation",
+          "summary": "新增 src/client/handshake.ts：hello/capabilities/context 握手，校验协议版本、把对端限额钳制到冻结 v1 上限、校验 origin（LAN 页面非安全上下文）与会话身份绑定。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/src/client/handshake.ts"
+        },
+        {
+          "kind": "composition-implementation",
+          "summary": "新增 src/client/compose.ts：把 D12 接收端接入生产草稿 adapter（经 draft-adapter/importDraftFiles，不用 bespoke 测试钩子、不用 setInputFiles），暴露 buffered/staged/ready 三态与逐文件部分失败，并实现拆解（撤销自有全局/回调）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/src/client/compose.ts"
+        },
+        {
+          "kind": "chromium-integration-gates",
+          "summary": "tests/fixtures/d13-bridge-gates.mjs（真实 Chromium，16 条）：组合层安装、握手与限额钳制（声明 2048 后 4KiB 文件被 limit-file-bytes 拒，恢复冻结限额后被接受）、分块传输进入原生草稿（以原生 attachmentIds 断言）、三态可分离（从不出现 ready/uploaded）、逐文件部分失败账本、未知 hook ⇒ capability-conflict 且配对未受影响、远端降级 ⇒ capability-disabled 且上传请求 0（对照组健康页确实发出改写请求，证明零请求不是恒真）、陈旧会话拒绝、拆解撤销、恢复需重载。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d13-bridge-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d13-bridge-gates.json",
+          "caseCount": {
+            "gates": 16,
+            "passed": 16,
+            "negativeProbes": 9
+          }
+        },
+        {
+          "kind": "gate-script-bugs-fixed",
+          "summary": "判据脚本自身两处自造失败已修：G00-runtime 的 batch-end 用了与绑定上下文不一致的 sessionId（context-changed）；G02b 限额钳制。修的是脚本，未放宽产品断言——陈旧会话仍被 context-changed 拒绝（G07 通过可证）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：Windows/WebView2 原生半区（D14+）；降级场景用 requirePairingForLan:false 而非 remote enabled:false（后者会连 remote 自己的配对路由一起关掉，无法同时断言\"配对未被关闭\"）；健康页对照组承载探针请求已发出但 promise 20s 未 settle（同一承载的真实上传闭环由 d09 G06/G07/G09/G10 以 200+receipt+读回证明）；浏览器闸门未走插件管理器热禁用（改为调用同一 teardown 入口，真实 cordis disposer 由单测驱动）。",
+          "platform": "linux",
+          "result": "notRun"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "本轮由我接入门禁入口并独立复跑 Development profile：新增必需项 addon-bridge-fixture 通过（D13 判据 16/16、result=pass），同时该轮 profile 一并复跑了 d08/d09/d12/composer/run-gates/upload 与 C# 88/88 —— 子代理声称的回归全部得到独立确认。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json"
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "Development profile 自身范围通过：已实现 25 项全部 pass、0 fail、5 项 incomplete；Core 用例 88/88。portableStatus 仍为 fail（存在 incomplete 必需项），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 25,
+            "fail": 0,
+            "incomplete": 5
+          }
+        }
+      ],
+      "artifacts": [
+        "plugins/dsh-remote-attachments/src/client/handshake.ts",
+        "plugins/dsh-remote-attachments/src/client/compose.ts",
+        "plugins/dsh-remote-attachments/tests/fixtures/d13-bridge-gates.mjs",
+        "artifacts/verify-portable/d13-bridge-gates.json",
+        "eng/verify-portable.ps1 (addon-bridge-fixture)"
+      ],
+      "doneAt": {
+        "round": "R16",
+        "platform": "linux"
+      }
+    },
+    {
+      "id": "D14",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "portable-staging-core",
+          "summary": "可移植生产代码：AttachmentStagingPolicy.cs（判定码/路径词法/候选接受/限额/变化/清理纯函数）、AttachmentStagingPorts.cs（注入端口+原生捕获票据+自有根）、AttachmentStagingService.cs（生产暂存引擎：写入前限额、256KiB 顺序流式复制复用 D10 ChunkBytes、边拷边算 SHA-256、前后身份复核、finally 关句柄、清理只动自有根、台账上界 64）。可移植 seam 经 grep 核实 P/Invoke-free。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "src/DshLauncher.Core/Attachments/AttachmentStagingService.cs"
+        },
+        {
+          "kind": "windows-production-code",
+          "summary": "真实 Win32 实现（无 stub、无 #if 假实现）：WindowsStagingFileSystem.cs（CreateFileW CREATE_NEW 独占 + FILE_FLAG_OPEN_REPARSE_POINT 无跟随 + GetDiskFreeSpaceExW + SetFileInformationByHandle 句柄式删除 + FlushFileBuffers）、WindowsStagingSource.cs（GENERIC_READ|FILE_SHARE_READ、GetFileType/属性位判目录/设备/重解析点/RECALL_ON_OPEN/RECALL_ON_DATA_ACCESS/OFFLINE、GetDriveTypeW 判远程卷、复制后重解析身份）、WindowsAttachmentStagingAdapter.cs（桥表面只收 captureId/snapshotId/batchId，登记候选 internal 且需手势令牌，回执类型无 Path 属性）。",
+          "platform": "windows",
+          "result": "notRun",
+          "note": "WindowsPending：代码已交付，实机未执行"
+        },
+        {
+          "kind": "candidate-acceptance",
+          "summary": "只接受原生用户动作捕获的普通文件，拒绝顺序固定故原因确定：目录→candidate-directory；设备/管道→candidate-not-regular-file；UNC→candidate-unc-path；\\\\?\\ / \\.\\ / \\??\\→candidate-device-path；非绝对→candidate-path-not-absolute；含 ..→candidate-path-traversal；重解析点→candidate-reparse-point；RECALL_ON_OPEN|RECALL_ON_DATA_ACCESS→candidate-cloud-placeholder；OFFLINE→candidate-offline-file；远程卷→candidate-network-share。打开一律带 FILE_FLAG_OPEN_REPARSE_POINT，链接不被跟随。",
+          "platform": "windows",
+          "result": "notRun"
+        },
+        {
+          "kind": "snapshot-and-ownership",
+          "summary": "限额判定（单文件→批文件数→批字节→单目标 100MiB→可用空间留 64MiB）全部在 CreateExclusiveOwnedFile 之前；提前 EOF/声明外增长/复制后长度·最后写入时间·文件标识·卷任一处不符→source-changed 并删半成品。清理只接受台账 id 或自有根一层条目，词法包含关系+解析后最终路径+重解析点/目录复核。Linux 用假端口真实跑通全部拒绝分支（含 symlink 逃逸、..\\..\\Windows\\evil.dll、UNC、目录、删除失败）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "no-arbitrary-path-entry",
+          "summary": "引擎唯一快照入口 Capture(INativeStagingCapture, CancellationToken)；适配器公开成员仅 BeginBatch/CaptureForBridge/Release/CleanupOrphans/Initialize；登记候选 internal 且需同程序集铸造的手势令牌；桥回执类型不含任何 Path 属性。Linux 与 Windows 各有一条反射用例钉住该表面。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "windows-pending-list",
+          "summary": "tests/DshLauncher.Platform.Windows.Tests/Attachments/WindowsPendingCases.md（37 条，我核实条目数）：自动用例 WP-01…WP-25（属性位/共享锁矩阵/ACL/符号链接/联接/独占创建/清理/边界反射）+ 只能实机准备的 WM-01…WM-06（云占位自动下载、磁盘耗尽、100MiB 上限与崩溃残留、卷挂载点、粘贴时快照语义、分块哈希贯通），映射到 W-05.1/5.5/5.6/5.7/W-07。本轮一条未执行，均不记 PASS。",
+          "platform": "windows",
+          "result": "notRun",
+          "path": "tests/DshLauncher.Platform.Windows.Tests/Attachments/WindowsPendingCases.md"
+        },
+        {
+          "kind": "verification-linux",
+          "summary": "本机实跑且我独立核对：全 solution --warnaserror 交叉编译 0 错 0 警（含 net10.0-windows/win-x64）；dotnet format --verify-no-changes exit 0；Core 用例 228/228（failed=0 skipped=0）；eng/verify-portable.ps1 -Profile Core 7/7 pass（含固定数据集逐条核对）。",
+          "platform": "linux",
+          "command": "dotnet build DshWindowsLauncher.slnx -c Release --warnaserror + dotnet run --project tests/DshLauncher.Core.Tests + pwsh eng/verify-portable.ps1 -Profile Core",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "coreTests": 228,
+            "passed": 228,
+            "coreProfileChecks": 7
+          }
+        },
+        {
+          "kind": "dataset-additive",
+          "summary": "eng/expected-test-dataset.json 增量更新，我逐 assembly 与 HEAD 比对确认 removed=0：Core.Tests 49→228、Platform.Windows.Tests 25→54、Acceptance.Tests 35→35。写入前的\"无既有哈希消失\"断言实际拦下过一次 theory 改签名（5 个既有哈希将消失），已回退改名。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "windows-enumeration-mechanism",
+          "summary": "Windows 程序集在 Linux 上无法执行（dotnet run --runtime win-x64 → Exec format error），改用与门禁相同的 MTP 参数（-list full/json -preEnumerateTheories -printMaxStringLength 0）以宿主 dotnet 启动已构建 DLL 枚举，并对 DisplayName 施加 MTP XML 的 \"→\\\" 转义；该归一化先用冻结基线复算验证 25/25 完全命中，再据此增量写清单。未执行任何 Windows 用例。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "source-defect-fixed",
+          "summary": "顺带修复真实源码错误：AttachmentTransferCoordinator.AdmitFile 过去只校验限额、不校验将写进 file-begin 的 fileId/name/mime/sha256，非法元数据被收下后直到 Pump() 构造 file-begin 时才由冻结 codec 抛 InvalidOperationException（临时探针实测到该异常）。改为 Wire.FileBegin 显式字段重载 + 准入处复用同一 codec 预检并返回确定码（invalid-field-value/field-too-large），新增 9 条回归用例（先红后绿）。另登记一处未改观察：AttachmentSession 批次成功关闭后未清 file.Sent（每文件最多 80 条 SentChunk 常驻至 Dispose），无可观测行为差异故未改。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "src/DshLauncher.Core/Attachments/AttachmentTransferCoordinator.cs"
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "Development profile 自身范围通过（我独立复跑）：已实现 25 项全部 pass、0 fail、5 项 incomplete；Core 用例 228/228（failed=0 skipped=0）、crossBuildStatus=pass。portableStatus 仍为 fail（存在 incomplete 必需项），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 25,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：全部 Windows 实机事实（属性位常量、共享模式矩阵、ACL、重解析点、云占位、真实卷哈希与删除、磁盘耗尽、100MiB 上限）均 WindowsPending；云占位无法在 Linux 合成只能人工实机准备；FILE_DISPOSITION_INFO 单字节布局与 RECALL 常量值按文档实现未实机核对；Windows 测试程序集本轮只枚举未执行。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R17",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "src/DshLauncher.Core/Attachments/AttachmentStagingPolicy.cs",
+        "src/DshLauncher.Core/Attachments/AttachmentStagingService.cs",
+        "src/DshLauncher.Platform.Windows/Attachments/WindowsAttachmentStagingAdapter.cs",
+        "tests/DshLauncher.Platform.Windows.Tests/Attachments/WindowsPendingCases.md"
+      ]
+    },
+    {
+      "id": "D15",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "portable-identity-rules",
+          "summary": "可移植规则落在 Core（Linux 实跑，P/Invoke-free）：RemoteOrigin.cs 规范化（仅 http/https、scheme 小写、默认端口省略、主机小写去结尾根点、IPv6 经 IPAddress 规范化加括号、userinfo 一律拒绝；比较只做规范化逐字相等，无前后缀匹配）；RemotePageOriginPolicy.cs 主文档/子框架/子资源/外部链接/重定向规则；RemotePageSessionState.cs 代际与准入状态机。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "src/DshLauncher.Core/Remote/RemotePageOriginPolicy.cs"
+        },
+        {
+          "kind": "spoofing-finding",
+          "summary": "实测发现：.NET Uri 把 http://[::1].evil.example/ 的 Host 解析成 [::1] 并丢掉后缀——只信 Uri.Host 会被绕过。已改为对照原始 authority 文本复核并补专门负例（[::1]evil.example、[::1]:、非数字端口）。另已覆盖 http://evil.example@our.host/（userinfo 拒绝）、our.host.evil.example / evil-our.host / our.hostx / sub.our.host / 异端口 / 异协议。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "page-session-extraction",
+          "summary": "src/DshLauncher.Desktop/Remote/RemotePageSession.cs：每目标一个，独占 WebView2 实例 + 独立 UDF + Core 状态机（通道/代际/能力/取消令牌）+ 事件注册与解除（NavigationStarting/NavigationCompleted/NewWindowRequested）；RemoteWindow.xaml.cs 改为只保留 UI（PageTabs/Sidebar/PageHost/chrome/RemotePageView），多标签行为逐行保留。无全局 WebView/全局 Cookie 容器。我核对 RemotePageSession.cs 内确有 19 处 CoreWebView2 相关事件绑定。",
+          "platform": "windows",
+          "result": "notRun",
+          "note": "WindowsPending：代码已交付，实机未执行"
+        },
+        {
+          "kind": "epoch-and-cancellation",
+          "summary": "BeginNavigation 在主文档导航开始当刻撤销能力（capability-revoked-navigation）、取消旧代际令牌、Epoch+1；AdmitMessage 顺序固定（关闭→通道→代际→能力），旧代际迟到消息 message-epoch-stale、未验证文档 message-capability-absent、跨页面 message-channel-mismatch、已关闭 session-closed。取消触发：NavigationStarted（立即撤销+取消在途）、TargetRemoved、CredentialRevoked（快照 Pairing!=Paired，与目标不存在分开记录）、ApplicationExit；隐藏/切标签只拒新操作不取消在途。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "portable-tests",
+          "summary": "tests/DshLauncher.Core.Tests/Remote/ 新增 111 条（RemoteOriginTests/RemotePageOriginPolicyTests/RemotePageSessionLifecycleTests/RemotePageSessionIsolationTests），覆盖规范化、伪装负例、主文档授予、外部链接不继承、代际失效、迟到消息拒绝、跨目标隔离、取消触发；全部带合法 triggerTags（gate 报 without triggerTags=0）。Core 用例 228→339。",
+          "platform": "linux",
+          "command": "dotnet run --project tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj -c Release -- -result-xml",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tests": 339,
+            "passed": 339,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "kind": "windows-pending-list",
+          "summary": "src/DshLauncher.Desktop/Remote/RemotePageSession.WindowsPending.md：自动用例 WS-01…WS-10（真实 WPF+WebView2+双 Kestrel 来源）+ 人工实机 WM-07…WM-12（重定向事件顺序、renderer 崩溃、隐藏时渲染进程、每目标 UDF Cookie 隔离、真实进程退出、后台节流），映射 W-05.2/5.3、W-04.5/4.6/4.7、W-06.4/6.5/6.7。本轮一条未执行，均不记 PASS。",
+          "platform": "windows",
+          "result": "notRun",
+          "path": "src/DshLauncher.Desktop/Remote/RemotePageSession.WindowsPending.md"
+        },
+        {
+          "kind": "verification-linux",
+          "summary": "本机实跑且我独立核对：全 solution --warnaserror 交叉编译 0 错 0 警（含 WPF/WebView2 的 net10.0-windows/win-x64）；dotnet format --verify-no-changes exit 0；Core 用例 339/339；eng/verify-portable.ps1 -Profile Core exit 0（core-test-execution=pass，含固定数据集逐条核对）。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass"
+        },
+        {
+          "kind": "dataset-additive",
+          "summary": "eng/expected-test-dataset.json 仅增量，我逐 assembly 与 HEAD 比对确认 removed=0：Core.Tests 49→339、Acceptance.Tests 35→45、Platform.Windows.Tests 25→54。Core 用门禁同参数 MTP -result-xml 直接哈希 XML name；Acceptance 用枚举 JSON + \"→\\\" 归一，先复算冻结基线 35/35 命中后才写入。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "dataset-latent-risk",
+          "summary": "报告未改的隐患：Platform.Windows.Tests 有 4 条含反斜杠参数的理论用例，MTP 的 XML 输出会把 \\ 再转义为 \\\\，而 D14 建立的该程序集基线来自枚举 JSON 归一值——真实 Windows 上跑 XML 门禁时这 4 条会报 missing/unexpected。修它会删除既有基线哈希，按规则 STOP 未动。建议在 Windows 轮次用真实 XML 重新推导该程序集基线，或统一两处转义归一；在此之前不得声称该程序集基线在 Windows 上可用。",
+          "platform": "windows",
+          "result": "notPass"
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "Development profile 自身范围通过（我独立复跑）：已实现 25 项全部 pass、0 fail、5 项 incomplete；Core 用例 339/339（failed=0 skipped=0）、crossBuildStatus=pass。portableStatus 仍为 fail（存在 incomplete 必需项），不得当作 DevelopmentReady。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 25,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：WS-01…WS-10、WM-07…WM-12 一条未执行；Windows 实机仅有交叉编译与平台中立规则证据；假设 NavigationStarting 先于同次 NavigationCompleted（由 WS-02 实机验证）；未接入 ProcessFailed 崩溃恢复；隐藏/切标签的 WPF 事件语义依赖实机。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R18",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "src/DshLauncher.Core/Remote/RemotePageOriginPolicy.cs",
+        "src/DshLauncher.Desktop/Remote/RemotePageSession.cs",
+        "src/DshLauncher.Desktop/Remote/RemotePageSession.WindowsPending.md",
+        "tests/DshLauncher.Core.Tests/Remote/"
+      ]
+    },
+    {
+      "id": "D16",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "portable-policy",
+          "summary": "可移植策略层（Core，Linux 实跑，P/Invoke-free）：NativePasteGesturePolicy（手势授权绑定 targetId+pageEpoch+焦点令牌，2s 寿命上界 5s、一次性消费、无续期；铸造侧与校验侧拒绝码齐全，噪声请求不烧合法授权）、ClipboardSourcePolicy（文件列表恒优先；纯文本不介入；空/不支持/超限确定拒绝）、NativePasteConsumerElection（唯一消费者账本，TotalImports≤1、墓碑后桥补导入得 consumer-bridge-after-native-timeout）、NativePasteFailurePolicy（可恢复分类）、ScreenshotPngPolicy/Encoder（确定性 PNG：固定 IHDR+单 IDAT+IEND、行滤波 0、自带 CRC-32）、NativePasteOrchestrator（读取 15s 上界，可注入）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "src/DshLauncher.Core/Attachments/NativePasteOrchestrator.cs"
+        },
+        {
+          "kind": "windows-native-code",
+          "summary": "真实 Win32/WPF 承载：WindowsClipboardNative.cs、WindowsClipboardPasteSource.cs（STA 只做有界探测：免打开格式查询 + OpenClipboard ≤3×5ms 重试 + 只读 DIB 头 124 字节；ReadAsync 切线程池并复核剪贴板序号）、WindowsDroppedFilesSource.cs、Desktop/Attachments/NativePasteGestureRouter.cs（真实 WPF 手势事实；只有原生通路才 Handled=true，不注册全局键盘钩子）。",
+          "platform": "windows",
+          "result": "notRun",
+          "note": "WindowsPending：代码已交付，实机未执行"
+        },
+        {
+          "kind": "portable-tests",
+          "summary": "tests/DshLauncher.Core.Tests/Attachments/ 新增 151 条（手势授权 26、来源优先 24、唯一消费者 11、失败分类 39、截图 31、编排器 20），全部带合法 triggerTags（缺失 0、非法 0）。Core 用例 339→490。",
+          "platform": "linux",
+          "command": "dotnet run --project tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj -c Release -- -result-xml",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tests": 490,
+            "passed": 490,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "kind": "windows-pending-list",
+          "summary": "Desktop/Attachments/NativePasteGesture.WindowsPending.md：WW-01…WW-06 自动用例 + 手工步骤 WM-13…WM-32（快捷键覆盖不全局截断、焦点在别应用不拦截、切标签/隐藏不导入、截图 native/bridge 各一次消费、文件与位图并存优先文件、目录/UNC/符号链接/云占位确定拒绝、剪贴板占用给 clipboard-busy 且界面不卡、读取超时后桥不补导入、篡改暂存根不崩）；WindowsPendingCases.md 追加 WP-26…WP-34。我核对条目数 39。本轮一条未执行，均不记 PASS。",
+          "platform": "windows",
+          "result": "notRun",
+          "path": "src/DshLauncher.Desktop/Attachments/NativePasteGesture.WindowsPending.md"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "本机实跑且我独立核对：全 solution --warnaserror 交叉编译 0 错 0 警；dotnet format --verify-no-changes exit 0；Development profile exit 0、cases=490/490、crossBuildStatus=pass、5 项 incomplete（D18–D24）；固定用例基线逐 assembly 与 HEAD 比对 removed=0（Core 49→490、Acceptance 35→51、Platform.Windows 25→63）；Core 策略层 grep 确认 P/Invoke-free；唯一消费者关键断言 8 处。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json"
+        },
+        {
+          "kind": "open-risks",
+          "summary": "未验/风险：(1) 全部 Windows 实机事实未验（CF_DIB 句柄生命周期、GlobalUnlock 归零、GlobalSize vs biSizeImage、剪贴板占用错误码、真实 STA 焦点、WPF DataObject 能否强转 COM IDataObject——若不能需改走 DataFormats.FileDrop 的同一内部登记口，会削弱\"公开 API 不收路径\"，必须先登记再改；AllowExternalDrop=false 是否真让外部拖放落到 WPF）。(2) 握手解析属 D17，在此之前只有位图粘贴被 consumer-mode-undecided 确定拒绝，文件列表/拖放不受影响。(3) Acceptance 程序集无法在 Linux 枚举（缺 Microsoft.WindowsDesktop.App），其新增 6 条哈希由完全限定名推导（已用 45/45 冻结基线全命中验证），非 MTP 实枚举。(4) Linux 验证的是\"给定 DIB 字节→确定性 PNG\"，不等于截图采集已验。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R19",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "src/DshLauncher.Core/Attachments/NativePasteOrchestrator.cs",
+        "src/DshLauncher.Desktop/Attachments/NativePasteGesture.WindowsPending.md",
+        "tests/DshLauncher.Core.Tests/Attachments/NativePasteOrchestratorTests.cs"
+      ]
+    },
+    {
+      "id": "D17",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "portable-composition-contract",
+          "summary": "可移植组合契约（Core，Linux 实跑）：Core/Attachments/RemoteBridge/ 的 RemoteBridgeProtocol（封包 {v,channel,epoch,frame} + 严格 EnvelopeCodec）、RemoteBridgePorts（IRemoteBridgeTransport：SendFrame/TryReceiveFrame/Close）、RemoteBridgeHandshake（纯函数解析 hello/capabilities/context）、RemoteBridgeComposition（同时实现 D11 IAttachmentChannel）。我核对组合层对 System.Windows/CoreWebView2/WebView2 无引用（platform-neutral）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "src/DshLauncher.Core/Attachments/RemoteBridge/RemoteBridgeComposition.cs"
+        },
+        {
+          "kind": "windowing-and-native-code",
+          "summary": "Windows 承载：Desktop/Attachments/WebViewMessageTransport.cs（真实 PostWebMessageAsJson/WebMessageReceived，两种投递形态归一、入站队列硬上界、异常转确定码；我核对 7 处调用）、RemoteAttachmentBridge/{RemoteAttachmentBridge.cs,StagingAdapterPort.cs}、Platform.Windows/Attachments/WindowsStagedByteSource.cs（真实只读无跟随句柄）。",
+          "platform": "windows",
+          "result": "notRun",
+          "note": "WindowsPending：代码完整交付，实机未执行"
+        },
+        {
+          "kind": "composition-structure",
+          "summary": "RemoteAttachmentBridge 是 RemotePageSession 的组件而非第二个生命周期（InitializeAsync→AttachTo(core)，导航→OnPageAdvanced，能力授予→OnMainDocumentLoaded，关闭→Close(\"session-closed\")，释放→Dispose）。出站帧由 AttachmentCodec 构造校验 + D10 镜像判定，入站过同一 codec 后交 D11 Pump()——事件处理器内无第二套状态机。每次收发复核身份与大小（出站 context-changed/message-too-large；入站大小→结构→D15 AdmitMessage 页面准入→帧身份）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "handshake-gap-closed",
+          "summary": "D16 登记的缺口已闭合：RemoteBridgeHandshake 真实解析 hello（对端 build）、capabilities（features→ScreenshotOwnerFacts，限额逐项 min 钳制）、context（身份+composer 事实），经 IRemoteBridgeHandshakeSink 送进 D16 真实台账。模式判定可用：声明 screenshot 且宿主可原生采集→native-paste；未声明或宿主无采集→bridge；握手前仍 undecided（位图粘贴继续确定拒绝）。Linux 用真实 D16 编排器逐段断言三段路由。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "cancel-late-release-heartbeat",
+          "summary": "取消/迟到/释放/心跳：主动取消发 cancel 并释放源与快照，迟到 ack/import-result 得 cancelled/batch-closed；导航 Invalidate() 推代际，迟到帧 message-epoch-stale；目标删除/吊销/退出→session-closed；暂存快照在批终态/取消/失败/导航/关闭/释放每个出口都 Release；通道监听/入站队列/DispatcherTimer/句柄各有归零断言。心跳不受影响：真实 PairingHub + 完整桥生命周期并排跑，断言配对待定字段不变、IsStarted 仍真、心跳计数继续增长、HeartbeatNowAsync 仍成功；桥公开表面不含任何配对/枢纽成员（我核对心跳断言 12 处）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "production-completeness",
+          "summary": "生产完整性自证（验收点）：grep -rniE --include=*.cs \"todo|fixme|notimplementedexception|placeholder|stub|mock\" 覆盖 Core/RemoteBridge、Desktop 桥与传输、WindowsStagedByteSource → 无匹配（我独立复跑同样无匹配）；真实系统调用在位（PostWebMessageAsJson/WebMessageReceived、DispatcherTimer、真实只读无跟随句柄）；组合层无 Windows/WebView 命名空间引用。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "portable-tests",
+          "summary": "tests/DshLauncher.Core.Tests/Attachments/RemoteBridge{Fixtures,ChannelTests,HandshakeTests,TransferTests,HeartbeatTests}.cs 新增 46 条（通道契约、收发身份与大小复核、经真实 codec/session 的转发、握手路由与模式判定、取消/迟到/释放、心跳隔离、负例）。Core 用例 490→536。",
+          "platform": "linux",
+          "command": "dotnet run --project tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj -c Release -- -result-xml",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tests": 536,
+            "passed": 536,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "kind": "windows-pending-list",
+          "summary": "新增 RemoteAttachmentBridge.WindowsPending.md：WB-01…WB-06（真实 WebMessage 双向、真实通道截图所有者路由、真实剪贴板端到端分块到 staged、握手前抢跑帧、移除目标的真实释放、桥关闭不影响真实心跳）+ 手工 WM-33…WM-40；RemotePageSession.WindowsPending.md 追加 WS-11…WS-14；WindowsPendingCases.md 追加 WP-35…WP-38。我核对新待验表 27 处 WB/WM 编号。写而未跑，一条不记 PASS。",
+          "platform": "windows",
+          "result": "notRun",
+          "path": "src/DshLauncher.Desktop/Attachments/RemoteAttachmentBridge/RemoteAttachmentBridge.WindowsPending.md"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "本机实跑且我独立核对：全 solution --warnaserror 交叉编译（含强制全量重建）0 错 0 警；dotnet format --verify-no-changes exit 0；Core 用例 536/536；固定用例基线逐 assembly 与 HEAD 比对 removed=0（Core 49→536、Acceptance 35→57、Platform.Windows 25→67）；TODO/stub/mock 扫描无匹配；组合层 platform-neutral；心跳护栏断言 12 处。Development profile 由我独立复跑：exit 0、cases=536/536、crossBuildStatus=pass，已实现 25 项全 pass、0 fail、5 项 incomplete。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 25,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "open-risks",
+          "summary": "未验：(1) 全部 Windows 实机事实（WebMessage 投递形态与事件顺序、PostWebMessageAsJson 的 UI 线程约束、真实剪贴板到 staged、真实释放顺序）。(2) 页面侧应答脚本是测试夹具、不是生产接收端，真实插件互通属 D18（WM-33）。(3) v1 只有 screenshot 一个信号位，当前生产插件不含该特性 → 截图所有者会是 bridge（与方案 §4.1 一致），native-paste 需页面显式声明。(4) context 无\"可编辑/锁定/子代理\"字段，建绑即视为可编辑，锁定在 import-result 阶段确定失败（真实表现由 WM-33 核对）。(5) Acceptance.Tests 仍无法在 Linux 枚举，其新增 6 条哈希为完全限定名推导（规则以现存 30/30 Fact 复算验证），非 MTP 实枚举。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R20",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "src/DshLauncher.Core/Attachments/RemoteBridge/RemoteBridgeComposition.cs",
+        "src/DshLauncher.Desktop/Attachments/RemoteAttachmentBridge/RemoteAttachmentBridge.cs",
+        "src/DshLauncher.Desktop/Attachments/RemoteAttachmentBridge/RemoteAttachmentBridge.WindowsPending.md",
+        "tests/DshLauncher.Core.Tests/Attachments/RemoteBridgeHeartbeatTests.cs"
+      ]
+    },
+    {
+      "id": "D18",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "interop-driver",
+          "summary": "新增 plugins/dsh-remote-attachments/tests/interop/{d18-interop-driver.mjs,ensure-fixture.sh,README.md}（package.json 加 fixture:interop / fixture:interop-driver）。C#→驱动 stdin 为一行一条生产 codec 编码的报文；驱动→C# stdout 为 page/frame/reject/done；stdin EOF 优雅退出、日志走 stderr。驱动不生成/不改写/不补发任何业务帧（唯一例外是显式开启的 wrong-batch-id 负向探针）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/tests/interop/d18-interop-driver.mjs"
+        },
+        {
+          "kind": "production-not-simulated",
+          "summary": "只替代三处：stdio 通道（WebView2 物理边界）、context 握手投递、Linux 只读短读源（同一 IAttachmentByteSource 契约）。复用真实 AttachmentTransferCoordinator + AttachmentCodec + 页面 __DSH_ATTACHMENTS_RECEIVER__（D12 生产接收端）+ __DSH_ATTACHMENTS_BRIDGE__→D08 草稿适配器；出站帧全部经协调器 codec+镜像后才进通道，trace 中三块按 seq 拼回的 SHA-256 与源文件相同。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "two-way-evidence",
+          "summary": "双向 trace 产物 artifacts/verify-portable/d18-interop/<case>.trace.jsonl + .csharp-transcript.jsonl + .csharp-trace.json。哈希五处一致（C# 源=file-end 声明=接收端核对=trace 重组=浏览器 File 回读）；批次/文件 ID 每帧一致（仅 context 无 batchId）；草稿 ID 三方一致（协调器 AttachmentIds = import-result ids = 页面 draftAdded，探针净增 2/2）；ACK 3 块逐块 seq/offset/长度对上，AckedBytes=ByteLength、Pending 归零；import-result 2/2 staged、入站拒绝 0。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d18-interop/"
+        },
+        {
+          "kind": "interop-gates",
+          "summary": "artifacts/verify-portable/d18-interop-gates.json：result=pass、failedGateIds=[]、12 条判据（含 interop-page-production-receiver、interop-transport-two-way、interop-chunk-bytes-fidelity、interop-browser-assembled-file、interop-hash-cross-boundary、interop-batch-file-ids、interop-subprocess-exit-clean、interop-resource-reclamation）。",
+          "platform": "linux",
+          "command": "pwsh -File eng/verify-portable.ps1 -Profile Development",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d18-interop-gates.json",
+          "caseCount": {
+            "gates": 12,
+            "passed": 12,
+            "interopCases": 4
+          }
+        },
+        {
+          "kind": "gate-implemented",
+          "summary": "门禁 production-interop-l13 由 incomplete 转为 pass：实现链=删旧证据（拒绝陈旧绿灯）→ ensure-fixture.sh --force（build+test:pack+down+setup，确保跑当前 tarball）→ 以 manifest 的 interop 集合（-trait interop=production）执行并逐条核对哈希清单（零跳过零失败）→ 读证据要求 result=pass 且 failedGateIds 空 → finally down.sh → 补回夹具侧副本。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "eng/verify-portable.ps1"
+        },
+        {
+          "kind": "case-set-union",
+          "summary": "Core/Interop 集合显式区分：manifest caseSets（core=-trait- interop=production 536 例；interop=-trait interop=production 4 例）；core-test-execution 只跑 core，interop 只在 production-interop-l13 跑。并集覆盖全量基线由三层保证：manifest 并集等式（Get-DshExpectedTestDataset 强制，违反即 throw）、用例夹具内 interop-case-set-union-coverage 门禁（core=536/interop=4/union=540/交集=0/缺失=0/多余=0）、ps1 按集合累加 requiredCases=540=executedCases。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "resource-reclamation",
+          "summary": "子进程：driver.Finish() 关 stdin→等退出（超时才强杀）；gate interop-subprocess-exit-clean 断言 finished=True/killRequested=False/exitCode=0/done=stdin-eof。句柄：三个 trace 文件按 FileShare.None 独占打开成功（无残留句柄）且 Process 已 Dispose。进程：按用例 id pgrep 为空 + 类收尾 down.sh exit=0 + 全局 pgrep 为空，gate 记录残留=[]。我实测当前无残留进程。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "negative-probes",
+          "summary": "三条可证伪探针：(1) 篡改 chunk 首字节→接收端 hash-mismatch 拒绝 file-end、未组装 File、草稿净增 0，C# 按注入时钟判 import-timeout 且批次 Cancelled；(2) 克隆真实 import-result 改 batchId+假 id→C# 生产协调器逐条以 import-result:batch-not-open 拒绝（2/2），假 id 未入记录；(3) 传输中强杀 Node 子进程→exitCode=137、killRequested=True、批次停 Open、无 done 记录，同一个 clean-exit 判据在此必须为 False。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "driver-dependencies",
+          "summary": "驱动依赖（缺任一即失败，不静默跳过）：Node 22+（DSH_ATTACH_NODE 可覆盖）、真实 dsh CLI（版本须等于 compatibility-lock.json 的 harness.version）、真实 Chromium（DSH_ATTACH_CHROME → /usr/bin/google-chrome → chromium）、pnpm、私有 DSH_HOME + 两个夹具 profile；已记录在 evidence JSON 的 driverDependencies/windowsRequirements、verification-profiles.json 的 productionInterop 段与 tests/interop/README.md。Windows 全量还需：真实 Edge WebView2 运行时、Windows 侧字节源端口（WindowsStagedByteSource/暂存适配器）、pwsh7 与 eng/verify.ps1 正式门禁环境。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "本机实跑且我独立核对：交叉编译 --warnaserror 0 错 0 警；dotnet format --verify-no-changes exit 0；Core 用例 540/540；固定用例基线逐 assembly 与 HEAD 比对 removed=0（Core 49→540、Acceptance 35→57、Platform.Windows 25→67）；D18 证据 result=pass/failedGateIds=[]/12 条；trace 产物齐全；无残留进程。Development profile 由我独立复跑确认 production-interop-l13=pass。 Development profile 我独立复跑：exit 0、cases=540/540、crossBuildStatus=pass，已实现 26 项全 pass、0 fail，**incomplete 由 5 项降为 4 项**（plugin-browser-tests、plugin-integration-suite、final-tarball-install、resource-and-failure-suites，属 D19+）。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 26,
+            "fail": 0,
+            "incomplete": 4
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：Windows 实机（WebView2/DWM/Win32 暂存、eng/verify.ps1、两个 Windows 测试程序集）未运行，属 WindowsPending；本轮只证明 Linux Development L13；仍 4 项 incomplete（D19+），portableStatus 仍为 fail 不得当 DevelopmentReady；harnessIntegration/windowsValidation 摘要字段仍 notRun；单次 interop 约 94s（4 次 Chromium 启动+服务重启），未做性能断言；依赖驱动顺序处理帧，未验证并发多目标（MaxConcurrentTargets>1）场景。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ],
+      "doneAt": {
+        "round": "R21",
+        "platform": "linux"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/tests/interop/d18-interop-driver.mjs",
+        "tests/DshLauncher.Core.Tests/Interop/ProductionInteropTests.cs",
+        "artifacts/verify-portable/d18-interop-gates.json",
+        "artifacts/verify-portable/d18-interop/"
+      ]
+    },
+    {
+      "id": "D19",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "fault-injection-fixture",
+          "summary": "tests/fixtures/fault-proxy.mjs：反向代理坐在页面 origin 上（页面从代理端口 boot ⇒ remote 改写层生效），上传真实落在 /remote/api/session/uploadFileBinary；可注入 stream-break(afterBytes)/stall/http-413/http-403/http-401/business-failure(200+锁定包信封)/drop(宿主重启)，自带逐请求计数与 skip/times。每类故障都有\"注入关闭则成功\"的对照，7 条反例全部成立。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/tests/fixtures/fault-proxy.mjs"
+        },
+        {
+          "kind": "failure-gates",
+          "summary": "tests/fixtures/d19-failure-gates.mjs（pnpm run fixture:failures）：31/31 gates、7/7 负向探针、exit 0。实测：6 类故障都落到确定 error（stall 停在确定 uploading，反例守住边界）；安静窗口 2500ms 后逻辑上传计数 1→1、prompt 0；失败文件永不 ready；跨会话导入 context-changed；部分批次成功项按文件名计数 1→1（不重放）；413 后应用内重试复用原草稿 id 且条目数不变；失效 receipt 被 session/attachment-invalid 确定拒绝且零重放、prompt 恰好 1；撤销拆成\"新请求 403/unpaired\"与\"在途请求被终止\"两条且配对/心跳不受影响；客户端取消由代理观测 client-aborted。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d19-failure-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d19-failure-gates.json",
+          "caseCount": {
+            "gates": 31,
+            "passed": 31,
+            "negativeProbes": 7
+          }
+        },
+        {
+          "kind": "redacted-trace",
+          "summary": "artifacts/verify-portable/d19-failure-trace.json（19,495B、21 条：6 故障+6 对照+部分批次/重试/取消/重启/失效 receipt/撤销），每条记故障规格→观测状态/信封码/网络失败→逻辑与代理计数→状态面子集；经 redact()+路径规则脱敏，findSecretLeaks+绝对路径/device= 规则落盘后零命中，反例 N5 证明检查器非空转，ps1 再做一次独立正则扫描。我独立复核：pair= 唯一命中是 trace 自身 redaction 说明字段，无真实 token、无 dsh_pair、无家目录路径。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d19-failure-trace.json"
+        },
+        {
+          "kind": "gate-implemented",
+          "summary": "门禁 resource-and-failure-suites 由 incomplete 转为 pass：eng/verify-portable.ps1 新增该步骤（含证据门与 trace 独立脱敏复检）。Development 未覆盖项由 4 降为 3（剩 plugin-browser-tests、plugin-integration-suite、final-tarball-install，属 D20+）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "eng/verify-portable.ps1"
+        },
+        {
+          "kind": "fixture-self-fixes",
+          "summary": "顺带修掉两个夹具自身缺陷（非产品缺陷，src/** 本轮未改）：(1) fault-proxy 的 stall 曾消费请求体导致 release 后转发空体→改为不读体、挂起真实连接；(2) fault-proxy.close() 曾因 keep-alive 连接死锁→先 closeAllConnections 再等 close 并加 5s 兜底。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "本机实跑且我独立核对：D19 证据 result=pass、failedGateIds=[]、31 条判据；Development profile 由我独立复跑（子代理环境无 pwsh）：exit 0、cases=540/540、已实现 27 项全 pass、incomplete 3，resource-and-failure-suites=pass；trace 脱敏经我独立复核无真实泄漏。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 27,
+            "fail": 0,
+            "incomplete": 3
+          }
+        },
+        {
+          "kind": "conclusion-corrected",
+          "summary": "追加复核推翻 R22 的\"提示不可见\"结论：原生恢复提示确实可见。元素 <div role=\"alert\" class=\"_toast_e5v0f_6\">，portal 到 document.body；文案\"文件尚未上传成功，请重新添加后再试\"；生命周期 holdMs 3000+fadeMs 1000=4000ms，MutationObserver 实测 4001/4002/4002ms（三次运行一致），首个非空采样在发送后 +1852ms；114 采样中 25 有/89 空。独立公开旁证：页面自身 POST /remote/api/session/prompt 响应信封为 session/attachment-invalid + FILE_NOT_STAGED。归属更正：dsh-client-ui-conversation 正是呈现该拒绝的包（R22 说反了）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d19-stale-receipt-prompt.json"
+        },
+        {
+          "kind": "false-negative-causes",
+          "summary": "R22 漏读的三处具体原因（选择器不在其中）：(1) d19-failure-gates.mjs:890-891 是 poll 后 sleep(4000) 的单点读取，而 toast 恰在 4000ms 卸载；(2) readVisibleErrorLines 用 /失败|错误|无法|failed|error/i 过滤 innerText，而该 toast 文案不含这些词，观测面结构性失明；(3) [data-composer-card] [class*=\"notice\"] 恒不匹配——那行 div[role=\"status\"].uV2eYG_notice 是 composer 卡片的兄弟节点且只用于 level===\"info\"。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "no-public-promptError-path",
+          "summary": "用户要求的\"公开 Session.promptError\"观测面在当前组合下不可达（据实记录、不伪造）：boot 后新增 25 个全局、298 节点对象图扫描、宿主侧 grep promptError dsh-api-session-controller/lib/index.js = 0、remote.session.* 13 个方法无一返回它、wire 契约只带 {reason}。故证据中该字段逐样本恒 null 并标 promptErrorReadPath:\"none:no-public-handle\"；fiber 读取仅作非公开旁证（驻留≥17s，可解释 R22 为何漏读），结论不依赖它。替代公开面：toast DOM + 页面自身 prompt 响应信封（CDP Network）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "three-clarifications",
+          "summary": "三项澄清（各带 file:line）：(1) staged 是线协议 import-result/batch-end 的结果（staged|failed|partial），只表示对端草稿已接收字节并给出 attachmentIds，协议里没有 ready（src/shared/protocol.ts:106-107、src/shared/wire/session.ts:691-692，产出点 src/client/receiver.ts:1151）；ready 是 Harness 上传层状态（ui-conversation client.js:3012/:3052、ui-attachment client.js:686、发送前置 :15823）——staged 不保证 receipt 仍有效，本轮芯片停在 ready 仍被 FILE_NOT_STAGED 拒。(2) 撤销：POST /api/pair/revoke 删设备表项（remote-web-ui lib/index.js:306、路由 :1010）；新请求被 /remote/api 门控在进 Host 前拒掉 → 403 + unpaired（:1874，谓词 :592），不会是 FILE_NOT_STAGED；在途请求放行时按当时门控转发，同一 403/unpaired（观测点 tests/fixtures/fault-proxy.mjs:331）；客户端取消是另一条路（client-aborted）。(3) incomplete 口径：$portableStatus 在 coreFailures>0 或 incomplete>0 或用例数不符 或 failed>0 或 skipped>0 时为 fail（eng/verify-portable.ps1:788-791）；incomplete 来自 requiredChecks 未实现层级（:752-753）或 Core 未覆盖项（:758-761）并并入 notCoveredByProfile（:819）；只有 incomplete 时仍 exit 0 并打印\"profile 自身范围通过\"（:841-846）——四者并存是设计如此。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "my-own-check-error",
+          "summary": "如实记录我自己的失误：我先前的\"114 条采样非空为 0\"是误读字段名（旧 JSON 用 roleAlerts/promptErrorCode，我按 alertText/promptError 取值）；旧文件真实为 26/114 有 roleAlerts、103/114 有 promptErrorCode。文件 schema 与规格不一致是诱因，但结论性判断前未先核对字段名是我的失误。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "provenance-limits",
+          "summary": "追加轮未重跑撤销场景与 verify-portable.ps1（澄清 2/3 为静态引用 + 既有产物）；\"无公开路径\"是本次页面/组合穷尽搜索未找到、非不可能存在；compatibility-lock.json 只锁 CLI=0.1.5-rc.1，实际服务的 @deepseek-ai/* UI 包是 0.1.5-rc.2（UI 包在 CLI 自己的 node_modules），引用一律以实装版本为准。",
+          "platform": "linux",
+          "result": "notRun"
+        },
+        {
+          "kind": "flaky-gate-found",
+          "summary": "修正后的 T02 判据不稳定：子代理自测 32/32、我独立直跑 31/32（T02 FAIL）、门禁内再跑 32/32。我直跑时 T02 detail 显示所有可见子条件均满足（文案逐字、portal=true、起点无残留、出现 +155ms、消失 +4158ms、存活 4003ms、命中 52/79、信封 session/attachment-invalid/FILE_NOT_STAGED）却仍判 FAIL ⇒ 存在未打印的隐藏子条件（很可能是\"最后挂载后需有安静采样点\"这类依赖挂载次数/窗口边界的条件；同一次拒绝实测会挂载两次、可见区间有 4.0s 与 7.5s 两形态）或时序竞态。按方案纪律不稳定判据不得记为通过；门禁那次 pass 是侥幸绿灯，证据文件已被第二次运行覆写为 result=pass/failedGateIds=[]/32 gates。",
+          "platform": "linux",
+          "result": "notPass",
+          "path": "artifacts/verify-portable/d19-failure-gates.json"
+        },
+        {
+          "kind": "conclusion-still-holds",
+          "summary": "结论不受判据不稳定影响：两次独立运行（我的直跑与门禁内再跑）都观测到 portal 到 document.body 的 [role=\"alert\"](class _toast_e5v0f_6) toast、文案逐字\"文件尚未上传成功，请重新添加后再试\"、存活约 4000ms、并与该次 session/attachment-invalid + FILE_NOT_STAGED 信封绑定。R22 的\"不可见\"确为假阴性；兼容结论已更正。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "user-adjudication",
+          "summary": "用户裁定：原生恢复提示存在 ⇒ 撤销此前\"上游兼容缺口\"登记，无需新增插件提示；D19 保持 partial，下一轮只处理测试判定与证据可靠性。口径更正：Session.promptError 的\"公开接口\"指客户端插件获得的 Cordis ctx（依据公开 ISessions 与 SessionFace：ctx.sessions.scope(sessionId) → sessionOf(scope) → getSnapshot().promptError），故正确表述是\"当前黑盒测试没有插件上下文句柄\"、不得推导为\"没有公开接口\"；本轮不为此新增测试桥。撤销证据应表述为\"请求到达 Host 前被门控拒绝\"，不得扩展为\"已通过鉴权的上传流被主动终止\"。incomplete>0 时增量命令 exit 0 可保留，但完整开发验收必须检查 portableStatus 与完整性字段，不能只看退出码。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "infra-fixed-and-reverified",
+          "summary": "D19 测试基础设施修复完成并满足用户完成条件：(1) 失败机制已解释——隐藏合取项 staleToast.observedDisappear（依赖采样窗边界、从不打印自身取值），逐条排除聚合/解析/跨轮数据三种替代解释，并用\"与幸存 detail 一致的世界\"做排除法重建（只有\"最后挂载在窗关闭时仍可见\"能判假，3898 世界中 152 个，第二段起点唯一夹到 [+7905,+8056]），活体印证绿红只差约 150ms 相位、产品行为相同；(2) T02 拆为 9 条具名子断言（各输出 id/actual/expected/pass/failureReason），overall=computeOverall(subAssertions)=records.every(pass)，detail 只由同一批记录渲染 ⇒\"明细全真总判假\"结构性不可能；三件事分开报告（单实例生命周期/并集总可见/重复请求）；未放宽上界，单实例 ≤6000ms、并集 ∈[1000,10000]ms，精确 4000ms 不作标准；(3) 第二次挂载来源已解释（ui-conversation client.js:15837-15846 effect 依赖含 promptError 且不清除已呈现错误 + :16053-16059 key={toast.seq} ⇒ 每次呈现都是新挂载；现场 4/4 次相关性为重连重引导请求串）；(4) 采集与判定分离（纯判定器 d19-alert-window-judge.mjs + 15/15 确定性单测，覆盖出现/消失/节点替换/重复挂载/窗口边界/观察提前结束）；(5) 证据 runId 化且只增不改，pre-fix-archive 归档旧证据，作废预跑诚实标注 countedInRerunSeries:false，被覆写的失败明细如实记为不可恢复；(6) 同一候选 4 次独立完整运行全绿且无自动重试。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d19-runs/"
+        },
+        {
+          "kind": "portable-summary-recheck",
+          "summary": "Development 汇总复核：exit 0、cases=540/540（failed=0 skipped=0）、27 pass + 3 incomplete（plugin-browser-tests/plugin-integration-suite/final-tarball-install）、crossBuildStatus=pass、portableStatus=fail（因 incomplete=3）、developmentReady=false；resource-and-failure-suites=pass 且其 D19 子步骤产出第 4 次独立 v3 绿跑。按用户口径：exit 0 ≠ 完整验收，完整开发验收须看 portableStatus 与完整性字段。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 27,
+            "incomplete": 3
+          }
+        }
+      ],
+      "doneAt": {
+        "round": "R22e",
+        "platform": "linux"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/tests/fixtures/fault-proxy.mjs",
+        "plugins/dsh-remote-attachments/tests/fixtures/d19-failure-gates.mjs",
+        "artifacts/verify-portable/d19-failure-gates.json",
+        "artifacts/verify-portable/d19-failure-trace.json"
+      ]
+    },
+    {
+      "id": "D20",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "isolation-matrix",
+          "summary": "隔离矩阵 artifacts/verify-portable/d20-isolation-matrix.json：12 操作 × 4 落点单元 = 48 行，每行 determinate/outcome/code/landedIds/documentInstance/role；单元 A×s1/A×s2/B×s1/B×s2（A=3099、B=3097 同一 DSH_HOME）+4 影子文档参与扫描。落点只认原生 attachmentIds（探针导入的 previous 回读，不用 DOM 卡片）。扫描 A×s1=3、B×s1=2、B×s2=0、A×s2=0、影子=0；账本 5 条全部被解释；误投递=0（落错单元 0/账本不自洽 0/无归属 0）。扫描不完整时 misDeliveryTotal=null 且 G90 直接失败（不允许\"读不到\"冒充 0）。我独立核对 48 行与 misDeliveryTotal=0。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d20-isolation-matrix.json"
+        },
+        {
+          "kind": "isolation-gates",
+          "summary": "tests/fixtures/d20-isolation-gates.mjs（pnpm run fixture:isolation）：43/43 gates、13/13 负向探针、exit 0。逐操作均确定且误投递 0：session-switch/page-refresh/cross-origin-navigation/expired-late-messages/no-session-home/subagent-state/unknown-protocol-version 各 4 refused（context-changed/no-session/version-mismatch）；target-deletion 4 no-delivery；hidden-page 与 replay 各 1 imported + 3 no-delivery；iframe 4 no-delivery；locked-composer 1 imported + file-input-disabled。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d20-isolation-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d20-isolation-gates.json",
+          "caseCount": {
+            "gates": 43,
+            "passed": 43,
+            "negativeProbes": 13
+          }
+        },
+        {
+          "kind": "negative-controls",
+          "summary": "13 条负向控制全部成立：矩阵判定器对故意改错的账本报误投递>0；清空账本必须报\"无归属 id\"；探针读数非空；刷新/删页前确有在途字节；异来源框架以 SecurityError 被证实；D15 正向对照（真实来源判 origin-trusted）；降级页面确实加载；重放方向钉死；受限解除后同路径可用；泄漏检查 canary 三类命中；被停 target 端口真的拒连。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "no-leak",
+          "summary": "无泄漏：三类 canary（本地绝对路径 fixtureRoot/pluginRoot/repoRoot/dshHome/home 与 /attachments/v1/files/；文件正文唯一 marker 原文+base64 前缀；凭据形态复用 findSecretLeaks）覆盖 47 个可说出口——拒绝 detail、每条出站报文、状态面（__DSH_ATTACHMENTS_ADDON__.status() + __DSH_ATTACHMENTS_STATUS__）、页面可见文本（alert+bodyText）、页面全局。命中 0，且 canary 证明检查会响（三类全中）；四个单元可见面全部读到；落盘文本过 redact、报告自身过 findLeaks。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "origin-rules-ported",
+          "summary": "tests/fixtures/d20-origin-policy.mjs 把 D15 的 C# 来源规则逐条移植到 JS 并对照 RemoteOrigin.cs/RemotePageOriginPolicy.cs：30 向量 × 2 主机形态全绿，含 userinfo http://evil@our.host/、后缀 our.host.evil.example、前缀 evil-our.host、IPv6 [0:0:0:0:0:0:0:1]≡[::1]、[::1].evil.example、内嵌 v4、默认端口、结尾根点、外部链接、子框架/子资源。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/tests/fixtures/d20-origin-policy.mjs"
+        },
+        {
+          "kind": "gate-implemented",
+          "summary": "门禁 plugin-integration-suite 由 incomplete 转为 pass：eng/verify-portable.ps1 新增该步骤（唯一 eng 改动），断言 task/purpose 身份、result=pass、failedGateIds 空、sweepComplete=true、misDeliveryTotal=0、verdict.zeroMisDelivery=true、行数≥48、无\"结果不确定\"行、runId 目录内 report+matrix 存在、index 存在、未验项打印；步骤体单独执行 ENG-STEP: PASS。Development 未覆盖项 3→2（剩 plugin-browser-tests、final-tarball-install）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "eng/verify-portable.ps1"
+        },
+        {
+          "kind": "evidence-history",
+          "summary": "证据 runId 化且历史不覆盖：每次运行独立 artifacts/verify-portable/d20-runs/<runId>/{report.json,run.json,isolation-matrix.json,stdout.log}，d20-runs/index.json 只增不改——当前 4 次（fail,fail,pass,pass）历史全留，我独立核对确认未被覆盖；每次记录 candidate（gitHead+dirty 条数+pluginVersion+脚本哈希）、criteriaVersion、command、platform。down.sh 删夹具目录后补写夹具侧证据副本。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d20-runs/index.json"
+        },
+        {
+          "kind": "failed-dispatch-recorded",
+          "summary": "本轮首次派发的实现子代理中途失败且产物为零（无 fixture、无证据、eng 未被改到一半、无残留进程），已重新派发并在任务书加入\"开工先清理 + 增量落盘，宁可交付诚实的不完整结果\"。失败本身未污染工作树，如实记录。",
+          "platform": "linux",
+          "result": "notPass"
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：G21b-real-app-inside-subframe（真实应用在同来源 iframe 内会 frame-bust 顶层文档、毁掉夹具落点文档）⇒ notRun，子框架无能力由 G19/G21/G22 + D15 策略覆盖；G33-busy-turn-is-real（30s 采样未观察到停止生成/非 plain）⇒ 操作 10 只采用确定可达部分；G38-subagent-session-specific-state（无识别子代理会话）⇒ 只覆盖瞄准非当前会话的 context-changed；d09-loop-gates 本轮未跑（预算）；Desktop 真实焦点/WebView origin 为 WindowsPending；headless Chromium 偶发渲染进程失联，已用超时+重开+完整性判定转为确定失败而非\"没有证据\"。",
+          "platform": "linux",
+          "result": "notRun"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "我独立核对：D20 证据 result=pass/failedGateIds=[]/43 条；隔离矩阵 48 行且 misDeliveryTotal=0；eng 中 plugin-integration-suite 已接入；d20-runs/index.json 4 次历史（fail,fail,pass,pass）未被覆盖；无残留进程。Development profile 由我独立复跑：exit 0、cases=540/540、已实现 28 项全 pass、**incomplete 由 3 降为 2**（plugin-integration-suite=pass，剩 plugin-browser-tests、final-tarball-install），crossBuildStatus=pass、portableStatus=fail（因 incomplete=2）、developmentReady=false。按用户口径 exit 0 ≠ 完整验收。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 28,
+            "fail": 0,
+            "incomplete": 2
+          }
+        }
+      ],
+      "startedAt": {
+        "round": "R23",
+        "platform": "linux"
+      },
+      "doneAt": {
+        "round": "R23",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/tests/fixtures/d20-isolation-gates.mjs",
+        "plugins/dsh-remote-attachments/tests/fixtures/d20-origin-policy.mjs",
+        "artifacts/verify-portable/d20-isolation-matrix.json",
+        "artifacts/verify-portable/d20-isolation-gates.json"
+      ]
+    },
+    {
+      "id": "D21",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "resource-sampling",
+          "summary": "d21-resource-gates.mjs（pnpm run fixture:resources）：45/45 计量在阈值内、52/52 判据、15/15 负向探针、exit 0。冻结表+纯判定器 d21-resource-criteria.mjs（d21-resources-v1，阈值引用产品常量 DEFAULT_LIMITS/MAX_CHUNKS_IN_FLIGHT/REPLAY_CACHE_*），其单测 11/11。报告 artifacts/verify-portable/d21-resource-report.json：45 行 {metric,unit,samplingPoint,threshold,measured,pass,scenario} + 4 条 30 点序列 + observations/controls/notRun。采样点：[A] 页面 accounting、[K] 每次 ack 的 inFlight、[D] 一次 drain 的 ack 条数、[H] CDP 强制 GC 后 usedSize+backingStorageSize、[L] Node 直调已构建 lib/（注入时钟）、[C] C# 用例内 Pump/Cancel/Dispose 与 GC.GetTotalMemory(true)×3 取最小。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d21-resource-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d21-resource-report.json",
+          "caseCount": {
+            "metrics": 45,
+            "gates": 52,
+            "negativeProbes": 15
+          }
+        },
+        {
+          "kind": "no-unbounded-growth",
+          "summary": "无单调无界增长：浏览器真实导入 30 轮斜率 33366 B/轮（阈值 65536）、包络 1321266 B、27/29 次递增——漂移来自草稿里累积的 30 个真实附件卡片（有界产品状态）；对照\"接收端独占 30 轮\"（每轮 2 块后 cancel、不进草稿）斜率 3405 B/轮、包络 97780 B，近乎水平，证明漂移不是接收端泄漏；Core 隔离进程 30 轮斜率 25930 B/轮、包络 751872 B。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "backpressure-and-cleanup",
+          "summary": "慢 ACK：对端完全不回时泵 8 次仍恰好 2 块在途、PendingBytes=524288(==MaxPendingBytes) 且不再读字节；逐条补 ack 每条只放行 1 块。暂停消费者：Core 闸门 64 次申请 2 活动/32 排队/30 拒绝（队列不无界）；浏览器暂停 drain 只接受 2 块、第 3 块 window-overflow、恢复一次 drain 恰好 2 条 ack。取消：浏览器缓冲 0、releasedBytes=524288、dispose 后残留 0；Core pending 0/0、3 源各释放恰好 1 次。子进程退出：Chromium pid 消失+pgrep=0；Core 子进程 exit 0 无残留。服务进程 RSS 仅观测不设阈值（噪声含 V8/zstd/分配器保留页）。Core 清理所有权：自有源在取消/失败/超时/Dispose 恰好释放一次，Dispose 释放活动槽位且排队目标一并撤销、重复 Dispose 幂等。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "negative-controls",
+          "summary": "15/15 负向控制：逐行荒谬阈值自检（45 行全部翻转 false）；无界序列与缓慢泄漏（+80KiB/轮、包络未越界）被判失败、有界抖动必须通过；真·无界路径 N6（浏览器每轮保留 1MiB×30，实测斜率 1048298 B/轮、包络 30347491）被同一采样+判定判失败；冻结时钟条目仍在；取消前缓冲非空、暂停期确有块被接受（防空检查）；超限必须拒；进程零残留；写盘前脱敏零命中。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "product-defects-fixed",
+          "summary": "顺带修掉两处真实产品缺陷（最小修复）：(1) AttachmentTransferCoordinator.cs:210,227——批次 Cancelled 后 PendingBytes/PendingChunks 仍报 2×256KiB（镜像保留历史块），取消后资源读数永远脏；改为终态 Cancelled（或未开批）返回 0，逐文件历史仍可读。(2) AttachmentTransferCoordinator.cs:1081（+_gateQueued 记账）——ReleaseGateSlot() 只看 _gateHeld，漏掉\"已排队未获槽位\"的目标；b 排队时 a 释放把 b 提升为活动、b 随即被 Dispose ⇒ 全局并发槽位永久泄漏（实测 Dispose 后 Gate.ActiveCount 仍 1）；改为排队也记账、释放时一并撤销。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "src/DshLauncher.Core/Attachments/AttachmentTransferCoordinator.cs"
+        },
+        {
+          "kind": "sampling-methodology-fix",
+          "summary": "采样口径修正（影响判据有效性）：Runtime.getHeapUsage().usedSize 不含 ArrayBuffer/Blob 的 backing storage（30MiB Uint8Array 只让 usedSize 动 4KB）⇒ 浏览器内存读数改为 usedSize+backingStorageSize，否则反例 N6 会是假绿；Core 托管堆改为 GC+终结器+连读 3 次取最小，并把紧判据限定在隔离的 D21 用例集进程（共享全量跑斜率 131KB/轮、包络 11.2MB；隔离跑 25.9KB/轮、0.75MB）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "gate-implemented",
+          "summary": "门禁 plugin-browser-tests 由 incomplete 转为 pass（eng 改动仅 verify-portable.ps1 + verification-profiles.json）：实现即 D21 浏览器层资源采样（真实 Chromium 驱动已构建插件的生产接收端，组合依赖真实装配、导入走真实桥→生产草稿适配器），断言\"最多两块在途\"\"超限拒绝\"、缓冲/引用释放与连续操作有界，并附真实可移植 Core 指标；步骤注释与 profiles 段显式声明不覆盖 composer/DOM、草稿适配器、桥、上传闭环（各有已实现检查），不做超范围声称。Development 未覆盖项 2→1（仅剩 final-tarball-install）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "eng/verify-portable.ps1"
+        },
+        {
+          "kind": "evidence-history",
+          "summary": "证据 runId 化且历史不覆盖：artifacts/verify-portable/d21-runs/<runId>/{report,gates,run}.json(+stdout.log,core-metrics,结果 XML) + index.json 现 11 次运行（含 3 次失败）全部保留、只增不改。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d21-runs/index.json"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "我独立核对：D21 证据 result=pass/failedGateIds=[]/52 条；采样报告 45 行且 metric/unit/samplingPoint/threshold/measured/pass 六字段零缺失；Development 汇总 29 项 pass + 1 incomplete（plugin-browser-tests=pass）、cases=546/546、crossBuild=pass、portableStatus=fail（因 D22 项）；固定用例基线逐 assembly 与 HEAD 比对 removed=0（Core 49→546、Acceptance 35→57、Windows 25→67）；两处产品修复在文件中落地；无残留进程。残余核验缺口（如实记录）：我抽读 4 条 30 点序列时又用错键名（取值 0 点），未亲自确认序列点数，仅据 eng 步骤自身断言\"每条序列 ≥30 点\"且该步骤 PASS 采信。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 29,
+            "incomplete": 1
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：WindowsPending 3 条（Windows 文件锁/ACL 语义、Windows 原生整进程树资源即 WebView2 子进程树/作业对象/句柄/GPU 内存、真实 WebView2 物理消息边界下的同一批资源采样）；B03 inFlight 峰值 1 而阈值 2 是接收端\"先自减再上报\"的口径（窗口上界由 B12/B13/B14 边界钉住）；服务进程 RSS 仅观测；eng/verify.ps1（Windows 正式门禁）与任何 Windows 执行未跑；我未独立复核 4 条序列的点数（见上）。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "startedAt": {
+        "round": "R24",
+        "platform": "linux"
+      },
+      "doneAt": {
+        "round": "R24",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/tests/fixtures/d21-resource-gates.mjs",
+        "plugins/dsh-remote-attachments/tests/fixtures/d21-resource-criteria.mjs",
+        "artifacts/verify-portable/d21-resource-report.json",
+        "tests/DshLauncher.Core.Tests/Attachments/ResourceBoundaryTests.cs"
+      ]
+    },
+    {
+      "id": "D22",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "clean-install",
+          "summary": "夹具私有 DSH_HOME 内新建 profile dsh-attachments-d22（此前不存在），安装固定 @linxin666/dsh-web-all@0.3.20 + 候选 tarball；profile 内 59 个文件与包内逐字节相同，lockfile 记录到候选 integrity/tarball，无 link:/符号链接。候选包 sha256=aa2da4a3781ec20835df229cba72e14f762ccb94d5c0d8e190c4a9aa010606b5、integrity=sha512-yLufZVBqcWK1WNoeQJbQ90Cd26ABG+yF43d+sHYpim65ebsIVZ6rFsVRKrJX5r504cYCXLsSgJHX8ibrswmdBw==；包内 lib/** 与当前构建树 55 个必发文件逐字节相同（陈旧 pack/*.tgz 会被抓出）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d22-package-manifest.json"
+        },
+        {
+          "kind": "running-bundle-is-this-round",
+          "summary": "三重证据证明运行时用的就是本轮 tarball：①安装侧 integrity == 新打包产物；②profile 内 59 文件与包内逐字节相同；③服务返回 HTML 逐字含已安装 host 模块现场生成的承载脚本（raw 模式 2980 字符），且合并 client bundle 里本包 lib/client.js 完整字节恰好出现一次、落在 combo 接缝上、sha256 d07b4e1895b4… == 包内。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "tarball-gates",
+          "summary": "tests/fixtures/d22-tarball-gates.mjs（pnpm run fixture:tarball）：26/26 判据、13/13 负向探针、exit 0。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d22-tarball-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d22-tarball-gates.json",
+          "caseCount": {
+            "gates": 26,
+            "passed": 26,
+            "negativeProbes": 13
+          }
+        },
+        {
+          "kind": "representative-loop",
+          "summary": "干净 profile + 真实 Chromium + LAN /remote 配对通道：11467B 分 3 块（≤4096B/块）全部 ack → file-end 哈希通过 → 草稿 staged → 原生 id 7fc46730-ca33-4e55-ba2b-9a8a959a2c84 由下一批 previous 逐位回读 → 上传 POST /remote/api/session/uploadFileBinary 200 + 设备头、receipt bytes=11467 attachmentId=sha256:66c95445… → 点击发送 agentRequests 0→2、工具调用 1 次 → 真实 read 读回 11467B/sha256 66c95445… 与导入逐字节相同。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "no-extra-remote-and-hygiene",
+          "summary": "无额外 remote：组合配置 addonRows=1/remoteAggregatedRows=1/remoteDirectRows=0/webserverRows=1；运行期只有 1 个 dsh 进程，3099/3097 未开，remote 进程 0，client roster 无 remote。包卫生：59 文件 0 命中；cookie/credential 路径/绝对家目录 canary 全部触发；manifest 与证据过 redact()+findSecretLeaks 0 泄漏且 canary 命中。共享卫生扫描抽为 scripts/pack-scan.mjs（test-pack.mjs 改为引用同一条）+ 单测 7 例含 canary。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d22-package-manifest.json"
+        },
+        {
+          "kind": "gate-implemented",
+          "summary": "门禁 final-tarball-install 由 incomplete 转为 pass（eng/verify-portable.ps1 新增该步骤 + verification-profiles.json 新增 finalTarballInstall 段）。Development 未覆盖项 1→0（全部 30 项已实现）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "eng/verify-portable.ps1"
+        },
+        {
+          "kind": "product-defect-fixed",
+          "summary": "顺带修复真实产品缺陷（最小改动）：src/client/compose.ts 的 writeDiagnostics 把 capability 由安装期快照改为读时探测（getter）。症状：boot 早期写入的快照长期谎报 unavailable/missing @deepseek-ai/dsh-client-ui-conversation，而接收端 file-end/草稿导入实际成功（status() 实时为 available）——诊断面与真实能力不一致。修后单测 167/167、D13 浏览器判据 16/16+9/9 全绿。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/src/client/compose.ts"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "我独立核对：D22 证据 result=pass/failedGateIds=[]/26 条；eng 中 final-tarball-install 已接入（2 处引用）；d22-runs 存在多个 runId 目录且索引只追加；固定用例基线未受影响（Acceptance 57/Core 546/Windows 67）。残余核验缺口（如实记录，且为我第三次同类失误）：我抽读 manifest 的 tarballSha256/integrity 时用错键名（打印 None），未亲自核对字段位置，数值采信子代理报告；D19/D21/D22 连续三轮都在\"猜字段名\"上出错，已写入交接文档作为我方方法缺陷。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d22-tarball-gates.json"
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：Windows 打包/安装（MSI/zip、真实 WebView2 承载、pwsh 跑 eng/verify.ps1、Windows 字节源）为 WindowsPending；子代理未跑 d09/d20/d21（夹具经济性；compose 改动由 D13 浏览器层覆盖）；d13 结尾调用 down.sh 致夹具根目录被删（只剩 evidence/），后续需要夹具需重跑 setup.sh。",
+          "platform": "windows",
+          "result": "notRun"
+        },
+        {
+          "kind": "profile-rerun-confirmed",
+          "summary": "里程碑已独立确认（上一轮存疑项已闭合）：Development 全量复跑跑完，checks=30 且 **30 pass / 0 incomplete / 0 fail**、final-tarball-install=**pass**、crossBuildStatus=pass、cases=546/546（failed=0 skipped=0）、**portableStatus=pass**（首次转正）。注意 developmentReady 仍为 false —— 这是 profile 配置使然（两端 profile 的 producesDevelopmentReady 均为 false，Linux 可移植门禁不产出 DevelopmentReady，正式判定属 Windows 的 eng/verify.ps1），不是失败。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 30,
+            "passed": 30,
+            "incomplete": 0,
+            "fail": 0
+          }
+        }
+      ],
+      "startedAt": {
+        "round": "R25",
+        "platform": "linux"
+      },
+      "doneAt": {
+        "round": "R25",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/tests/fixtures/d22-tarball-gates.mjs",
+        "plugins/dsh-remote-attachments/scripts/pack-scan.mjs",
+        "artifacts/verify-portable/d22-package-manifest.json",
+        "plugins/dsh-remote-attachments/src/client/compose.ts"
+      ]
+    },
+    {
+      "id": "D23",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "compat-gates",
+          "summary": "tests/fixtures/d23-compat-gates.mjs（pnpm run fixture:compat）：18/18 判据 + 11/11 负向探针、exit 0（约 282s）；证据双写 verify-portable 与 fixture/evidence；d23-runs/<runId>/ 12 个目录 + 只追加索引。",
+          "platform": "linux",
+          "command": "node tests/fixtures/d23-compat-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/d23-compat-gates.json",
+          "caseCount": {
+            "gates": 18,
+            "passed": 18,
+            "negativeProbes": 11
+          }
+        },
+        {
+          "kind": "compatibility-matrix",
+          "summary": "artifacts/verify-portable/d23-compatibility-matrix.json：5 行。verified=available/无码（承载→/remote 上传 200，主机库逐字节一致）；unknown-hook=unavailable/capability-conflict（未知 hook 原样保留并继续承担内置上传）；remote-degraded=unavailable/capability-disabled（承载拒绝、零请求、不回退裸 /api）；unsupported-version=unavailable/capability-disabled（内置路径与原厂基线页同形）；addon-disabled=LAN unavailable/loopback degraded + capability-disabled（与原厂基线整行 disabled 逐项一致）。五行 pairing/heartbeat 均不受影响。我核对 5 行与逐行 pairingUnaffected=true。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d23-compatibility-matrix.json"
+        },
+        {
+          "kind": "disable-and-recovery",
+          "summary": "独立停用/恢复：运行时停用→自有三全局+承载被撤、状态 disposed+reload-required、保留引用也被拒；心跳 200、/remote 读会话 200、设备集合哈希不变；PairingService.stop 插桩恒 0（N10 真调一次则 0→1、设备失效、设备库清空，证明不是空判据）。页面重载→真实 Page.reload(loopback) 后恢复谓词 false→true 且真实批次再次进草稿+主机库逐字节一致；LAN 裸 reload 被上游凭据层 401（干净页对照同样 401），受支持再入为 /pair-app。重启 Harness→同一设备凭据可用、通路照常。不支持组合用夹具内 seat 改名确定性模拟（finally 还原并记 sha256），能力 fail closed、内置路径与原厂基线同形。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "reload-required-both-directions",
+          "summary": "ReloadRequired 双向：只恢复承载、再恢复全部四个全局 ⇒ recovered=false、reloadRequired.required=true、导入仍被 capability-disabled 拒（\"恢复 global ≠ runtime 恢复\"）；真实重载后同一谓词翻 true 且跑通真实批次。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "version-policy",
+          "summary": "版本策略文档 plugins/dsh-remote-attachments/docs/COMPATIBILITY.md：固定 Harness 0.1.5-rc.1、all/remote 0.3.20、插件 0.1.0，实测逐项一致；all 用户主动更新只改写 profile 的 web-all 解析、本插件行/tarball 不受影响，核对前按不支持组合 fail closed；独立 scope 边界=dsh plugin --profile <p> 转发 pnpm，仅影响被点名依赖。未对任何来源执行更新。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/docs/COMPATIBILITY.md"
+        },
+        {
+          "kind": "product-defects-fixed",
+          "summary": "顺带修掉两处真实产品缺陷（最小改动）：(1) src/host/upload-hook.ts + src/host/index.ts——cordis 浏览器半区加载器 create({name}) 不带行配置，client 半区收不到 enabled:false ⇒ 禁用插件在 loopback 页面自报 available 且照旧导入（禁用失效）；现 host 在禁用时仍注入只写 __DSH_ATTACHMENTS_STATUS__.host.enabled=false 的标记脚本（不装承载），client 据此判 degraded/unavailable。(2) src/client/compose.ts——撤销后 capability()/status().capability 仍按页面事实报 available（\"只恢复全局=已恢复\"的假象来源）；现撤销后结论固定 unavailable+capability-disabled（原因带 reload-required），facts 仍如实回带。单测 167→169 全绿。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "plugins/dsh-remote-attachments/src/client/compose.ts"
+        },
+        {
+          "kind": "gate-implemented",
+          "summary": "门禁接入：eng/verify-portable.ps1 新增第 31 项检查 addon-compatibility-fixture（校验证据身份/结果、关键判据、runId 目录、matrix 五行与原因码、notRun、脱敏、夹具清理）；verification-profiles.json requiredChecks 30→31 并新增 compatibilityAndDisable 段。全量复跑确认无回归：31/31 checks pass、0 incomplete、portableStatus=pass、cases=546/546。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "eng/verify-portable.ps1"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "我独立核对：D23 证据 result=pass/failedGateIds=[]/18 条；兼容矩阵 5 行且逐行 pairingUnaffected=true；Development 汇总 checks=31 pass=31 incomplete=0 fail=0 portableStatus=pass crossBuildStatus=pass cases=546/546；新增检查 addon-compatibility-fixture=pass；文档与修复在位；清理后无残留进程、生产 profile 清单哈希漂移 0。残余核验缺口（如实记录，连续第四轮同类）：矩阵行的\"能力状态\"字段我又猜错键名（打印 None），未亲自核对能力状态取值。",
+          "platform": "linux",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 31,
+            "passed": 31,
+            "incomplete": 0,
+            "fail": 0
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验（证据 notRun，不计通过）：WindowsPackagingAndUpdate（WindowsPending：MSI/zip、真实 WebView2、Launcher 更新流程）；RealAllBundleUpdate（未对真实 npm 源或生产执行更新，只从 lock/manifest 推理）；UnverifiedUpstreamCombination（0.3.21/0.3.22 + 0.1.5-rc.2 未安装）；MarketplaceUpdateFlow；RealIndependentScopePluginUpdate（未装第二个插件版本）。方法说明：夹具设备表 maxDevices=4 且配对挤掉最老设备，故门禁开头清空夹具私有设备库、全程保留 1 主设备+1 负向控制设备。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "startedAt": {
+        "round": "R26",
+        "platform": "linux"
+      },
+      "doneAt": {
+        "round": "R26",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "plugins/dsh-remote-attachments/tests/fixtures/d23-compat-gates.mjs",
+        "artifacts/verify-portable/d23-compatibility-matrix.json",
+        "plugins/dsh-remote-attachments/docs/COMPATIBILITY.md"
+      ]
+    },
+    {
+      "id": "D24",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "authoritative-run",
+          "summary": "干净状态下完整跑 Development：runId d24-2026-09-15T11-15-43-616Z-0a0f006c（约 26 分钟）→ 32/32 checks pass、incomplete 0、fail 0、exit 0；portableStatus=pass、crossBuildStatus=pass（独立）、requiredCases=546/executedCases=546（failed=0 skipped=0）、harnessIntegration=pass、productionInterop=pass、windowsValidation=notRun、developmentReady=false（profile 配置）、releaseEligible=false。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 32,
+            "passed": 32,
+            "incomplete": 0,
+            "fail": 0,
+            "requiredCases": 546,
+            "executedCases": 546
+          }
+        },
+        {
+          "kind": "layer-coverage",
+          "summary": "L 覆盖表：L01–L11 + L13 全部 pass、缺口 0（每层映射到具体检查 id，证据路径含存在性与本轮新鲜度见 d24-linux-report.json 的 layers[].evidence）；L12 cross-build-l12 单独判定 = pass。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d24-linux-report.json"
+        },
+        {
+          "kind": "zero-tolerance",
+          "summary": "零容忍断言（7/7 负向控制成立）：requiredCases/executedCases≤0、执行≠必需、failed≠0、skipped≠0（含 notRun）、任一必需层非 pass、任一用例证据计数 0、notRun 无理由 ⇒ 违规并令 portableStatus=fail；C1(0 用例)/C2(skip)/C3(notRun)/C4(层 incomplete)/C5(无理由 notRun) 均确实失败，C0/C6 证明干净与 WindowsPending 输入不误报。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "status-independence",
+          "summary": "portableStatus 与 crossBuildStatus 独立（2/2 负向控制成立）：Resolve-DshPortableStatus 参数表没有 CrossBuildStatus（结构性隔离），可移植失败集合显式排除 cross-build-l12；I1 单独把 cross-build 改 fail ⇒ portableStatus 仍 pass、crossBuild 变 fail；I2 单独把 core-build 改 fail ⇒ portableStatus 变 fail、crossBuild 仍 pass；交叉构建失败仍经 $failures 令 exit 1（不静默）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "candidate-consistency",
+          "summary": "候选一致性：gitHead df68795c…、分支 feat/remote-file-paste-attachments、dirty 37（porcelain sha256 0b99fd98…）、插件 v0.1.0、src 树 c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe（18 文件）；d19/d20/d21/d22 内嵌 candidate 逐字段一致；全部 artifacts mtime 在本轮窗口内；D22 manifest↔gates tarball sha256 一致；身份违规 0。d10/d12/d13/d18/d23 证据未内嵌 candidate（d18 由 C# 写、不在改动范围）⇒ 在 identityNotDeclared 显式列出并用\"同轮重写\"兜底，不当作通过。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "notrun-inventory",
+          "summary": "notRun 合计 20，unjustified=0：WindowsPending 13（两个 Windows 测试程序集、两个 Windows 项目、WindowsValidationAndDevelopmentReady、D21 WP-01..03、D22 四项、D23 WindowsPackagingAndUpdate）+ 显式白名单受限场景 7（D20 G21b/G33/G38；D23 RealAllBundleUpdate/UnverifiedUpstreamCombination/MarketplaceUpdateFlow/RealIndependentScopePluginUpdate）。规则默认拒绝：非 WindowsPending/非白名单一律判 unjustified 并失败。",
+          "platform": "windows",
+          "result": "notRun"
+        },
+        {
+          "kind": "gate-defects-fixed",
+          "summary": "顺带修掉四处门禁缺陷（eng/verify-portable.ps1）：(1) portableStatus 原取\"所有 fail 检查\"⇒ 交叉构建失败会连带打成 fail（互相掩盖），现只取可移植失败集合；(2) 交叉构建原先不落日志，现捕获 stdout/stderr 到 d12-cross-build.log（L12 有证据）；(3) **真实门禁缺陷**：检查失败时 Write-Error 在 $ErrorActionPreference=Stop 下抛终止错误，被外层 catch 用兜底摘要覆盖正式摘要（cases 全 0、丢 candidate/testAssemblies），这解释了此前若干轮\"摘要像旧值/形状异常\"的现象（实测于第一次 D24 失败轮）；已加 $summaryWritten，catch 仅在未落盘时兜底；(4) 摘要 harnessIntegration 原硬编码 notRun，与 L06/L07 六项真实 Harness 全 pass 矛盾（虚报），现由 Resolve-DshHarnessIntegrationStatus 推导（本次=pass）。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "eng/verify-portable.ps1"
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：Windows 实机全部 notRun（WPF/WebView2/MSI、eng/verify.ps1 正式 DevelopmentReady）；L12 是 pass 而非 toolchainUnsupported。$HOME/.dsh 未被触碰（D22 G22/D23 G13a 均 before==after，运行窗口内零文件改动）；按全树算的粗指纹会因用户自己的 DSH 运行时持续写 task-board/、dsh-usage/、profiles/sdk/cordis.yml 而漂移（mtime 在运行窗口之外），不是门禁行为。父代理待复核：独立派生、零容忍负向控制、以及第 3 条摘要覆盖缺陷修复是否真的生效。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "startedAt": {
+        "round": "R27",
+        "platform": "linux"
+      },
+      "doneAt": {
+        "round": "R27",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "artifacts/verify-portable/d24-linux-report.json",
+        "plugins/dsh-remote-attachments/docs/D24-LINUX-REPORT.md",
+        "artifacts/verify-portable/d24-runs/",
+        "eng/verify-portable.ps1"
+      ]
+    },
+    {
+      "id": "D25",
+      "status": "done",
+      "lastRound": null,
+      "checkpoint": null,
+      "remaining": [],
+      "blocker": null,
+      "evidence": [
+        {
+          "kind": "candidate-binding",
+          "summary": "冻结候选并绑定：gitHead df68795c3f7a0a34d6ed4fdd7804e369bdd0258b、分支 feat/remote-file-paste-attachments、dirty 37、porcelain(Trim)sha256 0b99fd98968999bb5173eea6c1865e9f614df27d7e12a2045beaf616afdc8c10、插件 v0.1.0、src 树 c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe（18 文件）——与 D24 报告 candidate 逐字相同 ⇒ D24 权威轮（runId d24-2026-09-15T11-15-43-616Z-0a0f006c，32/32 pass）证据仍绑定同一工作树。tarball sha256=f8961215a8c9dffcca44ff78b82a49e8f39708e5df59e84bad46a161b0bc9556（163832B/59 文件）；6 份 packages.lock.json + 插件 pnpm-lock.yaml + compatibility-lock.json 逐个 SHA-256。无自动正式版本升级（release-constants 仍 2.0.9/candidate；未提交/打标签/推送/发布）。机器可读绑定见 artifacts/verify-portable/d25-handoff-manifest.json。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "artifacts/verify-portable/d25-handoff-manifest.json"
+        },
+        {
+          "kind": "windows-handoff-materials",
+          "summary": "Windows 输入材料与交接件齐备：docs/remote-file-paste/execution/windows-runbook.md（材料表→工具依赖 SDK 10.0.400/pwsh7/Node22+/pnpm/Chromium/WebView2 SDK+Runtime/Inno 7.0.2；6 项目 TFM+RID 与只-在-Windows 编译/执行项；固定基线 Core 546/Acceptance 57/Platform.Windows 67；xunit 64 条 WP38+WW6+WS14+WB6 与手工 40 条 WM-01..40；W00–W06 步骤命令；Offline/Online 安装与功能/版本回退；证据与脱敏；已知问题）+ windows-task-list.md（W00–W06、W-01..W-08.x、全量编号、20 条门禁级 notRun、W00-A 反斜杠基线与 W00-B 包摘要决策项）+ 冻结的 delivery-report.md 与 handoff.md。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "docs/remote-file-paste/execution/windows-runbook.md"
+        },
+        {
+          "kind": "dev-completion-audit",
+          "summary": "DEV 叶任务 D00–D24 全部 done（25 项）+ R15 修复轮 done，无 partial/blocked；轮次记录 R00–R27 共 28 份。逐条审计 state.json 的 evidence[].platform/result：**没有任何 Windows 平台证据被记 pass**（Windows 项一律 result=notRun）。生产源码无 TODO/FIXME、无 stub 抛壳、无 #if 假实现（未完成标记 0）。证据路径审计：仅 artifacts/fixture/provider/record/ 一个临时夹具目录不存在（夹具按设计清理并在门禁运行期内重建），其余全部存在。判定 developmentStatus=DevelopmentReady（implementation-plan §7：全部 DEV 叶任务完成且证据有效 + D24 完整 Linux 门禁真实通过 + D25 交接完整，不需要 Windows 在线）；windowsStatus=pending；releaseEligible=false。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "docs/remote-file-paste/execution/state.json"
+        },
+        {
+          "kind": "independent-reverification",
+          "summary": "父代理亲测（非引用子代理结论）：① 独立重算 porcelain 摘要与插件 src 树指纹，与 D24 candidate 逐字相同；② pnpm run build 后解包 tarball 逐文件比对 59/59 字节相同，sha256 与 D22 manifest 一致；③ 读码确认 Resolve-DshPortableStatus 参数表无 CrossBuildStatus、Resolve-DshCrossBuildStatus 只读自身、$summaryWritten 仅在未落盘时兜底；④ 逐字提取 eng/verify-portable.ps1:76-148 三个纯函数做变异输入控制 18/18 成立；⑤ 摘要覆盖缺陷端到端证伪：脚本副本保留守卫时正式摘要未被覆盖（requiredCases=542、保留 candidate、无 failure 字段），关闭守卫的对照确实被覆盖（requiredCases=0、无 candidate、有 failure 字段）⇒ 测试非空转、D24 第 3 处修复真实生效；⑥ 副本 A 顺带复跑 Core profile 7/7 pass、Core 用例 542/542（failed/skipped/notRun 均 0）。副本与 /tmp 目录已删，git status 回到 37 行，无遗留进程。",
+          "platform": "linux",
+          "result": "pass",
+          "path": "docs/remote-file-paste/execution/rounds/R28-D25.md"
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验（不计通过）：Windows 实机全部事实与正式门禁（两个 Windows 项目/测试程序集执行、WPF/WebView2/Win32 语义、eng/verify.ps1 的 verify-summary.json、Offline/Online 正式打包与安装、升级与回退、RS-01..RS-15）均 WindowsPending——明细见 windows-task-list.md §3–4（13 条 WindowsPending + 7 条白名单受限，unjustified 0）。本轮未重跑完整 Development 门禁（候选未变，D24 权威轮证据仍有效），只做 Core profile 复跑 + 纯函数级控制 + 摘要保护级端到端证伪；摘要保护测试用脚本副本而非原文件，Core 542 为 core 集合（546 含 interop 4），口径不同。方法边界如实记录。",
+          "platform": "windows",
+          "result": "notRun"
+        }
+      ],
+      "startedAt": {
+        "round": "R28",
+        "platform": "linux"
+      },
+      "doneAt": {
+        "round": "R28",
+        "platform": "linux",
+        "windowsStatus": "pending"
+      },
+      "artifacts": [
+        "artifacts/verify-portable/d25-handoff-manifest.json",
+        "docs/remote-file-paste/execution/windows-runbook.md",
+        "docs/remote-file-paste/execution/windows-task-list.md",
+        "docs/remote-file-paste/execution/delivery-report.md",
+        "docs/remote-file-paste/execution/handoff.md"
+      ]
+    },
+    {
+      "id": "R15-D10-fix",
+      "title": "修复 cancel 后同会话无法开新批次的契约缺陷",
+      "status": "done",
+      "round": "R15",
+      "dependsOn": [
+        "D10",
+        "D12"
+      ],
+      "doneAt": {
+        "round": "R15",
+        "platform": "linux"
+      },
+      "blocker": null,
+      "remaining": [],
+      "evidence": [
+        {
+          "kind": "three-way-fix",
+          "summary": "三处一致修正：TS src/shared/wire/session.ts 准入（取消视同关闭；同一 batchId 才 duplicate-operation）、TS src/client/receiver.ts 批次路由（!open.cancelled，新 batchId 新建状态机+内部预热身份）、C# src/DshLauncher.Core/Attachments/AttachmentSession.cs 镜像同规则。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "three-layer-tests",
+          "summary": "三层判据：TS 单测 101/101（新增 cancel→重开→完成导入；修复前确实失败）、C# 88/88（新增 CancelReleasesTheSessionSoANewBatchIdIsAdmitted）、真实 Chromium d12-receiver-gates 13/13（新增 G12，页面内 cancel→新批次完成导入→读回字节一致，复用被取消 batchId 仍 duplicate-operation）。",
+          "platform": "linux",
+          "command": "node --test \"test/unit/**/*.test.mjs\" + dotnet run --project tests/DshLauncher.Core.Tests + node tests/fixtures/d12-receiver-gates.mjs",
+          "exitCode": 0,
+          "result": "pass",
+          "caseCount": {
+            "tsTests": 101,
+            "csTests": 88,
+            "chromiumGates": 13
+          }
+        },
+        {
+          "kind": "no-corpus-change",
+          "summary": "D10 语料未改：全库检索确认没有任何样本同时含 cancel 与 batch-begin，即没有样本固化旧语义；test:wire 86/86 照旧通过。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "repo-discipline",
+          "summary": "dotnet format --verify-no-changes exit 0；eng/expected-test-dataset.json Core.Tests 87→88（removed=0 added=1，先断言基线条目未消失）。",
+          "platform": "linux",
+          "result": "pass"
+        },
+        {
+          "kind": "portable-development-profile",
+          "summary": "verify-portable.ps1 Development profile 自身范围通过：已实现 24 项全部 pass、0 fail、5 项 incomplete；Core 用例 88/88。portableStatus 仍为 fail（存在 incomplete 必需项）。",
+          "platform": "linux",
+          "command": "pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsDirectory ./artifacts/verify-portable",
+          "exitCode": 0,
+          "result": "pass",
+          "path": "artifacts/verify-portable/portable-verify-summary.json",
+          "caseCount": {
+            "checks": 29,
+            "passed": 24,
+            "fail": 0,
+            "incomplete": 5
+          }
+        },
+        {
+          "kind": "notRun",
+          "summary": "未验：Windows/真机；\"取消后立刻重开\"在真实传输通道下的时序（D12 尚未接通道，属 D13）。",
+          "platform": "linux",
+          "result": "notRun"
+        }
+      ]
+    }
+  ],
+  "project": {
+    "developmentStatus": "DevelopmentReady",
+    "developmentStatusBasis": "D00–D24 全部 DEV 叶任务 done + D24 Linux 完整门禁 32/32（runId d24-2026-09-15T11-15-43-616Z-0a0f006c）+ D25 源码/tarball/Windows 交接齐备（implementation-plan §7、windows-validation-plan §1）；不需要 Windows 在线。",
+    "developmentReadyGateField": "artifacts/verify-portable/portable-verify-summary.json 的 developmentReady=false 是 Linux profile 配置（producesDevelopmentReady=false）口径，与项目级 DevelopmentReady 不同；正式发布门禁摘要只能是 Windows eng/verify.ps1 的 verify-summary.json。",
+    "windowsStatus": "pending",
+    "releaseEligible": false
+  }
+}

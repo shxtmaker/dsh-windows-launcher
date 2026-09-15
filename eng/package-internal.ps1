@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [string] $Version,
@@ -333,9 +333,8 @@ try {
     )
 
     $verifySummarySource = Join-Path $verifyDirectory 'verify-summary.json'
-    if (-not (Test-Path -LiteralPath $verifySummarySource -PathType Leaf)) {
-        throw '统一验证未生成 verify-summary.json。'
-    }
+    # 结构断言：拒绝 eng/verify-portable.ps1 的可移植开发摘要冒充发行验证。
+    $null = Assert-DshWindowsVerifySummary -Path $verifySummarySource
     $verifySummary = Get-Content -LiteralPath $verifySummarySource -Raw -Encoding UTF8 |
         ConvertFrom-Json -Depth 20
     if ($verifySummary.result -cne 'PASS') {

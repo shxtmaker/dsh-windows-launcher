@@ -1,0 +1,12 @@
+﻿<Solution>
+  <!--
+    可移植开发子集：只包含可在 Linux 完整构建与运行的两个项目。
+    完整 DshWindowsLauncher.slnx 仍保留全部六个项目，正式 Windows 门禁继续使用它。
+  -->
+  <Folder Name="/src/">
+    <Project Path="src/DshLauncher.Core/DshLauncher.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj" />
+  </Folder>
+</Solution>

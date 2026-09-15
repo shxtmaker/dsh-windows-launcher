@@ -1,0 +1,494 @@
+{
+  "schemaVersion": 1,
+  "planRevision": "2.0",
+  "note": "Linux 开发门禁的显式配置。平台身份为最终 MSBuild 求值期望；Windows 正式门禁 eng/verify.ps1 另有其发行身份常量，本文件不替代它。",
+  "profiles": [
+    {
+      "name": "Core",
+      "purpose": "只证明平台无关的 Core 阶段：属性/锁文件/架构、Core 格式、构建与原有 Core 用例。",
+      "requiredChecks": [
+        "platform-evaluation",
+        "portable-solution-shape",
+        "architecture-constraints",
+        "core-locked-restore",
+        "core-format",
+        "core-build",
+        "core-test-execution"
+      ],
+      "producesDevelopmentReady": false
+    },
+    {
+      "name": "Development",
+      "purpose": "方案要求的完整非 Windows 开发验证（L01–L11、L13）。未实现的必需项必须报 incomplete，不得输出总通过。",
+      "requiredChecks": [
+        "platform-evaluation",
+        "portable-solution-shape",
+        "architecture-constraints",
+        "core-locked-restore",
+        "core-format",
+        "core-build",
+        "core-test-execution",
+        "cross-build-l12",
+        "supply-chain-scan",
+        "plugin-preflight",
+        "plugin-typecheck",
+        "plugin-build",
+        "plugin-unit-tests",
+        "plugin-browser-tests",
+        "plugin-integration-suite",
+        "plugin-pack",
+        "wire-contract-goldens",
+        "host-fixture-bundle",
+        "pairing-fixture",
+        "pairing-fixture-https",
+        "provider-fixture",
+        "upload-hook-fixture",
+        "client-composer-fixture",
+        "draft-adapter-fixture",
+        "browser-receiver-fixture",
+        "addon-bridge-fixture",
+        "host-fixture-minimal-loop",
+        "production-interop-l13",
+        "final-tarball-install",
+        "addon-compatibility-fixture",
+        "resource-and-failure-suites",
+        "d24-linux-convergence"
+      ],
+      "producesDevelopmentReady": false
+    }
+  ],
+  "expectedProjects": [
+    {
+      "name": "DshLauncher.Core",
+      "path": "src/DshLauncher.Core/DshLauncher.Core.csproj",
+      "targetFramework": "net10.0",
+      "runtimeIdentifier": "",
+      "portable": true
+    },
+    {
+      "name": "DshLauncher.Core.Tests",
+      "path": "tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj",
+      "targetFramework": "net10.0",
+      "runtimeIdentifier": "",
+      "portable": true,
+      "executableOnLinux": true
+    },
+    {
+      "name": "DshLauncher.Platform.Windows",
+      "path": "src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj",
+      "targetFramework": "net10.0-windows",
+      "runtimeIdentifier": "win-x64",
+      "portable": false
+    },
+    {
+      "name": "DshLauncher.Desktop",
+      "path": "src/DshLauncher.Desktop/DshLauncher.Desktop.csproj",
+      "targetFramework": "net10.0-windows",
+      "runtimeIdentifier": "win-x64",
+      "portable": false
+    },
+    {
+      "name": "DshLauncher.Platform.Windows.Tests",
+      "path": "tests/DshLauncher.Platform.Windows.Tests/DshLauncher.Platform.Windows.Tests.csproj",
+      "targetFramework": "net10.0-windows",
+      "runtimeIdentifier": "win-x64",
+      "portable": false,
+      "executableOnLinux": false,
+      "notExecutableReason": "用例调用真实 Win32 API；Linux 上 25 例中 15 例失败，且经 --runtime win-x64 调用时缺 Microsoft.WindowsDesktop.App。"
+    },
+    {
+      "name": "DshLauncher.Acceptance.Tests",
+      "path": "tests/DshLauncher.Acceptance.Tests/DshLauncher.Acceptance.Tests.csproj",
+      "targetFramework": "net10.0-windows",
+      "runtimeIdentifier": "win-x64",
+      "portable": false,
+      "executableOnLinux": false,
+      "notExecutableReason": "需要 Microsoft.WindowsDesktop.App 运行时，Linux 上无法启动（缺框架，退出码 150）。"
+    }
+  ],
+  "portableSolution": {
+    "path": "DshWindowsLauncher.Portable.slnx",
+    "projects": [
+      "DshLauncher.Core",
+      "DshLauncher.Core.Tests"
+    ]
+  },
+  "fullSolution": {
+    "path": "DshWindowsLauncher.slnx",
+    "projectCount": 6,
+    "lockFileCount": 6
+  },
+  "testAssemblies": [
+    {
+      "assembly": "DshLauncher.Core.Tests",
+      "profile": "Core",
+      "linuxExecutable": true,
+      "evidenceKind": "core-test-execution",
+      "requiredOnLinux": true
+    },
+    {
+      "assembly": "DshLauncher.Platform.Windows.Tests",
+      "profile": "WindowsOnly",
+      "linuxExecutable": false,
+      "evidenceKind": "windows-test-execution",
+      "requiredOnLinux": false
+    },
+    {
+      "assembly": "DshLauncher.Acceptance.Tests",
+      "profile": "WindowsOnly",
+      "linuxExecutable": false,
+      "evidenceKind": "windows-test-execution",
+      "requiredOnLinux": false
+    }
+  ],
+  "testRunner": {
+    "platform": "Microsoft.Testing.Platform",
+    "enumerationArguments": [
+      "-list",
+      "full/json",
+      "-preEnumerateTheories",
+      "-printMaxStringLength",
+      "0",
+      "-noColor",
+      "-noLogo"
+    ],
+    "executionArguments": [
+      "-explicit",
+      "on",
+      "-failSkips",
+      "-preEnumerateTheories",
+      "-printMaxStringLength",
+      "0",
+      "-noColor",
+      "-noLogo",
+      "-reporter",
+      "quiet"
+    ],
+    "datasetManifest": "eng/expected-test-dataset.json",
+    "note": "不得改用 dotnet test；不得关闭 failSkips；不得用运行结果自动接受新基线。"
+  },
+  "productionInterop": {
+    "check": "production-interop-l13",
+    "purpose": "真实 C# Core（生产协调器 + codec）经 stdio 测试通道把批次发进真实 Chromium 里的生产接收端（D12 页面全局），再由生产草稿适配器导入，ACK 与 import-result 回到同一个 Core。",
+    "replacedBoundary": "只替代 WebView2 的物理消息边界与 context 握手投递；分块/背压/序号/哈希/批次状态机/去重缓存全部是生产代码。",
+    "assembly": "DshLauncher.Core.Tests",
+    "caseSet": "interop",
+    "caseSetRunnerArguments": [
+      "-trait",
+      "interop=production"
+    ],
+    "coreSetRunnerArguments": [
+      "-trait-",
+      "interop=production"
+    ],
+    "fixtureScript": "plugins/dsh-remote-attachments/tests/interop/ensure-fixture.sh",
+    "driver": "plugins/dsh-remote-attachments/tests/interop/d18-interop-driver.mjs",
+    "evidence": "d18-interop-gates.json",
+    "traceDirectory": "artifacts/verify-portable/d18-interop",
+    "dependencies": {
+      "node": "Node 22+（内置 fetch/WebSocket）；可用 DSH_ATTACH_NODE 覆盖",
+      "dshCli": "~/.npm-global/bin/dsh，版本必须等于 tests/fixtures/compatibility-lock.json 的 harness.version",
+      "chromium": "真实 Chromium；cdp.mjs 解析顺序 DSH_ATTACH_CHROME → /usr/bin/google-chrome → /usr/bin/chromium",
+      "pnpm": "构建与打包（ensure-fixture.sh 内部使用，冻结依赖）",
+      "fixture": "私有 DSH_HOME 与 dsh-attachments-fixture / dsh-attachments-headless 两个 profile；setup.sh 建立，ensure-fixture.sh 保证夹具装的是当前 tarball"
+    },
+    "windowsRequirements": [
+      "真实 Edge WebView2 运行时：D18 只替代它的物理消息边界，Windows 全量验证必须回到真实 WebView2 承载。",
+      "Windows 侧字节源端口（Platform.Windows 的 WindowsStagedByteSource / 暂存适配器）：Linux 用例用等价的只读文件源注入同一 IAttachmentByteSource 契约。",
+      "pwsh 7 与 eng/verify.ps1 正式门禁：本检查只属于 Linux Development 门禁的 L13，不构成发布凭据。",
+      "Windows 上同一批用例名会进入 DshLauncher.Core.Tests 的 Interop 集合，manifest 基线需按同一算法（SHA-256 of 'Namespace.Class.Method'）复核。"
+    ],
+    "note": "证据必须先删除再生成：production-interop-l13 拒绝陈旧绿灯；用例本身不做跳过，缺工具即失败。"
+  },
+  "pluginBrowserTests": {
+    "check": "plugin-browser-tests",
+    "purpose": "插件浏览器层资源与背压边界（D21）：真实 Chromium 中驱动**已构建插件**的生产接收端，逐条给出单位/采样点/阈值/实测值的资源上界判据。",
+    "evidence": "d21-resource-gates.json",
+    "report": "d21-resource-report.json",
+    "script": "plugins/dsh-remote-attachments/tests/fixtures/d21-resource-gates.mjs",
+    "criteria": "plugins/dsh-remote-attachments/tests/fixtures/d21-resource-criteria.mjs",
+    "runDirectory": "artifacts/verify-portable/d21-runs",
+    "layers": {
+      "browser": "真实 Chromium + 已构建插件：最大文件（20 MiB）/最大批次（10 文件）/超限拒绝/取消回收/暂停消费者（2 块在途窗口）/连续 30 轮（每轮 CDP 强制 GC 后读 usedSize + backingStorageSize）",
+      "core": "真实可移植 Core 的 D21 用例集（dotnet run -trait d21=resources）：慢 ACK 的 2 块窗口与 MaxPendingBytes、全局闸门有界队列、取消与 Dispose 的所有权、去重台账 TTL/容量、连续 30 轮托管堆序列",
+      "unit": "已构建 lib/ 的 ReplayCache + 注入时钟（TTL/容量/钉住，确定性，不用 sleep）"
+    },
+    "coveredElsewhere": {
+      "note": "本检查只覆盖资源与背压边界。composer/DOM 健康、草稿适配器、桥握手与降级、上传闭环分别由 client-composer-fixture / draft-adapter-fixture / addon-bridge-fixture / host-fixture-minimal-loop 覆盖。",
+      "checks": [
+        "client-composer-fixture",
+        "draft-adapter-fixture",
+        "addon-bridge-fixture",
+        "host-fixture-minimal-loop"
+      ]
+    },
+    "windowsPending": [
+      "Windows 文件锁/ACL 语义（真实 CreateFileW 独占/共享、继承 ACL）",
+      "Windows 原生整进程树资源（WebView2 子进程树、作业对象/句柄计数、GPU 进程内存）",
+      "真实 WebView2 物理消息边界下的同一批资源采样"
+    ],
+    "note": "证据先删除再生成；判据在真实浏览器与真实 Core 上执行，未验项在报告里显式列出，绝不静默通过。"
+  },
+  "finalTarballInstall": {
+    "check": "final-tarball-install",
+    "purpose": "证明**交付包本身**在干净的全家桶环境里装上并跑通：候选 tarball（pack/*.tgz）装进夹具私有 DSH_HOME 中一个**此前不存在**的 profile（固定 @linxin666/dsh-web-all），并断言跑着的 host/client 就是包内字节，而不是 source link、夹具残留或上一轮产物。",
+    "evidence": "d22-tarball-gates.json",
+    "manifest": "d22-package-manifest.json",
+    "script": "plugins/dsh-remote-attachments/tests/fixtures/d22-tarball-gates.mjs",
+    "installScript": "plugins/dsh-remote-attachments/tests/fixtures/d22-clean-install.sh",
+    "packScanModule": "plugins/dsh-remote-attachments/scripts/pack-scan.mjs",
+    "runDirectory": "artifacts/verify-portable/d22-runs",
+    "evidenceSchema": {
+      "schemaVersion": 1,
+      "task": "D22",
+      "purpose": "final-tarball-install",
+      "gates": "[{ id, description, ok, detail }]",
+      "failedGateIds": "[]",
+      "result": "pass|fail"
+    },
+    "assertions": [
+      "包内 lib/** 与当前构建树逐文件相同（陈旧 pack/*.tgz 会被抓出）",
+      "第二 profile 本轮从 web 模板新建：目录此前不存在、bundles 固定四件套、全家桶版本等于 compatibility-lock.json",
+      "profile 内实际安装的插件文件与包内逐字节相同；lockfile 记录到候选包的 integrity 与 tarball 路径；无 link: 依赖、无符号链接（不是 source link）",
+      "组合配置里本插件行恰好一次、全家桶 remote 行恰好一次、没有直接安装的 remote（run-gates F02 技法）",
+      "运行期只有一个本 profile 的 dsh 进程，夹具端口与第二 target 端口没有被本轮拉起",
+      "服务返回的 HTML 逐字含**已安装 host 模块**现场生成的预启动承载脚本",
+      "合并 client bundle 里**完整**的本包 lib/client.js 字节恰好出现一次且落在 combo 接缝上",
+      "干净 profile 里的代表性闭环：分块传输（≥3 块逐块 ack + 内容哈希校验）→ 真 File → 生产草稿导入 staged → 原生 attachment id 由下一次导入的 previous 逐位回读 → remote 路由上传 receipt（bytes + 内容寻址 attachmentId）→ 真实发送 → 真实 read 工具逐字节读回",
+      "包卫生用与 D03 test:pack 同一条扫描（scripts/pack-scan.mjs），manifest 经 redact()/findSecretLeaks 且零绝对家目录路径"
+    ],
+    "controls": [
+      "N01 包内 client.js 改一字节 ⇒ 构建树比对必须失败",
+      "N02 sha256/integrity 指向旧产物 ⇒ 身份判定必须失败",
+      "N03 已安装副本多一字节 ⇒ 安装/包比对必须失败",
+      "N04 期望承载脚本改一处 ⇒ 运行中 host 判定必须失败",
+      "N05 候选 client.js 改一处 ⇒ 运行中 client bundle 判定必须失败",
+      "N06 非当前会话导入 ⇒ 必须确定失败（原生 id 判定不是恒真）",
+      "N07 分块哈希不符 ⇒ file-end 必须失败且不产生原生 id",
+      "N08 receipt.bytes±1 ⇒ 一致性判定必须失败",
+      "N09 期望正文改一字 ⇒ 工具读回判定必须失败",
+      "N10 往包条目注入配对 cookie / credential 路径 / 绝对家目录 ⇒ 卫生扫描必须命中",
+      "N11/N12 往 manifest/证据注入配对令牌与绝对家目录 ⇒ 脱敏判定必须命中"
+    ],
+    "notRun": [
+      "Windows 正式打包与安装（eng/package.ps1、package-unsigned.ps1 产出的 MSI/zip 与 WebView2 承载）——WindowsPending，Linux 上不尝试",
+      "在 Windows 上以 pwsh 运行 eng/verify.ps1 中的同一检查——WindowsPending",
+      "真实 WebView2 物理消息边界下的同一闭环——WindowsPending（Linux 用真实 Chromium + 真实 /remote 通道作等价承载）",
+      "Windows Launcher 侧真实字节源（WindowsStagedByteSource）——WindowsPending（本轮直接用接收端分块协议驱动）"
+    ],
+    "windowsPending": [
+      "MSI/zip 打包产物在干净 Windows 上的安装与启动",
+      "真实 WebView2 承载下的附件上传与工具读回",
+      "Windows 侧文件锁/ACL 语义对暂存副本的影响"
+    ],
+    "note": "本检查不调用 down.sh：它会删除整个共享夹具目录（setup.sh 需要数分钟）。门禁编排层（eng/verify-portable.ps1）负责检查前后的 down.sh/setup.sh；本脚本只停自己起的服务/stub/Chrome，并删除自己新建的 D22 profile。"
+  },
+  "requiredTestAssembliesOnLinux": [
+    "DshLauncher.Core.Tests"
+  ],
+  "crossBuild": {
+    "check": "cross-build-l12",
+    "solution": "DshWindowsLauncher.slnx",
+    "properties": [
+      "-p:EnableWindowsTargeting=true"
+    ],
+    "statusValues": [
+      "pass",
+      "fail",
+      "toolchainUnsupported"
+    ],
+    "note": "普通 C#/XAML/引用错误必须为 fail；只有最小案例确认的 SDK/任务平台限制才可记 toolchainUnsupported。"
+  },
+  "windowsReleaseEntry": {
+    "script": "eng/verify.ps1",
+    "summaryFileName": "verify-summary.json",
+    "rejectsPortableSummary": true,
+    "portableSummaryFileName": "portable-verify-summary.json",
+    "note": "eng/package.ps1 与 package-internal.ps1 只接受 eng/verify.ps1 生成的 verify-summary.json；portable 摘要是另一个文件名，且不得被当作发布凭据。"
+  },
+  "compatibilityAndDisable": {
+    "check": "addon-compatibility-fixture",
+    "purpose": "证明附加插件可被独立停用、能在页面重载/Harness 重启后仍然正确，并且对全家桶版本变化给出诚实结论：能力矩阵逐行可核对，且『只恢复全局变量』绝不被当作 runtime 恢复（必要时必须报 ReloadRequired）。",
+    "evidence": "d23-compat-gates.json",
+    "matrix": "d23-compatibility-matrix.json",
+    "script": "plugins/dsh-remote-attachments/tests/fixtures/d23-compat-gates.mjs",
+    "policyDoc": "plugins/dsh-remote-attachments/docs/COMPATIBILITY.md",
+    "runDirectory": "artifacts/verify-portable/d23-runs",
+    "evidenceSchema": {
+      "schemaVersion": 1,
+      "task": "D23",
+      "purpose": "compatibility-and-disable",
+      "gates": "[{ id, description, ok, detail }]",
+      "failedGateIds": "[]",
+      "result": "pass|fail"
+    },
+    "assertions": [
+      "已验证组合：实际安装版本与 compatibility-lock.json 逐项一致；能力 available + remote-rewrite；真实分块批次拿到原生 attachmentIds、上传 200、主机内容寻址库逐字节一致",
+      "运行时停用只撤自有全局与承载：状态面 disposed + reload-required，保留引用一律被拒；配对/心跳/设备集合毫发无损（PairingService.stop 调用记录恒为 0，负向控制会触发它）",
+      "不得谎报恢复：只把全局变量放回去（承载/全部四个全局）后恢复谓词仍为 false、导入仍被拒；真实页面重载后同一谓词翻为 true 且真实批次再次成功",
+      "Harness 重启后同一设备仍可用（心跳 200、/remote 读会话 200、设备集合不变），页面再入后附件通路照常",
+      "四类组合的能力结论与原因码：未知 hook=capability-conflict、remote 降级/不支持组合/独立停用=capability-disabled（承载拒绝且零请求，不回退裸 /api）",
+      "独立停用范围只落在本插件行：组合配置逐行差异不涉及全家桶，profile 清单与锁文件逐字节不变；原厂基线（整行 disabled）页面上内置入口行为与停用页逐项一致",
+      "版本策略产物：机器可读矩阵每行与本次实测一致；插件内 docs/COMPATIBILITY.md 写明固定版本、all 更新预期与独立 scoped 更新边界；生产 $HOME/.dsh 既有清单文件零漂移"
+    ]
+  },
+  "d24Convergence": {
+    "check": "d24-linux-convergence",
+    "purpose": "D24：把方案 2.0 第 4 节的 L01–L11、L13 必需项逐条映射到已实现的 Development 检查与证据，逐项核对状态，并对零用例/跳过/未验与 portable↔crossBuild 独立性给出可证伪断言。L12 单独判定，不参与 portableStatus。",
+    "report": "artifacts/verify-portable/d24-linux-report.json",
+    "runDirectory": "artifacts/verify-portable/d24-runs",
+    "crossBuildLog": "artifacts/verify-portable/d12-cross-build.log",
+    "separatelyJudgedLayers": [
+      "L12"
+    ],
+    "layers": [
+      {
+        "layer": "L01",
+        "title": "MSBuild 求值、包锁、架构（Core/Core.Tests 无 Windows RID/API；六项目清单一致）",
+        "checks": ["platform-evaluation", "portable-solution-shape", "architecture-constraints", "core-locked-restore", "core-format", "core-build"],
+        "evidence": ["eng/verification-profiles.json", "DshWindowsLauncher.Portable.slnx"],
+        "caseEvidence": []
+      },
+      {
+        "layer": "L02",
+        "title": "C# Core 生产协调器（分块、ACK 窗口、取消、超时、乱序、重复、尺寸溢出、流释放）",
+        "checks": ["core-test-execution"],
+        "evidence": ["artifacts/verify-portable/DshLauncher.Core.Tests.core.test-evidence.json", "artifacts/verify-portable/d11-coordinator-trace.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/DshLauncher.Core.Tests.core.test-evidence.json", "field": "tests" }
+        ]
+      },
+      {
+        "layer": "L03",
+        "title": "C#/TS 双向协议（同一黄金样本与异常样本、字段/大小写/整数边界/错误码一致、生产 codec 交叉读取）",
+        "checks": ["wire-contract-goldens"],
+        "evidence": ["artifacts/verify-portable/d10-wire-gates.json", "artifacts/verify-portable/d10-wire-parity-cases.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d10-wire-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L04",
+        "title": "JS 生产接收器（≤2 块在途、超限拒绝、恶意 offset/seq 不混入、无 Web Crypto 时哈希仍正确）",
+        "checks": ["browser-receiver-fixture", "plugin-unit-tests"],
+        "evidence": ["artifacts/verify-portable/d12-receiver-gates.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d12-receiver-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L05",
+        "title": "Linux Chromium 测试页（模拟 WebView bridge 消息产生 File；中文/空格名、零字节、PNG、批次上限）",
+        "checks": ["client-composer-fixture", "draft-adapter-fixture"],
+        "evidence": ["artifacts/verify-portable/d08-composer-gates.json", "artifacts/verify-portable/d08-ui-gates.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d08-composer-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d08-ui-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L06",
+        "title": "真实 Harness＋全家桶＋附加插件（实际 host/client 挂载、早期注入、原配对/设置/附件 UI 不受影响）",
+        "checks": ["host-fixture-bundle", "addon-bridge-fixture", "addon-compatibility-fixture"],
+        "evidence": ["artifacts/verify-portable/d04-fixture-gates.json", "artifacts/verify-portable/d13-bridge-gates.json", "artifacts/verify-portable/d23-compat-gates.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d04-fixture-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d13-bridge-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d23-compat-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L07",
+        "title": "真实上传和发送（/remote/api/session/uploadFileBinary、免 Cookie 设备头、receipt、发送前后无模型请求、工具读回）",
+        "checks": ["upload-hook-fixture", "provider-fixture", "host-fixture-minimal-loop"],
+        "evidence": ["artifacts/verify-portable/d07-upload-gates.json", "artifacts/verify-portable/d06-provider-gates.json", "artifacts/verify-portable/d09-loop-gates.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d07-upload-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d06-provider-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d09-loop-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L08",
+        "title": "会话并发与安全（双目标、双会话、子代理、锁定 composer、后台页、iframe、导航、迟到 ACK；零错投）",
+        "checks": ["plugin-integration-suite"],
+        "evidence": ["artifacts/verify-portable/d20-isolation-gates.json", "artifacts/verify-portable/d20-isolation-matrix.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d20-isolation-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L09",
+        "title": "网络与失败（HTTP 非 loopback、HTTPS 受信任测试证书、断流/超时/413/403/401/撤销/重启/上传失败；不自动重发）",
+        "checks": ["pairing-fixture", "pairing-fixture-https", "resource-and-failure-suites"],
+        "evidence": ["artifacts/verify-portable/d05-pairing-gates.json", "artifacts/verify-portable/d05-https-gates.json", "artifacts/verify-portable/d19-failure-gates.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d05-pairing-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d05-https-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d19-failure-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L10",
+        "title": "打包安装（实际 tarball、独立隔离 profile、最终 bundle、锁定依赖、包内不含凭据或测试数据）",
+        "checks": ["supply-chain-scan", "plugin-pack", "final-tarball-install"],
+        "evidence": ["artifacts/verify-portable/d22-tarball-gates.json", "artifacts/verify-portable/d22-package-manifest.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d22-tarball-gates.json", "field": "gates" }
+        ]
+      },
+      {
+        "layer": "L11",
+        "title": "资源与退出（最大批次、重复 30 轮、接收内存上界、取消释放缓存、日志无秘密、不删除共享附件）",
+        "checks": ["plugin-browser-tests", "resource-and-failure-suites"],
+        "evidence": ["artifacts/verify-portable/d21-resource-gates.json", "artifacts/verify-portable/d21-resource-report.json", "artifacts/verify-portable/d19-failure-gates.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d21-resource-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/d21-resource-report.json", "field": "metrics" }
+        ]
+      },
+      {
+        "layer": "L12",
+        "title": "全 solution 交叉构建（支持工具链时必过；已证实平台限制独立记录）",
+        "checks": ["cross-build-l12"],
+        "evidence": ["artifacts/verify-portable/d12-cross-build.log"],
+        "caseEvidence": []
+      },
+      {
+        "layer": "L13",
+        "title": "真实 C#↔Chromium↔Harness 互操作（生产 sender/codec ↔ 生产 receiver，真实 ACK 回流、草稿确认、工具读取）",
+        "checks": ["production-interop-l13"],
+        "evidence": ["artifacts/verify-portable/d18-interop-gates.json", "artifacts/verify-portable/DshLauncher.Core.Tests.interop.test-evidence.json"],
+        "caseEvidence": [
+          { "path": "artifacts/verify-portable/d18-interop-gates.json", "field": "gates" },
+          { "path": "artifacts/verify-portable/DshLauncher.Core.Tests.interop.test-evidence.json", "field": "tests" }
+        ]
+      }
+    ],
+    "identityEvidence": [
+      "artifacts/verify-portable/d19-failure-gates.json",
+      "artifacts/verify-portable/d20-isolation-gates.json",
+      "artifacts/verify-portable/d21-resource-report.json",
+      "artifacts/verify-portable/d22-package-manifest.json",
+      "artifacts/verify-portable/d22-tarball-gates.json"
+    ],
+    "identityNotDeclared": [
+      "artifacts/verify-portable/d10-wire-gates.json",
+      "artifacts/verify-portable/d12-receiver-gates.json",
+      "artifacts/verify-portable/d13-bridge-gates.json",
+      "artifacts/verify-portable/d18-interop-gates.json",
+      "artifacts/verify-portable/d23-compat-gates.json"
+    ],
+    "identityNotDeclaredNote": "这些证据未内嵌 candidate 块（d18 由 C# interop fixture 写入，C# 不在 D24 允许改动范围；其余为早期脚本格式）。它们以『同一轮运行内重写』（mtime 落在本轮窗口内）+ 已声明身份证据的 gitHead/工作树/插件版本/源码树哈希一致来保证不混入旧候选；D24 报告只把已声明身份的证据计入 identityAgreement，其余列入 identityNotDeclared 而不静默忽略。",
+    "acceptedScopeLimitedNotRun": [
+      "G21b-real-app-inside-subframe",
+      "G33-busy-turn-is-real",
+      "G38-subagent-session-specific-state",
+      "RealAllBundleUpdate",
+      "UnverifiedUpstreamCombination",
+      "MarketplaceUpdateFlow",
+      "RealIndependentScopePluginUpdate"
+    ],
+    "acceptedScopeLimitedNotRunNote": "这些是各检查内部**明确记录**的、非 Windows 的受限场景 notRun（跨轮 D19/D20/D23 遗留，各自带 reason）。它们不被算作通过，也不是 WindowsPending；D24 的零容忍规则是『默认拒绝』：只有 reason 明确为 WindowsPending/platform=windows，或在此显式白名单里的条目才被接受，其他任何 notRun 一律判 unjustified 并失败。"
+  }
+}

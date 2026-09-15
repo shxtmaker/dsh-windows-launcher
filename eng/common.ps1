@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 function Test-DshSemVer {
     [CmdletBinding()]
@@ -240,6 +240,48 @@ function Get-DshEmptyValuePaths {
 
     Visit-DshValue -Value $InputObject -CurrentPath $Path
     return $findings.ToArray()
+}
+
+function Assert-DshWindowsVerifySummary {
+    <#
+    .SYNOPSIS
+        断言给定摘要确实来自 Windows 正式门禁 eng/verify.ps1，而不是可移植开发摘要。
+    .DESCRIPTION
+        发布入口只接受 eng/verify.ps1 生成的 verify-summary.json。可移植门禁写的是
+        portable-verify-summary.json（字段为 portableStatus / verificationProfile），
+        两者文件名与结构都不同。此断言按结构核对，防止误用非发行验证充当发布凭据。
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "缺少 Windows 正式验证摘要：$Path"
+    }
+    $summary = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 20
+    $properties = @($summary.PSObject.Properties.Name)
+    if ($properties -contains 'portableStatus' -or $properties -contains 'verificationProfile') {
+        throw "发布入口拒绝可移植开发摘要：$Path（它是 eng/verify-portable.ps1 的输出，不是发行验证凭据）。"
+    }
+    foreach ($required in @('result', 'runtimeIdentifier', 'releaseStatus', 'executedGates')) {
+        if ($properties -notcontains $required) {
+            throw "验证摘要缺少 Windows 正式门禁字段 '$required'：$Path"
+        }
+    }
+    if ($summary.result -ne 'PASS') {
+        throw "验证摘要不是 PASS：$Path（result=$($summary.result)）。"
+    }
+    if ($summary.runtimeIdentifier -ne 'win-x64') {
+        throw "验证摘要的 RID 不是 win-x64：$Path（runtimeIdentifier=$($summary.runtimeIdentifier)）。"
+    }
+    return [pscustomobject]@{
+        Path              = $Path
+        Result            = [string] $summary.result
+        RuntimeIdentifier = [string] $summary.runtimeIdentifier
+        ReleaseStatus     = [string] $summary.releaseStatus
+    }
 }
 
 function Assert-DshReleaseConstants {
@@ -592,6 +634,41 @@ function Get-DshExactDotNetPath {
     throw "找不到精确 .NET SDK $ExpectedVersion。已检查：$($observed -join '; ')"
 }
 
+function Get-DshProjectPlatform {
+    <#
+    .SYNOPSIS
+        在最终求值意义上读取项目的目标框架、RID 与平台目标。
+    .DESCRIPTION
+        平台身份由各项目显式声明（见 Directory.Build.props 顶部说明），因此门禁必须核对
+        MSBuild 最终求值结果，而不是公共 props 的字符串片段。要求 dotnet 可用。
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $RepositoryRoot,
+
+        [Parameter(Mandatory)]
+        [string] $ProjectPath
+    )
+
+    $dotnet = Get-Command -Name dotnet -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($null -eq $dotnet) {
+        throw "未找到 dotnet，无法求值项目平台身份：$ProjectPath"
+    }
+
+    $fullPath = [IO.Path]::GetFullPath($ProjectPath)
+    $values = [ordered]@{}
+    foreach ($propertyName in @('TargetFramework', 'RuntimeIdentifier', 'PlatformTarget')) {
+        $raw = Invoke-DshNativeCapture -FilePath $dotnet.Source -Arguments @(
+            'msbuild', $fullPath, "-getProperty:$propertyName", '-nologo'
+        ) -WorkingDirectory $RepositoryRoot -OutputEncoding ([Text.UTF8Encoding]::new($false))
+        $value = @($raw -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $values[$propertyName] = if ($value.Count -eq 0) { '' } else { [string] $value[-1] }
+    }
+
+    return [pscustomobject] $values
+}
 function Invoke-DshNative {
     [CmdletBinding()]
     param(

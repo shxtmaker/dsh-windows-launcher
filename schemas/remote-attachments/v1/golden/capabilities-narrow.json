@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "capabilities",
+  "features": [
+    "chunked-transfer",
+    "file-end-hash"
+  ],
+  "limits": {
+    "maxFileBytes": 1024,
+    "maxFilesPerBatch": 2,
+    "maxBatchBytes": 1024,
+    "maxScreenshotPixels": 1000,
+    "maxStagingBytesPerTarget": 4096,
+    "maxConcurrentTargets": 1
+  }
+}

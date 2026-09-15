@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "planRevision": "2.0",
+  "tasks": [
+    {
+      "id": "D00",
+      "title": "核实基线并建立执行台账",
+      "track": "DEV",
+      "file": "tasks/d00-baseline.md",
+      "dependsOn": []
+    },
+    {
+      "id": "D01",
+      "title": "分离 Core 的平台目标",
+      "track": "DEV",
+      "file": "tasks/d01-portable-core.md",
+      "dependsOn": [
+        "D00"
+      ]
+    },
+    {
+      "id": "D02",
+      "title": "建立可增量扩展的 Linux 开发门禁",
+      "track": "DEV",
+      "file": "tasks/d02-portable-gate.md",
+      "dependsOn": [
+        "D01"
+      ]
+    },
+    {
+      "id": "D03",
+      "title": "建立独立附加插件骨架与最小包",
+      "track": "DEV",
+      "file": "tasks/d03-addon-scaffold.md",
+      "dependsOn": [
+        "D00"
+      ]
+    },
+    {
+      "id": "D04",
+      "title": "启动隔离的真实 Harness 与全家桶夹具",
+      "track": "DEV",
+      "file": "tasks/d04-bundle-fixture.md",
+      "dependsOn": [
+        "D03"
+      ]
+    },
+    {
+      "id": "D05",
+      "title": "验证测试配对与远程通道",
+      "track": "DEV",
+      "file": "tasks/d05-pairing-fixture.md",
+      "dependsOn": [
+        "D04"
+      ]
+    },
+    {
+      "id": "D06",
+      "title": "建立确定性模型与真实工具读取夹具",
+      "track": "DEV",
+      "file": "tasks/d06-provider-fixture.md",
+      "dependsOn": [
+        "D04"
+      ]
+    },
+    {
+      "id": "D07",
+      "title": "实现并验证启动前上传承载",
+      "track": "DEV",
+      "file": "tasks/d07-upload-hook.md",
+      "dependsOn": [
+        "D03",
+        "D05"
+      ]
+    },
+    {
+      "id": "D08",
+      "title": "实现原生草稿入口及同步导入确认",
+      "track": "DEV",
+      "file": "tasks/d08-draft-adapter.md",
+      "dependsOn": [
+        "D03",
+        "D05"
+      ]
+    },
+    {
+      "id": "D09",
+      "title": "完成 Linux 最小附件发送闭环",
+      "track": "DEV",
+      "file": "tasks/d09-minimal-loop.md",
+      "dependsOn": [
+        "D06",
+        "D07",
+        "D08"
+      ]
+    },
+    {
+      "id": "D10",
+      "title": "冻结批次与文件协议并实现双端 codec",
+      "track": "DEV",
+      "file": "tasks/d10-wire-contract.md",
+      "dependsOn": [
+        "D02",
+        "D09"
+      ]
+    },
+    {
+      "id": "D11",
+      "title": "实现可移植分块协调器",
+      "track": "DEV",
+      "file": "tasks/d11-core-transfer.md",
+      "dependsOn": [
+        "D01",
+        "D10"
+      ]
+    },
+    {
+      "id": "D12",
+      "title": "实现浏览器分块接收与文件构造",
+      "track": "DEV",
+      "file": "tasks/d12-browser-receiver.md",
+      "dependsOn": [
+        "D03",
+        "D10"
+      ]
+    },
+    {
+      "id": "D13",
+      "title": "组合附加插件桥与能力状态",
+      "track": "DEV",
+      "file": "tasks/d13-addon-bridge.md",
+      "dependsOn": [
+        "D07",
+        "D08",
+        "D11",
+        "D12"
+      ]
+    },
+    {
+      "id": "D14",
+      "title": "编写 Windows 文件快照与暂存适配",
+      "track": "DEV",
+      "file": "tasks/d14-windows-staging.md",
+      "dependsOn": [
+        "D11"
+      ]
+    },
+    {
+      "id": "D15",
+      "title": "局部提取远程页面生命周期",
+      "track": "DEV",
+      "file": "tasks/d15-page-session.md",
+      "dependsOn": [
+        "D11"
+      ]
+    },
+    {
+      "id": "D16",
+      "title": "实现原生粘贴手势与剪贴板适配",
+      "track": "DEV",
+      "file": "tasks/d16-native-paste.md",
+      "dependsOn": [
+        "D14",
+        "D15"
+      ]
+    },
+    {
+      "id": "D17",
+      "title": "完成 WebView2 与生产 Core 组合",
+      "track": "DEV",
+      "file": "tasks/d17-webview-composition.md",
+      "dependsOn": [
+        "D13",
+        "D16"
+      ]
+    },
+    {
+      "id": "D18",
+      "title": "验证真实 C# 与浏览器生产接收器互通",
+      "track": "DEV",
+      "file": "tasks/d18-production-interop.md",
+      "dependsOn": [
+        "D17"
+      ]
+    },
+    {
+      "id": "D19",
+      "title": "验证上传网络错误与撤销语义",
+      "track": "DEV",
+      "file": "tasks/d19-network-failures.md",
+      "dependsOn": [
+        "D18"
+      ]
+    },
+    {
+      "id": "D20",
+      "title": "验证会话与来源隔离",
+      "track": "DEV",
+      "file": "tasks/d20-isolation.md",
+      "dependsOn": [
+        "D18"
+      ]
+    },
+    {
+      "id": "D21",
+      "title": "验证背压与资源清理边界",
+      "track": "DEV",
+      "file": "tasks/d21-resources.md",
+      "dependsOn": [
+        "D19",
+        "D20"
+      ]
+    },
+    {
+      "id": "D22",
+      "title": "验证最终 tarball 的干净安装",
+      "track": "DEV",
+      "file": "tasks/d22-package-install.md",
+      "dependsOn": [
+        "D21"
+      ]
+    },
+    {
+      "id": "D23",
+      "title": "验证兼容、停用与更新后状态",
+      "track": "DEV",
+      "file": "tasks/d23-compatibility.md",
+      "dependsOn": [
+        "D22"
+      ]
+    },
+    {
+      "id": "D24",
+      "title": "收敛完整 Linux 开发验证",
+      "track": "DEV",
+      "file": "tasks/d24-development-gate.md",
+      "dependsOn": [
+        "D02",
+        "D19",
+        "D20",
+        "D21",
+        "D22",
+        "D23"
+      ]
+    },
+    {
+      "id": "D25",
+      "title": "冻结开发交付并移交 Windows 实机验证",
+      "track": "DEV",
+      "file": "tasks/d25-handoff.md",
+      "dependsOn": [
+        "D24"
+      ]
+    }
+  ]
+}

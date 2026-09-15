@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "batch-end",
+  "sessionId": "session-1",
+  "batchId": "batch-1",
+  "status": "failed",
+  "results": [
+    {
+      "fileId": "file-1",
+      "status": "failed",
+      "attachmentIds": [],
+      "code": "draft-import-failed"
+    }
+  ]
+}

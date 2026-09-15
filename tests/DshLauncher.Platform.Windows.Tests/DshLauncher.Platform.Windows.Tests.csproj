@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <!-- Windows 原生测试：保留 Windows 目标与 win-x64 RID，测试执行属 Windows 专项。 -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>DshLauncher.Platform.Windows.Tests</RootNamespace>
     <AssemblyName>DshLauncher.Platform.Windows.Tests</AssemblyName>
     <IsTestProject>true</IsTestProject>

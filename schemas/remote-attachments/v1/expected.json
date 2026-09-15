@@ -1,0 +1,2292 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": 1,
+  "corpusVersion": 1,
+  "description": "语言中立的期望值：每个样本要么给出 canonical 解码结果，要么给出稳定的拒绝码。TS 与 C# 生产 codec 必须对同一份文件给出一致结论。",
+  "model": {
+    "decode": "\"accept\" 表示 decodeMessage 成功；{\"reject\":\"<code>\"} 表示必须以该码失败。",
+    "canonical": "chunk 的 dataBase64 投影为 data:{bytes,sha256}；其余字段与报文一致，未出现的可选字段不补默认值。",
+    "apply": "\"accept\" 表示状态机接受；{\"reject\":\"<code>\"} 表示必须以该码拒绝；\"skip\" 表示该样本只用于边界解码，不参与状态机。",
+    "setup": "按顺序先喂给会话的语料文件（相对本目录）。",
+    "duplicate": "apply=accept 时，状态机是否判定为对已完成操作的幂等重放。",
+    "importInvoked": "apply=accept 时，本次 apply 是否触发了一次草稿导入。",
+    "file": "对返回的单文件记录的字段子集断言。"
+  },
+  "messageTypes": [
+    "hello",
+    "capabilities",
+    "context",
+    "batch-begin",
+    "file-begin",
+    "chunk",
+    "ack",
+    "file-end",
+    "import-result",
+    "batch-end",
+    "cancel"
+  ],
+  "samples": [
+    {
+      "id": "G01",
+      "kind": "golden",
+      "file": "golden/hello-basic.json",
+      "note": "握手：构建标识",
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "hello",
+          "clientBuild": "dsh-remote-attachments/0.1.0"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G02",
+      "kind": "golden",
+      "file": "golden/capabilities-basic.json",
+      "note": "能力与限额取冻结上限（边界：等号可接受）",
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "capabilities",
+          "features": [
+            "chunked-transfer",
+            "file-end-hash",
+            "screenshot",
+            "multi-file-batch",
+            "cancel"
+          ],
+          "limits": {
+            "maxFileBytes": 20971520,
+            "maxFilesPerBatch": 10,
+            "maxBatchBytes": 52428800,
+            "maxScreenshotPixels": 40000000,
+            "maxStagingBytesPerTarget": 104857600,
+            "maxConcurrentTargets": 2
+          }
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G03",
+      "kind": "golden",
+      "file": "golden/capabilities-narrow.json",
+      "note": "协商出更窄的限额；后续 limit-* 样例子以此为准",
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "capabilities",
+          "features": [
+            "chunked-transfer",
+            "file-end-hash"
+          ],
+          "limits": {
+            "maxFileBytes": 1024,
+            "maxFilesPerBatch": 2,
+            "maxBatchBytes": 1024,
+            "maxScreenshotPixels": 1000,
+            "maxStagingBytesPerTarget": 4096,
+            "maxConcurrentTargets": 1
+          }
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G04",
+      "kind": "golden",
+      "file": "golden/context-basic.json",
+      "note": "身份绑定：session/target/双 epoch/scope",
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "context",
+          "sessionId": "session-1",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "composerScope": "scope-a"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G05",
+      "kind": "golden",
+      "file": "golden/batch-begin-single.json",
+      "note": "batch-begin：operationId 与 batchId 同值",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 8
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G06",
+      "kind": "golden",
+      "file": "golden/file-begin-8b.json",
+      "note": "file-begin：叶名 + MIME + 可用时哈希",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "name": "note.txt",
+          "byteLength": 8,
+          "mime": "text/plain",
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G07",
+      "kind": "golden",
+      "file": "golden/chunk-8b-seq0.json",
+      "note": "chunk：seq 从 0 开始，offset 连续",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+          }
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false,
+        "file": {
+          "transport": "buffering",
+          "draft": "none",
+          "upload": "none",
+          "receivedBytes": 8,
+          "ackedBytes": 0,
+          "ended": false
+        }
+      }
+    },
+    {
+      "id": "G08",
+      "kind": "golden",
+      "file": "golden/ack-8b-seq0.json",
+      "note": "ack：传输确认 ≠ 草稿 staged ≠ 上传 ready",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "ack",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "bufferedBytes": 8,
+          "inFlight": 0
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false,
+        "file": {
+          "transport": "buffered",
+          "draft": "none",
+          "upload": "none",
+          "receivedBytes": 8,
+          "ackedBytes": 8,
+          "ended": false
+        }
+      }
+    },
+    {
+      "id": "G09",
+      "kind": "golden",
+      "file": "golden/file-end-8b.json",
+      "note": "file-end：累计字节与最终哈希干净，允许构造 File 并调用一次草稿导入",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "totalBytes": 8,
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": true,
+        "file": {
+          "transport": "buffered",
+          "draft": "none",
+          "upload": "none",
+          "receivedBytes": 8,
+          "ackedBytes": 8,
+          "ended": true
+        }
+      }
+    },
+    {
+      "id": "G10",
+      "kind": "golden",
+      "file": "golden/import-result-staged-1.json",
+      "note": "import-result：staged 仅表示草稿接收；上传仍归 Harness",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "import-result",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "status": "staged",
+          "attachmentIds": [
+            "att-1"
+          ]
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false,
+        "file": {
+          "transport": "buffered",
+          "draft": "staged",
+          "upload": "harness-owned",
+          "receivedBytes": 8,
+          "ackedBytes": 8,
+          "ended": true
+        }
+      }
+    },
+    {
+      "id": "G11",
+      "kind": "golden",
+      "file": "golden/batch-end-staged.json",
+      "note": "batch-end：逐文件结果汇总并关闭批次",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "status": "staged",
+          "results": [
+            {
+              "fileId": "file-1",
+              "status": "staged",
+              "attachmentIds": [
+                "att-1"
+              ]
+            }
+          ]
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G12",
+      "kind": "golden",
+      "file": "golden/import-result-failed.json",
+      "note": "import-result：确定的失败结果（无新增 ID）",
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "import-result",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "status": "failed",
+          "attachmentIds": [],
+          "code": "draft-import-failed"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G13",
+      "kind": "golden",
+      "file": "golden/batch-begin-max.json",
+      "note": "边界：fileCount=10、totalBytes=50 MiB（等号可接受）",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-max",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 10,
+          "totalBytes": 52428800
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G14",
+      "kind": "golden",
+      "file": "golden/file-begin-max.json",
+      "note": "边界：byteLength=20 MiB 且 sha256 可省略",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "name": "big.bin",
+          "byteLength": 20971520,
+          "mime": "application/octet-stream"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G15",
+      "kind": "golden",
+      "file": "golden/chunk-seq-max.json",
+      "note": "边界：seq=79（20 MiB / 256 KiB 的最大块号）与 offset 上限内",
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 79,
+          "offset": 20709376,
+          "byteLength": 262144,
+          "data": {
+            "bytes": 262144,
+            "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+          }
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G16",
+      "kind": "golden",
+      "file": "golden/ack-boundary-max.json",
+      "note": "边界：bufferedBytes=100 MiB、inFlight=2（在途窗口上限）",
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "ack",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 79,
+          "offset": 20709376,
+          "byteLength": 262144,
+          "bufferedBytes": 104857600,
+          "inFlight": 2
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G17",
+      "kind": "golden",
+      "file": "golden/batch-begin-zero.json",
+      "note": "边界：整批 0 字节",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-2",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 0
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G18",
+      "kind": "golden",
+      "file": "golden/file-begin-zero.json",
+      "note": "边界：单文件 0 字节（空文件哈希）",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-zero.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-2",
+          "fileId": "file-1",
+          "name": "empty.bin",
+          "byteLength": 0,
+          "mime": "application/octet-stream",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G19",
+      "kind": "golden",
+      "file": "golden/file-end-zero.json",
+      "note": "边界：0 字节文件的 file-end 必须用空哈希校验",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-zero.json",
+        "golden/file-begin-zero.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-2",
+          "fileId": "file-1",
+          "totalBytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": true
+      }
+    },
+    {
+      "id": "G20",
+      "kind": "golden",
+      "file": "golden/batch-begin-24b.json",
+      "note": "多块场景：24 字节 = 3×8 字节块",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 24
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G21",
+      "kind": "golden",
+      "file": "golden/file-begin-24b.json",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "name": "window.bin",
+          "byteLength": 24,
+          "mime": "application/octet-stream",
+          "sha256": "d5ea2aa9223ac1fa43ccec70b30962690fcfc6686857f99a0c4b2963cf8bee4b"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G22",
+      "kind": "golden",
+      "file": "golden/chunk-24b-seq0.json",
+      "note": "多块场景第 1 块",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "924592b9b103f14f833faafb67f480691f01988aa457c0061769f58cd47311bc"
+          }
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G23",
+      "kind": "golden",
+      "file": "golden/chunk-24b-seq1.json",
+      "note": "多块场景第 2 块：在途窗口打满（2 块）",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json",
+        "golden/chunk-24b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 1,
+          "offset": 8,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "eaedf3a49c391c0207a1e7e4ae976941b384bf6137ffa5573d3522c1297806d4"
+          }
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G24",
+      "kind": "golden",
+      "file": "golden/ack-24b-seq0.json",
+      "note": "多块场景：ack 释放窗口",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json",
+        "golden/chunk-24b-seq0.json",
+        "golden/chunk-24b-seq1.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "ack",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "bufferedBytes": 8,
+          "inFlight": 1
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G25",
+      "kind": "golden",
+      "file": "golden/batch-begin-256k.json",
+      "note": "满块场景",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-4",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 262144
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G26",
+      "kind": "golden",
+      "file": "golden/file-begin-256k.json",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-256k.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-4",
+          "fileId": "file-1",
+          "name": "big.bin",
+          "byteLength": 262144,
+          "mime": "application/octet-stream",
+          "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G27",
+      "kind": "golden",
+      "file": "golden/chunk-256k-seq0.json",
+      "note": "边界：单块恰好 256 KiB（CHUNK_BYTES 上限）",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-256k.json",
+        "golden/file-begin-256k.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-4",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 262144,
+          "data": {
+            "bytes": 262144,
+            "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+          }
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G28",
+      "kind": "golden",
+      "file": "golden/ack-256k-seq0.json",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-256k.json",
+        "golden/file-begin-256k.json",
+        "golden/chunk-256k-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "ack",
+          "sessionId": "session-1",
+          "batchId": "batch-4",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 262144,
+          "bufferedBytes": 262144,
+          "inFlight": 0
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G29",
+      "kind": "golden",
+      "file": "golden/file-end-256k.json",
+      "note": "边界：256 KiB 满块文件的哈希校验",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-256k.json",
+        "golden/file-begin-256k.json",
+        "golden/chunk-256k-seq0.json",
+        "golden/ack-256k-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-4",
+          "fileId": "file-1",
+          "totalBytes": 262144,
+          "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": true
+      }
+    },
+    {
+      "id": "G30",
+      "kind": "golden",
+      "file": "golden/batch-begin-two.json",
+      "note": "一批两文件：逐文件独立 fileId 与 seq",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-6",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 2,
+          "totalBytes": 16
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G31",
+      "kind": "golden",
+      "file": "golden/file-begin-two-a.json",
+      "note": "批量场景：file-1",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-two.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-6",
+          "fileId": "file-1",
+          "name": "a.txt",
+          "byteLength": 8,
+          "mime": "text/plain",
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G32",
+      "kind": "golden",
+      "file": "golden/file-begin-two-b.json",
+      "note": "批量场景：file-2（与 file-1 各自独立）",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-two.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-6",
+          "fileId": "file-2",
+          "name": "b.txt",
+          "byteLength": 8,
+          "mime": "text/plain",
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G33",
+      "kind": "golden",
+      "file": "golden/cancel-basic.json",
+      "note": "cancel：停止后续传输、释放自有资源、拒绝迟到结果",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "cancel",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "reason": "cancelled",
+          "stage": "protocol-transfer"
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G34",
+      "kind": "golden",
+      "file": "golden/file-end-8b.json",
+      "note": "幂等：同一 file-end 重复到达不得产生第二次导入",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "totalBytes": 8,
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": "accept",
+        "duplicate": true,
+        "importInvoked": false,
+        "file": {
+          "draft": "staged",
+          "upload": "harness-owned"
+        }
+      }
+    },
+    {
+      "id": "G35",
+      "kind": "golden",
+      "file": "golden/batch-end-staged.json",
+      "note": "幂等：重复 batch-end 不得再次导入已 staged 的文件",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json",
+        "golden/batch-end-staged.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "status": "staged",
+          "results": [
+            {
+              "fileId": "file-1",
+              "status": "staged",
+              "attachmentIds": [
+                "att-1"
+              ]
+            }
+          ]
+        },
+        "apply": "accept",
+        "duplicate": true,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "G36",
+      "kind": "golden",
+      "file": "golden/ack-8b-seq0.json",
+      "note": "幂等：重复 ack 不改变已确认字节",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "ack",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "bufferedBytes": 8,
+          "inFlight": 0
+        },
+        "apply": "accept",
+        "duplicate": true,
+        "importInvoked": false,
+        "file": {
+          "transport": "buffered",
+          "draft": "none",
+          "upload": "none",
+          "receivedBytes": 8,
+          "ackedBytes": 8
+        }
+      }
+    },
+    {
+      "id": "G37",
+      "kind": "golden",
+      "file": "golden/file-end-submitted-2.json",
+      "note": "兼容 adapter 一次提交多项时显式声明 submittedItems=2，导入 ACK 按实际项数比较",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "totalBytes": 8,
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab",
+          "submittedItems": 2
+        },
+        "apply": "accept",
+        "duplicate": false,
+        "importInvoked": true
+      }
+    },
+    {
+      "id": "M01",
+      "kind": "malicious",
+      "file": "malicious/version-wrong.json",
+      "note": "协议版本不是 1",
+      "expect": {
+        "decode": {
+          "reject": "version-mismatch"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M02",
+      "kind": "malicious",
+      "file": "malicious/unknown-type.json",
+      "note": "未知消息类型",
+      "expect": {
+        "decode": {
+          "reject": "unknown-message-type"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M03",
+      "kind": "malicious",
+      "file": "malicious/unknown-field.json",
+      "note": "多余字段（且试图请求任意本机路径）",
+      "expect": {
+        "decode": {
+          "reject": "unknown-field"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M04",
+      "kind": "malicious",
+      "file": "malicious/field-name-case-variant.json",
+      "note": "字段名大小写变体",
+      "expect": {
+        "decode": {
+          "reject": "field-name-invalid"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M05",
+      "kind": "malicious",
+      "file": "malicious/missing-session.json",
+      "note": "没有有效 sessionId：整批不接收",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "batchId": "batch-9",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 8
+        },
+        "apply": {
+          "reject": "no-session"
+        }
+      }
+    },
+    {
+      "id": "M06",
+      "kind": "malicious",
+      "file": "malicious/invalid-session-format.json",
+      "note": "sessionId 字符集不合规",
+      "expect": {
+        "decode": {
+          "reject": "invalid-field-value"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M07",
+      "kind": "malicious",
+      "file": "malicious/invalid-field-type.json",
+      "note": "整数位置给了字符串",
+      "expect": {
+        "decode": {
+          "reject": "invalid-field-type"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M08",
+      "kind": "malicious",
+      "file": "malicious/message-too-large.json",
+      "note": "整条消息超过 MAX_MESSAGE_BYTES（512 KiB）",
+      "expect": {
+        "decode": {
+          "reject": "message-too-large"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M09",
+      "kind": "malicious",
+      "file": "malicious/field-too-large.json",
+      "note": "叶文件名超过 255 字符",
+      "expect": {
+        "decode": {
+          "reject": "field-too-large"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M10",
+      "kind": "malicious",
+      "file": "malicious/integer-out-of-range-ack-inflight.json",
+      "note": "inFlight 超过在途窗口上限 2",
+      "expect": {
+        "decode": {
+          "reject": "integer-out-of-range"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M11",
+      "kind": "malicious",
+      "file": "malicious/integer-out-of-range-seq.json",
+      "note": "seq 超过每文件最大块号 79",
+      "expect": {
+        "decode": {
+          "reject": "integer-out-of-range"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M12",
+      "kind": "malicious",
+      "file": "malicious/negative-seq.json",
+      "note": "负 seq",
+      "expect": {
+        "decode": {
+          "reject": "negative-integer"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M13",
+      "kind": "malicious",
+      "file": "malicious/negative-offset.json",
+      "note": "负 offset",
+      "expect": {
+        "decode": {
+          "reject": "negative-integer"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M14",
+      "kind": "malicious",
+      "file": "malicious/negative-bytes.json",
+      "note": "负字节数",
+      "expect": {
+        "decode": {
+          "reject": "negative-integer"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M15",
+      "kind": "malicious",
+      "file": "malicious/unknown-enum-upload-ready.json",
+      "note": "把上传 ready 混进草稿结果状态：枚举里没有这个值",
+      "expect": {
+        "decode": {
+          "reject": "unknown-enum-value"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M16",
+      "kind": "malicious",
+      "file": "malicious/unknown-enum-feature.json",
+      "note": "未知能力枚举",
+      "expect": {
+        "decode": {
+          "reject": "unknown-enum-value"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M17",
+      "kind": "malicious",
+      "file": "malicious/limit-batch-files.json",
+      "note": "协商限额 maxFilesPerBatch=2，声明 3 个文件",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/capabilities-narrow.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-9",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 3,
+          "totalBytes": 8
+        },
+        "apply": {
+          "reject": "limit-batch-files"
+        }
+      }
+    },
+    {
+      "id": "M18",
+      "kind": "malicious",
+      "file": "malicious/limit-batch-bytes.json",
+      "note": "协商限额 maxBatchBytes=1024，声明 2048 字节",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/capabilities-narrow.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-9",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 2048
+        },
+        "apply": {
+          "reject": "limit-batch-bytes"
+        }
+      }
+    },
+    {
+      "id": "M19",
+      "kind": "malicious",
+      "file": "malicious/limit-file-bytes.json",
+      "note": "协商限额 maxFileBytes=1024，声明 2048 字节",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/capabilities-narrow.json",
+        "golden/batch-begin-single.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "name": "too-big.bin",
+          "byteLength": 2048,
+          "mime": "application/octet-stream"
+        },
+        "apply": {
+          "reject": "limit-file-bytes"
+        }
+      }
+    },
+    {
+      "id": "M20",
+      "kind": "malicious",
+      "file": "malicious/limit-staging-bytes.json",
+      "note": "协商限额 maxStagingBytesPerTarget=4096，缓冲声明 8192",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/capabilities-narrow.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "ack",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "bufferedBytes": 8192,
+          "inFlight": 0
+        },
+        "apply": {
+          "reject": "limit-staging-bytes"
+        }
+      }
+    },
+    {
+      "id": "M21",
+      "kind": "malicious",
+      "file": "malicious/epoch-mismatch.json",
+      "note": "documentEpoch 与当前上下文不一致（过期/未来身份）",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-9",
+          "targetId": "target-1",
+          "documentEpoch": 8,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 8
+        },
+        "apply": {
+          "reject": "context-changed"
+        }
+      }
+    },
+    {
+      "id": "M22",
+      "kind": "malicious",
+      "file": "malicious/session-mismatch.json",
+      "note": "sessionId 与已绑定上下文不一致",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-2",
+          "batchId": "batch-9",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 8
+        },
+        "apply": {
+          "reject": "context-changed"
+        }
+      }
+    },
+    {
+      "id": "M23",
+      "kind": "malicious",
+      "file": "malicious/chunk-other-file.json",
+      "note": "chunk 指向批内未开始的另一个 fileId",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-two.json",
+        "golden/file-begin-two-a.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-6",
+          "fileId": "file-2",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+          }
+        },
+        "apply": {
+          "reject": "file-id-mismatch"
+        }
+      }
+    },
+    {
+      "id": "M24",
+      "kind": "malicious",
+      "file": "malicious/seq-gap.json",
+      "note": "seq/offset 跳跃（等待 seq=0）",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 1,
+          "offset": 8,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "eaedf3a49c391c0207a1e7e4ae976941b384bf6137ffa5573d3522c1297806d4"
+          }
+        },
+        "apply": {
+          "reject": "sequence-gap"
+        }
+      }
+    },
+    {
+      "id": "M25",
+      "kind": "malicious",
+      "file": "malicious/seq-overlap.json",
+      "note": "重复块：seq/offset 回退造成重叠",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json",
+        "golden/chunk-24b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "924592b9b103f14f833faafb67f480691f01988aa457c0061769f58cd47311bc"
+          }
+        },
+        "apply": {
+          "reject": "seq-overlap"
+        }
+      }
+    },
+    {
+      "id": "M26",
+      "kind": "malicious",
+      "file": "malicious/offset-noncontiguous.json",
+      "note": "seq 连续但 offset 不连续",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json",
+        "golden/chunk-24b-seq0.json",
+        "golden/ack-24b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 1,
+          "offset": 100,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "eaedf3a49c391c0207a1e7e4ae976941b384bf6137ffa5573d3522c1297806d4"
+          }
+        },
+        "apply": {
+          "reject": "sequence-gap"
+        }
+      }
+    },
+    {
+      "id": "M27",
+      "kind": "malicious",
+      "file": "malicious/window-overflow.json",
+      "note": "在途第三块：超过最多两块在途",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json",
+        "golden/chunk-24b-seq0.json",
+        "golden/chunk-24b-seq1.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 2,
+          "offset": 16,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "47453e977b3b481c084cd43763fdad93b24c430b7174d0202ae2940f4771e2a2"
+          }
+        },
+        "apply": {
+          "reject": "window-overflow"
+        }
+      }
+    },
+    {
+      "id": "M28",
+      "kind": "malicious",
+      "file": "malicious/chunk-payload-size-mismatch.json",
+      "note": "声明 byteLength=8，实际载荷 4 字节",
+      "expect": {
+        "decode": {
+          "reject": "size-mismatch"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M29",
+      "kind": "malicious",
+      "file": "malicious/chunk-invalid-base64.json",
+      "note": "载荷不是合法 Base64",
+      "expect": {
+        "decode": {
+          "reject": "invalid-field-value"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M30",
+      "kind": "malicious",
+      "file": "malicious/file-end-byte-count-mismatch.json",
+      "note": "file-end 累计字节与缓冲不符",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "totalBytes": 9,
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": {
+          "reject": "size-mismatch"
+        }
+      }
+    },
+    {
+      "id": "M31",
+      "kind": "malicious",
+      "file": "malicious/file-end-hash-mismatch.json",
+      "note": "file-end 最终哈希不符",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-256k.json",
+        "golden/file-begin-256k.json",
+        "golden/chunk-256k-seq0.json",
+        "golden/ack-256k-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-4",
+          "fileId": "file-1",
+          "totalBytes": 262144,
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": {
+          "reject": "hash-mismatch"
+        }
+      }
+    },
+    {
+      "id": "M32",
+      "kind": "malicious",
+      "file": "malicious/duplicate-file-end-conflicting.json",
+      "note": "同一 fileId 的第二次 file-end 且内容冲突",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "totalBytes": 8,
+          "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+        },
+        "apply": {
+          "reject": "duplicate-file-end"
+        }
+      }
+    },
+    {
+      "id": "M33",
+      "kind": "malicious",
+      "file": "malicious/late-file-end-after-batch-end.json",
+      "note": "批次关闭后的迟到 file-end 不得重新建立操作",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json",
+        "golden/batch-end-staged.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "totalBytes": 8,
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": {
+          "reject": "batch-closed"
+        }
+      }
+    },
+    {
+      "id": "M34",
+      "kind": "malicious",
+      "file": "malicious/chunk-after-batch-end.json",
+      "note": "批次关闭后的迟到 chunk",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json",
+        "golden/batch-end-staged.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+          }
+        },
+        "apply": {
+          "reject": "batch-closed"
+        }
+      }
+    },
+    {
+      "id": "M35",
+      "kind": "malicious",
+      "file": "malicious/late-import-result-after-batch-end.json",
+      "note": "批次关闭后的迟到 import-result",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json",
+        "golden/batch-end-staged.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "import-result",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "status": "staged",
+          "attachmentIds": [
+            "att-2"
+          ]
+        },
+        "apply": {
+          "reject": "batch-closed"
+        }
+      }
+    },
+    {
+      "id": "M36",
+      "kind": "malicious",
+      "file": "malicious/import-result-id-count-mismatch.json",
+      "note": "默认每次提交 1 个 File，staged 却回了 2 个新增 ID",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "import-result",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "status": "staged",
+          "attachmentIds": [
+            "att-1",
+            "att-2"
+          ]
+        },
+        "apply": {
+          "reject": "import-id-count-mismatch"
+        }
+      }
+    },
+    {
+      "id": "M37",
+      "kind": "malicious",
+      "file": "malicious/import-result-not-ended.json",
+      "note": "文件尚未 file-end 就回报 staged",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "import-result",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "status": "staged",
+          "attachmentIds": [
+            "att-1"
+          ]
+        },
+        "apply": {
+          "reject": "file-not-ended"
+        }
+      }
+    },
+    {
+      "id": "M38",
+      "kind": "malicious",
+      "file": "malicious/batch-end-incomplete.json",
+      "note": "文件尚未结束就 batch-end",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "status": "staged",
+          "results": [
+            {
+              "fileId": "file-1",
+              "status": "staged",
+              "attachmentIds": [
+                "att-1"
+              ]
+            }
+          ]
+        },
+        "apply": {
+          "reject": "result-incomplete"
+        }
+      }
+    },
+    {
+      "id": "M39",
+      "kind": "malicious",
+      "file": "malicious/duplicate-file-begin.json",
+      "note": "同一 fileId 重复 file-begin",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "name": "note.txt",
+          "byteLength": 8,
+          "mime": "text/plain",
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": {
+          "reject": "duplicate-operation"
+        }
+      }
+    },
+    {
+      "id": "M40",
+      "kind": "malicious",
+      "file": "malicious/file-begin-while-active.json",
+      "note": "每目标同时只处理一个文件",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-two.json",
+        "golden/file-begin-two-a.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "file-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-6",
+          "fileId": "file-2",
+          "name": "b.txt",
+          "byteLength": 8,
+          "mime": "text/plain",
+          "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+        },
+        "apply": {
+          "reject": "file-in-progress"
+        }
+      }
+    },
+    {
+      "id": "M41",
+      "kind": "malicious",
+      "file": "malicious/batch-in-progress.json",
+      "note": "同一会话已有开放批次时再开一批",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-9",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 8
+        },
+        "apply": {
+          "reject": "batch-in-progress"
+        }
+      }
+    },
+    {
+      "id": "M42",
+      "kind": "malicious",
+      "file": "malicious/batch-end-conflicting-repeat.json",
+      "note": "重复 batch-end 且结果与既成事实冲突",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json",
+        "golden/batch-end-staged.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "status": "failed",
+          "results": [
+            {
+              "fileId": "file-1",
+              "status": "failed",
+              "attachmentIds": [],
+              "code": "draft-import-failed"
+            }
+          ]
+        },
+        "apply": {
+          "reject": "duplicate-operation"
+        }
+      }
+    },
+    {
+      "id": "M43",
+      "kind": "malicious",
+      "file": "malicious/chunk-after-file-end.json",
+      "note": "文件已 file-end 后又来属于它的 chunk",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-256k.json",
+        "golden/file-begin-256k.json",
+        "golden/chunk-256k-seq0.json",
+        "golden/ack-256k-seq0.json",
+        "golden/file-end-256k.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-4",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 262144,
+          "data": {
+            "bytes": 262144,
+            "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+          }
+        },
+        "apply": {
+          "reject": "duplicate-operation"
+        }
+      }
+    },
+    {
+      "id": "M44",
+      "kind": "malicious",
+      "file": "malicious/chunk-after-cancel.json",
+      "note": "cancel 后的迟到 chunk 被拒绝",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/cancel-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "chunk",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "fileId": "file-1",
+          "seq": 0,
+          "offset": 0,
+          "byteLength": 8,
+          "data": {
+            "bytes": 8,
+            "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+          }
+        },
+        "apply": {
+          "reject": "cancelled"
+        }
+      }
+    },
+    {
+      "id": "M45",
+      "kind": "malicious",
+      "file": "malicious/cancel-unknown-batch.json",
+      "note": "cancel 一个不存在的 operation",
+      "setup": [
+        "golden/context-basic.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "cancel",
+          "sessionId": "session-1",
+          "batchId": "batch-9",
+          "reason": "cancelled",
+          "stage": "protocol-transfer"
+        },
+        "apply": {
+          "reject": "batch-not-open"
+        }
+      }
+    },
+    {
+      "id": "M46",
+      "kind": "malicious",
+      "file": "malicious/ack-unsent-seq.json",
+      "note": "ack 引用了从未发送的块",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-24b.json",
+        "golden/file-begin-24b.json",
+        "golden/chunk-24b-seq0.json",
+        "golden/ack-24b-seq0.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "ack",
+          "sessionId": "session-1",
+          "batchId": "batch-3",
+          "fileId": "file-1",
+          "seq": 2,
+          "offset": 16,
+          "byteLength": 8,
+          "bufferedBytes": 24,
+          "inFlight": 0
+        },
+        "apply": {
+          "reject": "sequence-gap"
+        }
+      }
+    },
+    {
+      "id": "M47",
+      "kind": "malicious",
+      "file": "malicious/file-begin-absolute-path.json",
+      "note": "叶文件名带路径分隔符：不提供任意本机路径接口",
+      "expect": {
+        "decode": {
+          "reject": "invalid-field-value"
+        },
+        "apply": "skip",
+        "duplicate": false,
+        "importInvoked": false
+      }
+    },
+    {
+      "id": "M48",
+      "kind": "malicious",
+      "file": "malicious/batch-begin-closed-id.json",
+      "note": "复用已关闭批次的 batchId：重新导入必须生成新身份",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-staged-1.json",
+        "golden/batch-end-staged.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-begin",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "targetId": "target-1",
+          "documentEpoch": 7,
+          "composerEpoch": 3,
+          "fileCount": 1,
+          "totalBytes": 8
+        },
+        "apply": {
+          "reject": "duplicate-operation"
+        }
+      }
+    },
+    {
+      "id": "M49",
+      "kind": "malicious",
+      "file": "malicious/batch-end-result-conflict.json",
+      "note": "batch-end 的逐文件结果与状态机记录冲突（实际是 failed）",
+      "setup": [
+        "golden/context-basic.json",
+        "golden/batch-begin-single.json",
+        "golden/file-begin-8b.json",
+        "golden/chunk-8b-seq0.json",
+        "golden/ack-8b-seq0.json",
+        "golden/file-end-8b.json",
+        "golden/import-result-failed.json"
+      ],
+      "expect": {
+        "decode": "accept",
+        "canonical": {
+          "v": 1,
+          "type": "batch-end",
+          "sessionId": "session-1",
+          "batchId": "batch-1",
+          "status": "staged",
+          "results": [
+            {
+              "fileId": "file-1",
+              "status": "staged",
+              "attachmentIds": [
+                "att-1"
+              ]
+            }
+          ]
+        },
+        "apply": {
+          "reject": "result-conflict"
+        }
+      }
+    }
+  ]
+}

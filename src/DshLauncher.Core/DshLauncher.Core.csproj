@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <!-- 平台无关的生产核心：net10.0、无 RID，不得引入 WPF/WebView2/P/Invoke。 -->
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>DshLauncher.Core</RootNamespace>
     <AssemblyName>DshLauncher.Core</AssemblyName>
     <Description>目标目录、探测、配对、会话与忘记事务的技术无关核心。</Description>

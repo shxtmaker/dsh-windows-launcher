@@ -1,0 +1,12 @@
+# 独立附件插件：单一 Cordis 行。
+#
+# 本包只挂载附件能力（host 注入 + 浏览器半区），并且只作为**独立附加插件**安装到
+# 目标 DSH profile。它不安装第二份配对/设备/`/remote` 代理提供者，也不修改
+# @linxin666/dsh-web-all 的聚合子插件清单。
+#
+# 行 id 有意与全家桶的命名空间区分：全家桶把子插件命名为 web-ui-* / remote-*，
+# 而本包固定使用 remote-attachments，避免与聚合行、remote 行互相覆盖。
+
+- insert:
+    - id: remote-attachments
+      name: '@shxtmaker/dsh-remote-attachments'

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string] $DotNetPath,
 
@@ -161,8 +161,6 @@ try {
 
     $directoryBuild = Get-Content -LiteralPath (Join-Path $repositoryRoot 'Directory.Build.props') -Raw -Encoding UTF8
     foreach ($requiredFragment in @(
-        '<TargetFramework>net10.0-windows</TargetFramework>',
-        '<RuntimeIdentifier>win-x64</RuntimeIdentifier>',
         '<Nullable>enable</Nullable>',
         '<EnableNETAnalyzers>true</EnableNETAnalyzers>',
         '<TreatWarningsAsErrors>true</TreatWarningsAsErrors>',
@@ -172,6 +170,8 @@ try {
             throw "Directory.Build.props 缺少固定门禁：$requiredFragment"
         }
     }
+    # 平台身份不在公共 props 中统一声明（Core/Core.Tests 必须可在 Linux 构建），
+    # 因此改为在下方按项目核对最终 MSBuild 求值结果。
 
     $centralPackages = Get-Content -LiteralPath (Join-Path $repositoryRoot 'Directory.Packages.props') -Raw -Encoding UTF8
     if ($centralPackages -match 'Version="[^"]*[\*\[(]') {
@@ -198,6 +198,48 @@ try {
         }
     }
 
+    # [VFY-01] 平台身份按项目最终 MSBuild 求值核对（不再依赖公共 props 的字符串片段）。
+    # Core/Core.Tests 必须无 Windows 目标与 RID，才能在 Linux 完整构建和运行；
+    # 另外四个项目必须保持 Windows 目标，避免可移植化把原生工程改坏。
+    $expectedProjectPlatforms = [ordered]@{
+        'DshLauncher.Core'                   = [pscustomobject]@{ TargetFramework = 'net10.0'; RuntimeIdentifier = '' }
+        'DshLauncher.Core.Tests'             = [pscustomobject]@{ TargetFramework = 'net10.0'; RuntimeIdentifier = '' }
+        'DshLauncher.Platform.Windows'       = [pscustomobject]@{ TargetFramework = 'net10.0-windows'; RuntimeIdentifier = 'win-x64' }
+        'DshLauncher.Desktop'                = [pscustomobject]@{ TargetFramework = 'net10.0-windows'; RuntimeIdentifier = 'win-x64' }
+        'DshLauncher.Platform.Windows.Tests' = [pscustomobject]@{ TargetFramework = 'net10.0-windows'; RuntimeIdentifier = 'win-x64' }
+        'DshLauncher.Acceptance.Tests'       = [pscustomobject]@{ TargetFramework = 'net10.0-windows'; RuntimeIdentifier = 'win-x64' }
+    }
+    $platformProjectNames = @($projects.BaseName | Sort-Object)
+    $expectedPlatformNames = @($expectedProjectPlatforms.Keys | Sort-Object)
+    if (($platformProjectNames -join '|') -ne ($expectedPlatformNames -join '|')) {
+        throw "项目清单与平台身份基线不一致。项目：$($platformProjectNames -join ', ')；基线：$($expectedPlatformNames -join ', ')"
+    }
+    foreach ($project in $projects) {
+        $expected = $expectedProjectPlatforms[$project.BaseName]
+        $evaluated = Get-DshProjectPlatform -RepositoryRoot $repositoryRoot -ProjectPath $project.FullName
+        if ($evaluated.TargetFramework -cne $expected.TargetFramework -or
+            $evaluated.RuntimeIdentifier -cne $expected.RuntimeIdentifier) {
+            throw ("项目 $($project.BaseName) 的平台身份偏离可移植基线：" +
+                "TargetFramework='$($evaluated.TargetFramework)'（预期 '$($expected.TargetFramework)'），" +
+                "RuntimeIdentifier='$($evaluated.RuntimeIdentifier)'（预期 '$($expected.RuntimeIdentifier)'）。")
+        }
+    }
+
+    # 可移植子集 solution 只允许包含两个平台无关项目，防止它被扩成第二份完整 solution。
+    $portableSolutionPath = Join-Path $repositoryRoot 'DshWindowsLauncher.Portable.slnx'
+    if (-not (Test-Path -LiteralPath $portableSolutionPath -PathType Leaf)) {
+        throw "缺少可移植子集 solution：$portableSolutionPath"
+    }
+    [xml] $portableSolution = Get-Content -LiteralPath $portableSolutionPath -Raw -Encoding UTF8
+    $portableProjects = @(
+        $portableSolution.SelectNodes('//Project') |
+            ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.GetAttribute('Path')) } |
+            Sort-Object
+    )
+    if (($portableProjects -join '|') -ne 'DshLauncher.Core|DshLauncher.Core.Tests') {
+        throw "可移植 solution 必须只包含 Core 与 Core.Tests，实际为：$($portableProjects -join ', ')"
+    }
+
     [xml] $nugetConfig = Get-Content -LiteralPath (Join-Path $repositoryRoot 'NuGet.config') -Raw -Encoding UTF8
     $sources = @($nugetConfig.configuration.packageSources.add)
     if ($sources.Count -ne 1 -or
@@ -205,6 +247,43 @@ try {
         $sources[0].value -ne 'https://api.nuget.org/v3/index.json') {
         throw 'NuGet 只允许固定的 nuget.org HTTPS 源。'
     }
+
+    # [VFY-01] 正式门禁不得接受可移植开发摘要作为发布凭据。
+    # eng/verify-portable.ps1 写的是 portable-verify-summary.json；两者文件名与 schemaVersion 域都不同，
+    # 这里显式拒绝误用，避免把非 Windows 开发验证当成发行验证。
+    foreach ($portableSummary in @(
+        (Join-Path $repositoryRoot 'artifacts/verify-portable/portable-verify-summary.json')
+    )) {
+        if (Test-Path -LiteralPath $portableSummary -PathType Leaf) {
+            $portableJson = Get-Content -LiteralPath $portableSummary -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 20
+            if ($portableJson.PSObject.Properties.Name -contains 'portableStatus') {
+                throw "正式门禁拒绝可移植开发摘要作为发布凭据：$portableSummary（请改用 eng/verify.ps1 生成的 verify-summary.json）。"
+            }
+        }
+    }
+
+    # [VFY-01] 跨平台门禁配置必须在位，并声明正式门禁覆盖的三个测试程序集。
+    $profilesPath = Join-Path $repositoryRoot 'eng/verification-profiles.json'
+    if (-not (Test-Path -LiteralPath $profilesPath -PathType Leaf)) {
+        throw "缺少跨平台门禁配置：$profilesPath"
+    }
+    $verificationProfiles = Get-Content -LiteralPath $profilesPath -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 100
+    if ($verificationProfiles.schemaVersion -ne 1 -or
+        (@($verificationProfiles.profiles).Count) -ne 2 -or
+        (@($verificationProfiles.expectedProjects).Count) -ne 6) {
+        throw '跨平台门禁配置模式无效：需要两个 profile 与六个预期项目。'
+    }
+    if ([bool] $verificationProfiles.windowsReleaseEntry.rejectsPortableSummary -ne $true -or
+        $verificationProfiles.windowsReleaseEntry.portableSummaryFileName -ne 'portable-verify-summary.json') {
+        throw '跨平台门禁配置必须声明正式入口拒绝可移植摘要。'
+    }
+    foreach ($portable in @($verificationProfiles.expectedProjects | Where-Object { $_.portable })) {
+        if ($portable.targetFramework -ne 'net10.0' -or $portable.runtimeIdentifier -ne '') {
+            throw "跨平台门禁配置把 $($portable.name) 声明为可移植，但平台期望不是 net10.0/无 RID。"
+        }
+    }
+    $declaredTestAssemblies = @($verificationProfiles.testAssemblies.assembly | Sort-Object)
+
 
     $dotnet = Get-DshExactDotNetPath -ExpectedVersion $constants.build.dotnetSdkVersion -DotNetPath $DotNetPath
     $solution = Join-Path $repositoryRoot 'DshWindowsLauncher.slnx'
@@ -242,9 +321,9 @@ try {
     Invoke-DshNative -FilePath $dotnet -Arguments @('format', $solution, '--verify-no-changes', '--no-restore') -WorkingDirectory $repositoryRoot
     $completedGates.Add('format')
 
-    Write-Host '[VFY-01] Release win-x64 build'
+    Write-Host '[VFY-01] Release solution build'
     Invoke-DshNative -FilePath $dotnet -Arguments @('build', $solution, '--configuration', 'Release', '--no-restore', '--warnaserror') -WorkingDirectory $repositoryRoot
-    $completedGates.Add('release-win-x64-build')
+    $completedGates.Add('release-solution-build')
 
     Write-Host '[VFY-02..07] Microsoft.Testing.Platform test executables'
     $testProjects = @(
@@ -261,24 +340,50 @@ try {
     if (($projectAssemblyNames -join '|') -ne ($fixedAssemblyNames -join '|')) {
         throw "固定测试数据集清单与测试项目不一致。项目：$($projectAssemblyNames -join ', ')；清单：$($fixedAssemblyNames -join ', ')"
     }
+    if (($projectAssemblyNames -join '|') -ne ($declaredTestAssemblies -join '|')) {
+        throw "跨平台门禁配置与测试项目不一致。项目：$($projectAssemblyNames -join ', ')；配置：$($declaredTestAssemblies -join ', ')"
+    }
+    # 正式门禁覆盖全部三个程序集；可移植 profile 只是它的子集，见 eng/verification-profiles.json。
+    $windowsProfileAssemblies = @($verificationProfiles.testAssemblies.assembly | Sort-Object)
     $testGateFailures = [System.Collections.Generic.List[string]]::new()
     $observedVfyTags = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($testProject in $testProjects) {
-        $inventoryJson = Invoke-DshNativeCapture -FilePath $dotnet -Arguments @(
+        # RID 按项目最终求值决定：Core.Tests 已无 Windows RID，不能再强制 --runtime win-x64。
+        $testRuntimeIdentifier = (Get-DshProjectPlatform -RepositoryRoot $repositoryRoot -ProjectPath $testProject.FullName).RuntimeIdentifier
+        $runArguments = [System.Collections.Generic.List[string]]::new()
+        foreach ($argument in @(
             'run',
             '--project', $testProject.FullName,
-            '--configuration', 'Release',
-            '--runtime', 'win-x64',
+            '--configuration', 'Release'
+        )) {
+            $runArguments.Add($argument)
+        }
+        if (-not [string]::IsNullOrWhiteSpace($testRuntimeIdentifier)) {
+            $runArguments.Add('--runtime')
+            $runArguments.Add($testRuntimeIdentifier)
+        }
+        foreach ($argument in @(
             '--no-build',
             '--no-restore',
             '--no-launch-profile',
-            '--',
+            '--'
+        )) {
+            $runArguments.Add($argument)
+        }
+
+        $inventoryArguments = [System.Collections.Generic.List[string]]::new()
+        $inventoryArguments.AddRange($runArguments)
+        foreach ($argument in @(
             '-list', 'full/json',
             '-preEnumerateTheories',
             '-printMaxStringLength', '0',
             '-noColor',
             '-noLogo'
-        ) -WorkingDirectory $repositoryRoot -OutputEncoding ([Text.UTF8Encoding]::new($false))
+        )) {
+            $inventoryArguments.Add($argument)
+        }
+        $inventoryJson = Invoke-DshNativeCapture -FilePath $dotnet -Arguments $inventoryArguments.ToArray() `
+            -WorkingDirectory $repositoryRoot -OutputEncoding ([Text.UTF8Encoding]::new($false))
         $expectedTests = @($inventoryJson | ConvertFrom-Json -Depth 100)
         if ($expectedTests.Count -eq 0) {
             $testGateFailures.Add("$($testProject.BaseName)：发现 0 个预期测试数据集。")
@@ -287,23 +392,17 @@ try {
 
         $rawResultPath = Join-Path ([IO.Path]::GetTempPath()) ("DshLauncher.Verify.$([Guid]::NewGuid().ToString('N')).xml")
         try {
-            $testOutput = Invoke-DshNativeCapture -FilePath $dotnet -Arguments @(
-                'run',
-                '--project', $testProject.FullName,
-                '--configuration', 'Release',
-                '--runtime', 'win-x64',
-                '--no-build',
-                '--no-restore',
-                '--no-launch-profile',
-                '--',
-                '-explicit', 'on',
-                '-failSkips',
-                '-preEnumerateTheories',
-                '-printMaxStringLength', '0',
-                '-noColor',
-                '-noLogo',
-                '-reporter', 'quiet',
-                '-result-xml', $rawResultPath
+            $testOutput = Invoke-DshNativeCapture -FilePath $dotnet -Arguments (
+                $runArguments.ToArray() + @(
+                    '-explicit', 'on',
+                    '-failSkips',
+                    '-preEnumerateTheories',
+                    '-printMaxStringLength', '0',
+                    '-noColor',
+                    '-noLogo',
+                    '-reporter', 'quiet',
+                    '-result-xml', $rawResultPath
+                )
             ) -WorkingDirectory $repositoryRoot -OutputEncoding ([Text.UTF8Encoding]::new($false))
             if (-not (Test-Path -LiteralPath $rawResultPath -PathType Leaf)) {
                 throw "测试运行器未生成结构化结果：$($testProject.BaseName)"

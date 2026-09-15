@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "file-begin",
+  "sessionId": "session-1",
+  "batchId": "batch-4",
+  "fileId": "file-1",
+  "name": "big.bin",
+  "byteLength": 262144,
+  "mime": "application/octet-stream",
+  "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+}

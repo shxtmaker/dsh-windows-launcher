@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "type": "ack",
+  "sessionId": "session-1",
+  "batchId": "batch-1",
+  "fileId": "file-1",
+  "seq": 79,
+  "offset": 20709376,
+  "byteLength": 262144,
+  "bufferedBytes": 104857600,
+  "inFlight": 2
+}

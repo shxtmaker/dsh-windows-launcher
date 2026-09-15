@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "batch-begin",
+  "sessionId": "session-1",
+  "batchId": "batch-max",
+  "targetId": "target-1",
+  "documentEpoch": 7,
+  "composerEpoch": 3,
+  "fileCount": 10,
+  "totalBytes": 52428800
+}

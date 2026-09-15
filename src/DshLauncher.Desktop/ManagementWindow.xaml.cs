@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using DshLauncher.Core;
 using DshLauncher.Core.Hub;
 using DshLauncher.Platform.Windows;
+using DshLauncher.Platform.Windows.Attachments;
 using MessageBox = System.Windows.MessageBox;
 
 namespace DshLauncher.Desktop;
@@ -273,7 +274,8 @@ public partial class ManagementWindow : Window
         if (_remoteWindow is null)
         {
             _remoteWindow = new RemoteWindow(
-                _hub, row.TargetId, url.Url, row.DisplayName, row.BaseUrl, udfPath, OpenRemoteForTargetAsync);
+                _hub, row.TargetId, url.Url, row.DisplayName, row.BaseUrl, udfPath, OpenRemoteForTargetAsync,
+                CreateAttachmentStaging);
             _remoteWindow.Closed += (_, _) => _remoteWindow = null;
         }
         else
@@ -282,6 +284,14 @@ public partial class ManagementWindow : Window
         }
         _remoteWindow.ShowAndActivate();
     }
+
+    /// <summary>
+    /// 为一个目标建立附件暂存适配器（D14 所有权根在应用数据根下，按目标隔离）。
+    /// 构造与初始化都可能失败（所有权标记被篡改、路径是重解析点、磁盘不可用），
+    /// 由原生粘贴路由捕获并给出确定的"暂存不可用"结果，而不是让窗口崩掉。
+    /// </summary>
+    private WindowsAttachmentStagingAdapter CreateAttachmentStaging(Guid targetId) =>
+        new(_applicationData.Layout, targetId);
 
     private async void OnRePair(object sender, RoutedEventArgs e)
     {

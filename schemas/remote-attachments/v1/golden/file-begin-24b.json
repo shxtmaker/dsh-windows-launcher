@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "file-begin",
+  "sessionId": "session-1",
+  "batchId": "batch-3",
+  "fileId": "file-1",
+  "name": "window.bin",
+  "byteLength": 24,
+  "mime": "application/octet-stream",
+  "sha256": "d5ea2aa9223ac1fa43ccec70b30962690fcfc6686857f99a0c4b2963cf8bee4b"
+}

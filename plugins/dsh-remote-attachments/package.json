@@ -1,0 +1,75 @@
+{
+  "name": "@shxtmaker/dsh-remote-attachments",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 远程会话的附件粘贴附加插件：把 Windows Launcher 采集的普通文件与截图导入当前可编辑会话草稿。不提供配对、设备凭据或 /remote 代理，那些仍由 @linxin666/dsh-remote-web-ui 负责。",
+  "license": "UNLICENSED",
+  "main": "lib/host.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/host.d.ts",
+      "default": "./lib/host.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./shared/*": {
+      "types": "./lib/types/shared/*.d.ts",
+      "default": "./lib/shared/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.js.map",
+    "lib/**/*.d.ts",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.1.5-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "test:unit": "node --test \"test/unit/**/*.test.mjs\"",
+    "test:wire": "node scripts/wire-contract-gates.mjs",
+    "test:pack": "node scripts/test-pack.mjs",
+    "verify": "npm run typecheck && npm run build && npm run test:unit && npm run test:pack",
+    "fixture:setup": "bash tests/fixtures/setup.sh",
+    "fixture:gates": "node tests/fixtures/run-gates.mjs",
+    "fixture:down": "bash tests/fixtures/down.sh",
+    "fixture:up": "bash tests/fixtures/setup.sh && node tests/fixtures/run-gates.mjs",
+    "fixture:pairing": "node tests/fixtures/pairing-gates.mjs",
+    "fixture:tls-setup": "bash tests/fixtures/tls-setup.sh",
+    "fixture:https": "node tests/fixtures/https-gates.mjs",
+    "fixture:provider": "node tests/fixtures/provider/run-provider-gates.mjs",
+    "fixture:loop": "node tests/fixtures/d09-loop-gates.mjs",
+    "fixture:receiver": "node tests/fixtures/d12-receiver-gates.mjs",
+    "fixture:bridge": "node tests/fixtures/d13-bridge-gates.mjs",
+    "fixture:failures": "node tests/fixtures/d19-failure-gates.mjs",
+    "fixture:isolation": "node tests/fixtures/d20-isolation-gates.mjs",
+    "fixture:resources": "node tests/fixtures/d21-resource-gates.mjs",
+    "fixture:tarball": "node tests/fixtures/d22-tarball-gates.mjs",
+    "fixture:compat": "node tests/fixtures/d23-compat-gates.mjs",
+    "fixture:interop": "bash tests/interop/ensure-fixture.sh",
+    "fixture:interop-driver": "node tests/interop/d18-interop-driver.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-host-webserver": "0.1.5-rc.1",
+    "typescript": "5.9.3"
+  }
+}

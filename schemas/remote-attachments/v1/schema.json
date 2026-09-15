@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh.local/schemas/remote-attachments/v1/schema.json",
+  "title": "DSH remote attachments wire protocol v1",
+  "description": "冻结的 version=1 线协议：消息信封与全部消息类型。字段集固定，additionalProperties=false；整数范围与枚举不得由两端各自猜测。TS 侧实现见 plugins/dsh-remote-attachments/src/shared/wire/，C# 侧实现见 src/DshLauncher.Core/Attachments/，两侧共同以 expected.json 为准。",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/capabilities" },
+    { "$ref": "#/$defs/context" },
+    { "$ref": "#/$defs/batchBegin" },
+    { "$ref": "#/$defs/fileBegin" },
+    { "$ref": "#/$defs/chunk" },
+    { "$ref": "#/$defs/ack" },
+    { "$ref": "#/$defs/fileEnd" },
+    { "$ref": "#/$defs/importResult" },
+    { "$ref": "#/$defs/batchEnd" },
+    { "$ref": "#/$defs/cancel" }
+  ],
+  "$defs": {
+    "version": {
+      "description": "协议版本，必须精确等于 1。",
+      "type": "integer",
+      "const": 1
+    },
+    "hello": {
+      "title": "hello",
+      "description": "握手：声明对端构建标识。host→client 与 client→host 双向。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "clientBuild"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "hello" },
+        "clientBuild": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._/+:-]+$"
+        }
+      }
+    },
+    "capabilities": {
+      "title": "capabilities",
+      "description": "握手：声明本端可用线协议特性与生效限额。限额不得超过 DEFAULT_LIMITS。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "features", "limits"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "capabilities" },
+        "features": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/feature" }
+        },
+        "limits": { "$ref": "#/$defs/limits" }
+      }
+    },
+    "context": {
+      "title": "context",
+      "description": "绑定当前身份：会话、目标、文档 epoch 与 composer 身份。documentEpoch 由原生端掌握；composerEpoch/composerScope 由插件当前会话 scope 产生，scope 变化即失效。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "sessionId", "targetId", "documentEpoch", "composerEpoch", "composerScope"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "context" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "targetId": { "$ref": "#/$defs/targetId" },
+        "documentEpoch": { "$ref": "#/$defs/epoch" },
+        "composerEpoch": { "$ref": "#/$defs/epoch" },
+        "composerScope": { "$ref": "#/$defs/composerScope" }
+      }
+    },
+    "batchBegin": {
+      "title": "batch-begin",
+      "description": "声明整批：文件数量、总字节与当前身份。首期 operationId 就是 batchId。限额/能力未通过时整批拒绝。没有有效 sessionId 不接收批次（sessionId 由状态机在 apply 阶段强制，故此处非 schema required）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId", "targetId", "documentEpoch", "composerEpoch", "fileCount", "totalBytes"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "batch-begin" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "targetId": { "$ref": "#/$defs/targetId" },
+        "documentEpoch": { "$ref": "#/$defs/epoch" },
+        "composerEpoch": { "$ref": "#/$defs/epoch" },
+        "fileCount": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "totalBytes": { "type": "integer", "minimum": 0, "maximum": 52428800 }
+      }
+    },
+    "fileBegin": {
+      "title": "file-begin",
+      "description": "声明单个文件：fileId、叶文件名、字节数、MIME、可用时的 SHA-256。name 必须是叶名，禁止路径分隔符（不提供网页请求任意本机路径的接口）。每目标同时只处理一个文件。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId", "fileId", "name", "byteLength", "mime"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "file-begin" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "fileId": { "$ref": "#/$defs/fileId" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^/\\\\\\u0000]+$"
+        },
+        "byteLength": { "type": "integer", "minimum": 0, "maximum": 20971520 },
+        "mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "chunk": {
+      "title": "chunk",
+      "description": "一个 256 KiB 原始字节块（Base64 只编码本块）。seq 每文件从 0 开始，offset 连续；最多两块在途。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId", "fileId", "seq", "offset", "byteLength", "dataBase64"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "chunk" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "fileId": { "$ref": "#/$defs/fileId" },
+        "seq": { "type": "integer", "minimum": 0, "maximum": 79 },
+        "offset": { "type": "integer", "minimum": 0, "maximum": 20971519 },
+        "byteLength": { "type": "integer", "minimum": 1, "maximum": 262144 },
+        "dataBase64": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 349528,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+        }
+      }
+    },
+    "ack": {
+      "title": "ack",
+      "description": "确认一个块。ACK 只证明接收缓冲已接受该块，不代表草稿已 staged，更不代表上传 ready。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId", "fileId", "seq", "offset", "byteLength", "bufferedBytes", "inFlight"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "ack" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "fileId": { "$ref": "#/$defs/fileId" },
+        "seq": { "type": "integer", "minimum": 0, "maximum": 79 },
+        "offset": { "type": "integer", "minimum": 0, "maximum": 20971519 },
+        "byteLength": { "type": "integer", "minimum": 1, "maximum": 262144 },
+        "bufferedBytes": { "type": "integer", "minimum": 0, "maximum": 104857600 },
+        "inFlight": { "type": "integer", "minimum": 0, "maximum": 2 }
+      }
+    },
+    "fileEnd": {
+      "title": "file-end",
+      "description": "结束该文件：累计字节与最终 SHA-256 必须干净。干净后默认向原生入口提交 1 个 File（submittedItems 缺省为 1），并只调用一次草稿导入。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId", "fileId", "totalBytes", "sha256"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "file-end" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "fileId": { "$ref": "#/$defs/fileId" },
+        "totalBytes": { "type": "integer", "minimum": 0, "maximum": 20971520 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "submittedItems": { "type": "integer", "minimum": 1, "maximum": 16 }
+      }
+    },
+    "importResult": {
+      "title": "import-result",
+      "description": "该 fileId 的草稿导入结果：staged 与新增 attachmentIds，或确定的失败/部分结果。不代表上传 ready；上传仍由 Harness 拥有。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId", "fileId", "status", "attachmentIds"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "import-result" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "fileId": { "$ref": "#/$defs/fileId" },
+        "status": { "$ref": "#/$defs/resultStatus" },
+        "attachmentIds": { "$ref": "#/$defs/attachmentIds" },
+        "code": { "$ref": "#/$defs/code" }
+      }
+    },
+    "batchEnd": {
+      "title": "batch-end",
+      "description": "汇总每个 fileId 的结果并结束批次。已 staged 的文件不得再次整体导入。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId", "status", "results"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "batch-end" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "status": { "$ref": "#/$defs/resultStatus" },
+        "results": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/resultItem" }
+        }
+      }
+    },
+    "cancel": {
+      "title": "cancel",
+      "description": "停止指定 operation 的后续传输、释放自有资源、拒绝迟到结果。不自动撤销已发送消息，也不删除远端共享文件；已 staged 的草稿保留。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "batchId"],
+      "properties": {
+        "v": { "$ref": "#/$defs/version" },
+        "type": { "const": "cancel" },
+        "sessionId": { "$ref": "#/$defs/sessionId" },
+        "batchId": { "$ref": "#/$defs/batchId" },
+        "reason": { "$ref": "#/$defs/code" },
+        "stage": { "$ref": "#/$defs/stage" }
+      }
+    },
+    "feature": {
+      "type": "string",
+      "enum": ["chunked-transfer", "file-end-hash", "screenshot", "multi-file-batch", "cancel"]
+    },
+    "resultStatus": {
+      "description": "单文件结果状态。没有 upload ready/uploaded：上传阶段状态由 Harness 拥有，不进入线协议。",
+      "type": "string",
+      "enum": ["staged", "failed", "partial"]
+    },
+    "resultItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileId", "status"],
+      "properties": {
+        "fileId": { "$ref": "#/$defs/fileId" },
+        "status": { "$ref": "#/$defs/resultStatus" },
+        "attachmentIds": { "$ref": "#/$defs/attachmentIds" },
+        "code": { "$ref": "#/$defs/code" }
+      }
+    },
+    "attachmentIds": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "code": {
+      "description": "四阶段结果码（protocol.ts ERROR_CODES 的冻结集合）。",
+      "type": "string",
+      "enum": [
+        "no-session",
+        "context-changed",
+        "limit-file-bytes",
+        "limit-batch-files",
+        "limit-batch-bytes",
+        "limit-screenshot-pixels",
+        "limit-staging-bytes",
+        "hash-mismatch",
+        "size-mismatch",
+        "sequence-gap",
+        "window-overflow",
+        "cancelled",
+        "duplicate-operation",
+        "capability-conflict",
+        "capability-disabled",
+        "draft-import-failed",
+        "partial-import",
+        "upload-failed",
+        "reload-required"
+      ]
+    },
+    "stage": {
+      "type": "string",
+      "enum": ["native-capture", "protocol-transfer", "draft-import", "remote-upload"]
+    },
+    "sessionId": { "$ref": "#/$defs/id" },
+    "batchId": { "$ref": "#/$defs/id" },
+    "fileId": { "$ref": "#/$defs/id" },
+    "targetId": { "$ref": "#/$defs/id" },
+    "composerScope": { "$ref": "#/$defs/id" },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "epoch": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "limits": {
+      "description": "本端生效限额，不得超过 DEFAULT_LIMITS 的冻结值。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxFileBytes", "maxFilesPerBatch", "maxBatchBytes", "maxScreenshotPixels", "maxStagingBytesPerTarget", "maxConcurrentTargets"],
+      "properties": {
+        "maxFileBytes": { "type": "integer", "minimum": 0, "maximum": 20971520 },
+        "maxFilesPerBatch": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "maxBatchBytes": { "type": "integer", "minimum": 0, "maximum": 52428800 },
+        "maxScreenshotPixels": { "type": "integer", "minimum": 0, "maximum": 40000000 },
+        "maxStagingBytesPerTarget": { "type": "integer", "minimum": 0, "maximum": 104857600 },
+        "maxConcurrentTargets": { "type": "integer", "minimum": 1, "maximum": 2 }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "chunk",
+  "sessionId": "session-1",
+  "batchId": "batch-1",
+  "fileId": "file-1",
+  "seq": 0,
+  "offset": 0,
+  "byteLength": 8,
+  "dataBase64": "YWJjZA=="
+}

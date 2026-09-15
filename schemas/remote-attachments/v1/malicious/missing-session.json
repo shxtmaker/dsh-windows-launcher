@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "batch-begin",
+  "batchId": "batch-9",
+  "targetId": "target-1",
+  "documentEpoch": 7,
+  "composerEpoch": 3,
+  "fileCount": 1,
+  "totalBytes": 8
+}

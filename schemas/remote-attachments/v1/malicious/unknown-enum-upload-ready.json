@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "type": "import-result",
+  "sessionId": "session-1",
+  "batchId": "batch-1",
+  "fileId": "file-1",
+  "status": "upload-ready",
+  "attachmentIds": []
+}

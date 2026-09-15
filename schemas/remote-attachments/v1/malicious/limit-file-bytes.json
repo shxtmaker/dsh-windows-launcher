@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "file-begin",
+  "sessionId": "session-1",
+  "batchId": "batch-1",
+  "fileId": "file-1",
+  "name": "too-big.bin",
+  "byteLength": 2048,
+  "mime": "application/octet-stream"
+}

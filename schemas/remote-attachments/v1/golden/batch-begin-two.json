@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "batch-begin",
+  "sessionId": "session-1",
+  "batchId": "batch-6",
+  "targetId": "target-1",
+  "documentEpoch": 7,
+  "composerEpoch": 3,
+  "fileCount": 2,
+  "totalBytes": 16
+}

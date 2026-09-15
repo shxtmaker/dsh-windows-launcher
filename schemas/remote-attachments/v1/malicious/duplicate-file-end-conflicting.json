@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "type": "file-end",
+  "sessionId": "session-1",
+  "batchId": "batch-1",
+  "fileId": "file-1",
+  "totalBytes": 8,
+  "sha256": "31a1f9dea0169551092d05e8bf4a446228c8c3eb4c9b713c66adcb7fd53c89be"
+}

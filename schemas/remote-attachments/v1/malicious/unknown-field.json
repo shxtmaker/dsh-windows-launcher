@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "context",
+  "sessionId": "session-1",
+  "targetId": "target-1",
+  "documentEpoch": 7,
+  "composerEpoch": 3,
+  "composerScope": "scope-a",
+  "localPath": "/etc/passwd"
+}

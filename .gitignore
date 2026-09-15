@@ -4,6 +4,14 @@ obj/
 artifacts/
 TestResults/
 
+# Node 插件构建产物与本地打包暂存（锁文件与源码必须入库）
+node_modules/
+pack/
+
+# 插件编译输出：由 npm run build 从 src/*.ts 生成，tarball 与门禁都会重新构建，
+# 不入库以避免与 TypeScript 源码漂移。
+plugins/dsh-remote-attachments/lib/
+
 # IDE and user state
 .vs/
 .idea/

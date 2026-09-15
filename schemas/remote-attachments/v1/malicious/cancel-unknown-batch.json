@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "type": "cancel",
+  "sessionId": "session-1",
+  "batchId": "batch-9",
+  "reason": "cancelled",
+  "stage": "protocol-transfer"
+}

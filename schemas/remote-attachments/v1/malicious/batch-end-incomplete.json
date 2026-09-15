@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "batch-end",
+  "sessionId": "session-1",
+  "batchId": "batch-1",
+  "status": "staged",
+  "results": [
+    {
+      "fileId": "file-1",
+      "status": "staged",
+      "attachmentIds": [
+        "att-1"
+      ]
+    }
+  ]
+}

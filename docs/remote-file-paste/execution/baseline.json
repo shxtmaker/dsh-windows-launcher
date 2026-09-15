@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "planRevision": "2.0",
+  "task": "D00",
+  "round": "R00",
+  "capturedAt": "2026-09-13",
+  "capturedOn": "linux",
+  "scope": "只读核实基线；本任务不实施业务代码，不运行构建与测试",
+
+  "repository": {
+    "remote": "https://github.com/shxtmaker/dsh-windows-launcher.git",
+    "branch": "feat/remote-file-paste-attachments",
+    "headCommit": "df68795c3f7a0a34d6ed4fdd7804e369bdd0258b",
+    "headSubject": "fix: load host security module for installer upgrade identity checks",
+    "researchSnapshotCommit": "df68795c3f7a0a34d6ed4fdd7804e369bdd0258b",
+    "matchesResearchSnapshot": true,
+    "workingTreeDirty": false,
+    "untrackedFiles": [],
+    "stashes": [],
+    "userPreExistingChanges": "none",
+    "aheadBehindOriginMain": {
+      "behind": 0,
+      "ahead": 0
+    },
+    "gitUserName": "shxtmaker",
+    "trackedFileCount": 104,
+    "trackedByArea": {
+      "src": 32,
+      "tests": 18,
+      "eng": 19,
+      "docs": 10,
+      "schemas": 1,
+      "installer": 7,
+      "assets": 8
+    },
+    "rawCapture": {
+      "command": "git rev-parse HEAD; git status --porcelain --ignored; git rev-list --left-right --count origin/main...HEAD",
+      "exitCode": 0,
+      "note": "工作树无修改、无未跟踪文件、无 stash；git status --porcelain 仅返回本轮新增的 docs/remote-file-paste/"
+    }
+  },
+
+  "planPlacement": {
+    "sourcePath": "remote-file-paste-multi-round-plan-v2/docs/remote-file-paste/",
+    "targetPath": "docs/remote-file-paste/",
+    "fileCount": 38,
+    "verifiedIdentical": true,
+    "verificationCommand": "diff -r <source> <target>",
+    "changedPathsOutsideScope": [],
+    "note": "本目录取代此前 .scratch 内不同部署形态及 P0-P4 的旧方案；仓库内此前不存在 docs/remote-file-paste/"
+  },
+
+  "planDocuments": {
+    "present": [
+      "README.md",
+      "implementation-plan.md",
+      "task-index.md",
+      "task-graph.json",
+      "execution-workflow.md",
+      "portable-validation-plan.md",
+      "windows-validation-plan.md",
+      "deepseek-harness-prompt.md",
+      "execution/state.json",
+      "execution/handoff.md",
+      "probes/README.md",
+      "probes/probe-remote-upload-boot.mjs",
+      "tasks/d00-baseline.md..tasks/d25-handoff.md (26 张任务卡)"
+    ],
+    "missing": [],
+    "internalRelativeLinksChecked": 65,
+    "internalRelativeLinksBroken": 0
+  },
+
+  "taskGraph": {
+    "taskCount": 26,
+    "uniqueIds": 26,
+    "duplicateIds": [],
+    "acyclic": true,
+    "cyclePaths": [],
+    "danglingDependsOn": [],
+    "invalidParentId": [],
+    "missingTaskCards": [],
+    "stateEntries": 26,
+    "stateGraphIdMismatch": [],
+    "verificationCommand": "python3 图校验脚本：DFS 三色标记查环 + 依赖/父项/卡文件/state 条目集合核对",
+    "exitCode": 0
+  },
+
+  "projectTargetFrameworks": {
+    "sourceOfTruth": "Directory.Build.props（全库统一），各项目当前未覆盖",
+    "inheritedTargetFramework": "net10.0-windows",
+    "inheritedRuntimeIdentifier": "win-x64",
+    "confirmsD01Needed": true,
+    "projects": [
+      { "name": "DshLauncher.Core", "path": "src/DshLauncher.Core/DshLauncher.Core.csproj", "currentTfm": "net10.0-windows", "currentRid": "win-x64", "targetTfm": "net10.0", "targetRid": null },
+      { "name": "DshLauncher.Core.Tests", "path": "tests/DshLauncher.Core.Tests/DshLauncher.Core.Tests.csproj", "currentTfm": "net10.0-windows", "currentRid": "win-x64", "targetTfm": "net10.0", "targetRid": null },
+      { "name": "DshLauncher.Platform.Windows", "path": "src/DshLauncher.Platform.Windows/DshLauncher.Platform.Windows.csproj", "currentTfm": "net10.0-windows", "currentRid": "win-x64", "targetTfm": "net10.0-windows", "targetRid": "win-x64" },
+      { "name": "DshLauncher.Desktop", "path": "src/DshLauncher.Desktop/DshLauncher.Desktop.csproj", "currentTfm": "net10.0-windows", "currentRid": "win-x64", "targetTfm": "net10.0-windows", "targetRid": "win-x64" },
+      { "name": "DshLauncher.Platform.Windows.Tests", "path": "tests/DshLauncher.Platform.Windows.Tests/DshLauncher.Platform.Windows.Tests.csproj", "currentTfm": "net10.0-windows", "currentRid": "win-x64", "targetTfm": "net10.0-windows", "targetRid": "win-x64" },
+      { "name": "DshLauncher.Acceptance.Tests", "path": "tests/DshLauncher.Acceptance.Tests/DshLauncher.Acceptance.Tests.csproj", "currentTfm": "net10.0-windows", "currentRid": "win-x64", "targetTfm": "net10.0-windows", "targetRid": "win-x64" }
+    ],
+    "existingLockFiles": [
+      "src/DshLauncher.Core/packages.lock.json",
+      "src/DshLauncher.Desktop/packages.lock.json",
+      "src/DshLauncher.Platform.Windows/packages.lock.json",
+      "tests/DshLauncher.Acceptance.Tests/packages.lock.json",
+      "tests/DshLauncher.Core.Tests/packages.lock.json",
+      "tests/DshLauncher.Platform.Windows.Tests/packages.lock.json"
+    ],
+    "existingSolution": "DshWindowsLauncher.slnx（6 个项目；D01 只新增 DshWindowsLauncher.Portable.slnx，不移除 Windows 项目）",
+    "centralPackageVersions": {
+      "Microsoft.NET.Test.Sdk": "18.9.0",
+      "Microsoft.Web.WebView2": "1.0.4129.50",
+      "coverlet.collector": "10.0.1",
+      "xunit.runner.visualstudio": "4.0.0",
+      "xunit.v3": "4.0.0"
+    }
+  },
+
+  "toolchain": {
+    "os": {
+      "prettyName": "Ubuntu 26.04 LTS",
+      "versionId": "26.04",
+      "codename": "Resolute Raccoon",
+      "kernel": "Linux 7.0.0-30-generic",
+      "arch": "x86_64",
+      "linuxRid": "linux-x64"
+    },
+    "dotnet": {
+      "available": true,
+      "sdkVersion": "10.0.400",
+      "sdkPath": "$HOME/.dotnet/sdk/10.0.400",
+      "dotnetRoot": "$HOME/.dotnet",
+      "sdkMatchesGlobalJson": true,
+      "globalJsonRollForward": "disable",
+      "runtimes": {
+        "Microsoft.NETCore.App": "10.0.11",
+        "Microsoft.AspNetCore.App": "10.0.11",
+        "Microsoft.WindowsDesktop.App": null
+      },
+      "windowsDesktopRuntimeOnLinux": false,
+      "installedWorkloads": [],
+      "workloadManifestVersion": "10.0.400-manifests.330ea142",
+      "note": "缺少 Microsoft.WindowsDesktop.App 是 Linux 上 WPF 的预期限制，不是缺陷；WPF/WinForms/WebView2 运行与测试按方案归 Windows 专项。"
+    },
+    "node": {
+      "available": true,
+      "version": "v22.23.2",
+      "path": "/usr/bin/node",
+      "satisfiesRemoteEngines": true,
+      "remoteEnginesRequirement": "^22.19.0 || >=24.0.0",
+      "stripTypeScriptTypesAvailable": true,
+      "note": "probes/README.md 记载先前研究在 Node v24.19.0 运行探针；本机 Node 22.23.2 仍导出 module.stripTypeScriptTypes，但探针本轮未运行（缺 dsh-web checkout）。"
+    },
+    "npm": { "available": true, "version": "10.9.8", "path": "/usr/bin/npm" },
+    "pnpm": { "available": true, "version": "11.7.0", "path": "$HOME/.local/bin/pnpm" },
+    "powershell": {
+      "available": true,
+      "version": "7.5.4",
+      "path": "$HOME/tools/pwsh/pwsh",
+      "onDefaultPath": false,
+      "note": "dotnet 与 pwsh 均不在默认 PATH；环境脚本 /tmp/dsh-env.sh 导出 DOTNET_ROOT=$HOME/.dotnet 并把 $HOME/.dotnet 与 $HOME/tools/pwsh 加入 PATH。该脚本位于 /tmp，重启后可能丢失，D01/D02 需要前先重建或改为仓库内可复现的准备步骤。"
+    },
+    "git": { "available": true, "version": "2.53.0" },
+    "python3": { "available": true, "version": "3.14.4" },
+    "browsers": {
+      "googleChrome": { "available": true, "version": "151.0.7922.173", "path": "/usr/bin/google-chrome" },
+      "playwrightChromiumCache": {
+        "available": true,
+        "path": "$HOME/.cache/ms-playwright/chromium-1243",
+        "installationComplete": true,
+        "dependenciesValidated": true
+      },
+      "playwrightNpmLatest": "1.63.0",
+      "playwrightVersionPinned": false,
+      "note": "缓存内 chromium-1243 对应哪个 @playwright/test 版本本轮未核实；playwright 依赖是否已装在本机也未核实。D05/D12/D18 选定版本后须写入 compatibility-lock.json 固定 integrity。"
+    },
+    "network": {
+      "npmRegistryReachable": true,
+      "note": "本轮只做 npm view 只读查询，未安装任何包。"
+    },
+    "nugetCache": {
+      "packageCount": 26,
+      "hasRequiredPackages": true,
+      "verified": ["Microsoft.NET.Test.Sdk 18.9.0", "xunit.v3 4.0.0", "xunit.runner.visualstudio 4.0.0", "coverlet.collector 10.0.1", "Microsoft.Web.WebView2 1.0.4129.50"]
+    }
+  },
+
+  "upstreamVersions": {
+    "researchSnapshot": {
+      "dshWebCommit": "0d78d391b5f67ec4d9f04d47558b76352c74ee48",
+      "dshWebAllVersion": "0.3.21",
+      "dshRemoteWebUiVersion": "0.3.21",
+      "harnessCommit": "c291e7961a515f6d7af9304e7fd1d257929aef26",
+      "harnessVersion": "0.1.5-rc.2"
+    },
+    "resolvedOnThisMachine": {
+      "harnessInstalledVersion": "0.1.5-rc.1",
+      "harnessInstallPath": "$HOME/.npm-global/lib/node_modules/@deepseek-ai/dsh",
+      "harnessMatchesResearchSnapshot": false,
+      "deployedProfilePath": "$HOME/.dsh/profiles/web",
+      "deployedProfileDependencySpec": "^0.3.20",
+      "dshWebAllInstalledVersion": "0.3.20",
+      "dshRemoteWebUiInstalledVersion": "0.3.20",
+      "dshWebAllMatchesResearchSnapshot": false,
+      "dshRemoteWebUiMatchesResearchSnapshot": false
+    },
+    "npmRegistryLatest": {
+      "dshWebAll": "0.3.22",
+      "dshRemoteWebUi": "0.3.22",
+      "queriedAt": "2026-09-13",
+      "note": "latest 高于研究快照 0.3.21，且高于本机部署 0.3.20；方案明确禁止用浮动 latest 替换已验证组合。"
+    },
+    "pinCandidateIntegrity": {
+      "dshWebAll0_3_21": "sha512-BGkp46B1CTjlgympDnm1HeOPdzyDxW12XCUTSj2GL4TzVnlf3a7NDqAMdj/wle+gs8oLJc0KWl+JhwBtWqm/qw==",
+      "dshRemoteWebUi0_3_21": "sha512-Kj00vi43ohG/GFDyNpe74vSnR79FtYNUmloaOrFoqwjLJP9K9oISPUYbNaGIiLgE7G/G69AdiGJRO/a8v7fNJg==",
+      "note": "integrity 由 npm view 查询得到。本轮未下载、未安装、未锁定到任何项目文件。"
+    },
+    "deviation": {
+      "detected": true,
+      "summary": "研究快照为 dsh-web/all/remote 0.3.21 与 Harness 0.1.5-rc.2；本机实际部署为 all/remote 0.3.20 与 Harness 0.1.5-rc.1。二者均不等于快照，也不等于 npm latest。",
+      "impact": "D04/D05/D06 建立测试夹具时必须显式选定并固定 all/remote 与 Harness 版本及 integrity，不能默认沿用研究快照数字，也不能跟随 latest。所选版本与草稿适配器（D08）、上传 hook（D07）的 DOM/源码契约直接相关，须在该轮以实际解析版本重新核对。",
+      "resolutionTask": "D04",
+      "decisionNotMadeInThisRound": true
+    },
+    "unverifiedUpstreamSource": [
+      { "item": "Harness 源码 commit", "reason": "本机没有 Harness git checkout，只有已安装的 npm 包；无法核对 c291e7961a515f6d7af9304e7fd1d257929aef26。" },
+      { "item": "dsh-web 源码 checkout", "reason": "本机未找到 dsh-web 仓库 checkout（仅在 ~/.dsh/profiles 下有安装后的 node_modules）；无法核对 0d78d391b5f67ec4d9f04d47558b76352c74ee48，也无法运行 probes/probe-remote-upload-boot.mjs。" }
+    ]
+  },
+
+  "verificationRuns": {
+    "executed": [
+      { "what": "git 状态、HEAD、分支、stash、ahead/behind", "command": "git rev-parse/status/rev-list", "platform": "linux", "exitCode": 0 },
+      { "what": "方案目录复制一致性", "command": "diff -r <plan-source> docs/remote-file-paste", "platform": "linux", "exitCode": 0 },
+      { "what": "任务图无环与依赖/卡文件/state 一致性", "command": "python3 图校验脚本（DFS 三色标记）", "platform": "linux", "exitCode": 0 },
+      { "what": "方案内相对链接可达性", "command": "python3 链接扫描（65 条）", "platform": "linux", "exitCode": 0 },
+      { "what": "工具版本查询", "command": "dotnet --version/--list-sdks/--list-runtimes/--info/workload list; node -v; npm -v; pnpm -v; pwsh -Command $PSVersionTable; git --version; python3 --version", "platform": "linux", "exitCode": 0 },
+      { "what": "浏览器与缓存查询", "command": "ls ~/.cache/ms-playwright; google-chrome --version", "platform": "linux", "exitCode": 0 },
+      { "what": "上游版本查询（只读）", "command": "npm view @linxin666/dsh-web-all; npm view @linxin666/dsh-remote-web-ui; npm view @playwright/test", "platform": "linux", "exitCode": 0 },
+      { "what": "Node engines 满足性与 stripTypeScriptTypes 可用性", "command": "node -e 引擎区间判定与 module.stripTypeScriptTypes 检测", "platform": "linux", "exitCode": 0 }
+    ],
+    "notRun": [
+      { "item": "dotnet restore --locked-mode", "reason": "D00 不修改工作树，也不产生构建产物（obj/、packages.lock.json 变更）；作为 D01/D02 的首个检查执行。", "track": "DEV/D01-D02" },
+      { "item": "dotnet build / dotnet format", "reason": "同上，D00 范围外。", "track": "DEV/D01-D02" },
+      { "item": "DshLauncher.Core.Tests 执行（MTP runner）与用例数核对", "reason": "需要先 restore/build；D00 不运行测试，不声称任何功能验证。方案记载当前基线用例数为 Core 49 / Platform 25 / Acceptance 35，本轮未复核该数字。", "track": "DEV/D02" },
+      { "item": "dotnet 全 solution 交叉构建（L12）", "reason": "D00 范围外，属 D01/D02 首次尝试。", "track": "DEV/D01-D02" },
+      { "item": "eng/verify.ps1 与 eng/verify-portable.ps1", "reason": "verify-portable.ps1 尚未实现（属 D02）；eng/verify.ps1 是 Windows 正式门禁，不在 Linux D00 范围。", "track": "DEV/D02 / Windows W-01" },
+      { "item": "probes/probe-remote-upload-boot.mjs", "reason": "脚本需要 dsh-web checkout 路径参数，本机无该 checkout。研究记录为 Windows 上 7/7 PASS，该结果不计为 Linux 证据。", "track": "DEV/D07 参考材料" },
+      { "item": "真实 Harness＋全家桶夹具启动", "reason": "属 D04；且本轮不修改也不启动任何服务。", "track": "DEV/D04" },
+      { "item": "Chromium/Playwright 浏览器测试", "reason": "属 D05/D12/D18。", "track": "DEV" },
+      { "item": "Windows 编译、剪贴板、WPF、WebView2、安装验收", "reason": "无 Windows 环境；按方案归 W 轨道独立执行。", "track": "WindowsPending" }
+    ],
+    "notRunMustNotBeReadAsPass": true
+  },
+
+  "safetyChecks": {
+    "businessCodeModified": false,
+    "productionProfileTouched": false,
+    "packagesInstalledOrPublished": false,
+    "remotePushed": false,
+    "credentialsOrPrivatePathsWrittenToDocs": false,
+    "filesChangedThisRound": ["docs/remote-file-paste/（新增，38 个文件）", "docs/remote-file-paste/execution/baseline.json（新增）", "docs/remote-file-paste/execution/rounds/R00-D00.md（新增）", "docs/remote-file-paste/execution/state.json（更新）", "docs/remote-file-paste/execution/handoff.md（更新）"]
+  },
+
+  "deferredToLaterTasks": [
+    { "item": "按实际环境细化任务分解（若发现需要拆分）", "note": "本轮核对 26 个叶任务依赖完整、无环、无缺卡，未发现必须拆分或改依赖的理由，因此未改动 task-graph.json 与任务卡。" },
+    { "item": "选定并固定 all/remote/Harness 版本与 integrity", "task": "D04" },
+    { "item": "选定并固定 Playwright/Chromium 版本", "task": "D05/D12/D18" },
+    { "item": "确认 Node 22.23.2 是否满足所选 Harness 的 engines", "note": "remote-web-ui 0.3.20 声明 ^22.19.0 || >=24.0.0 已满足；Harness 包自身的 engines 本轮未核对。", "task": "D04" }
+  ],
+
+  "conclusion": {
+    "taskStatus": "done",
+    "m0Milestone": "M0 可恢复执行：基线与台账存在，尚未实现功能",
+    "businessCodeImplemented": false,
+    "developmentStatus": "notStarted（仍为初始值；未完成任何实现任务）",
+    "windowsStatus": "pending",
+    "releaseEligible": false,
+    "nextSuggestedTask": "D01（仅建议，不在本轮执行）"
+  }
+}

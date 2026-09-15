@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "type": "file-begin",
+  "sessionId": "session-1",
+  "batchId": "batch-6",
+  "fileId": "file-1",
+  "name": "a.txt",
+  "byteLength": 8,
+  "mime": "text/plain",
+  "sha256": "9c56cc51b374c3ba189210d5b6d4bf57790d351c96c47c02190ecf1e430635ab"
+}
