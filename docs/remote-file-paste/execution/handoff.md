@@ -44,7 +44,7 @@
   提交 `676f6a0`）⇒ 证据与 release 提交内容一致（仅文档差异）。
 - 插件 `@shxtmaker/dsh-remote-attachments@0.1.0`；`src` 树 18 文件 `sha256=c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe`。
 - tarball `plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz`：
-  163 832 B / 59 文件，`sha256=f8961215a8c9dffcca44ff78b82a49e8f39708e5df59e84bad46a161b0bc9556`。
+  165 785 B / 59 文件，`sha256=64a359de44fd12185297ba8939268208246e61981bf149a1efd0591dfc3b996b`。
 - 上游：Harness CLI `0.1.5-rc.1` + 内部 UI 包 `0.1.5-rc.2` + `@linxin666/dsh-web-all` / `dsh-remote-web-ui` `0.3.20`。
 - 机器可读绑定清单：`artifacts/verify-portable/d25-handoff-manifest.json`（含 `release` 段）。
 

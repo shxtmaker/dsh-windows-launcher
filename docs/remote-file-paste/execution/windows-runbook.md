@@ -14,7 +14,7 @@
 | 交接件 | 路径 | 说明 |
 | --- | --- | --- |
 | 交接清单（机器可读，权威绑定） | `artifacts/verify-portable/d25-handoff-manifest.json` | 候选/tarball/锁/Linux 证据/待验清单 |
-| 插件候选 tarball | `plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz` | `sha256=f8961215a8c9dffcca44ff78b82a49e8f39708e5df59e84bad46a161b0bc9556`，59 文件，163 832 B |
+| 插件候选 tarball | `plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz` | `sha256=64a359de44fd12185297ba8939268208246e61981bf149a1efd0591dfc3b996b`，59 文件，165 785 B |
 | 包清单 | `artifacts/verify-portable/d22-package-manifest.json` | 干净安装证据 + 包内文件清单 + 运行期字节证明 |
 | Linux 证据摘要 | `artifacts/verify-portable/portable-verify-summary.json` | runId `d24-2026-09-15T11-15-43-616Z-0a0f006c` |
 | Linux 完整报告 | `artifacts/verify-portable/d24-linux-report.json` | L01–L13 覆盖表、零容忍控制、notRun 清单 |
@@ -25,7 +25,7 @@
 - 工作树脏计数 37，`git status --porcelain=v1`（Trim 后）SHA-256 = `0b99fd98968999bb5173eea6c1865e9f614df27d7e12a2045beaf616afdc8c10`。
 - 插件 `src` 树 18 个文件，逐文件指纹（路径+NUL+字节+NUL）= `c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe`。
 - **任何**源码或工作树变化都会使 D24 证据与本清单失效：必须回到受影响任务重验，**不得**用旧报告充当新候选的通过证据（Windows 方案第 2 节拒收条件）。
-- 仓库纪律提醒：`compatibility-lock.json` 的插件 tarball 摘要是 **D03 轮次快照**（`5d4016be…`），不随构建更新；**Windows 侧引用插件包摘要一律以本清单 `tarball.sha256`（`f8961215…`）为准**。
+- 仓库纪律提醒：`compatibility-lock.json` 的插件 tarball 摘要是 **D03 轮次快照**（`5d4016be…`），不随构建更新；**Windows 侧引用插件包摘要一律以本清单 `tarball.sha256`（`64a359de…`）为准**。
 
 ## 1. 上游身份与版本组合
 
@@ -108,7 +108,7 @@ Windows 主机除 Windows 方案第 3.1 节的环境矩阵外，需要：
 # 1) 身份与基线（先核对第 0/1 节材料，再动手）
 git -C <repo> rev-parse HEAD            # 期望 df68795c3f7a0a34d6ed4fdd7804e369bdd0258b
 git -C <repo> status --porcelain=v1     # 期望 37 行（Trim 后 sha256 0b99fd98…）
-Get-FileHash plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz -Algorithm SHA256  # 期望 f8961215…
+Get-FileHash plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz -Algorithm SHA256  # 期望 64a359de…
 
 # 2) 正式 Windows 门禁（完整 solution：locked restore + Release win-x64 + 全部原生测试）
 pwsh -File .\eng\verify.ps1 -DotNetPath "$env:LOCALAPPDATA\DshWindowsLauncherDev\dotnet-10.0.400\dotnet.exe"
