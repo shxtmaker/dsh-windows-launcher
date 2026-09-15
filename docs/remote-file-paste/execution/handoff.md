@@ -55,6 +55,7 @@
 | 交接清单（候选/tarball/锁/证据/待验绑定） | `artifacts/verify-portable/d25-handoff-manifest.json` |
 | 插件候选 tarball + manifest | `plugins/dsh-remote-attachments/pack/*.tgz`、`artifacts/verify-portable/d22-package-manifest.json` |
 | Windows 运行手册 | [windows-runbook.md](windows-runbook.md) |
+| Windows 侧分轮验收提示词 | [../windows-verification-prompt.md](../windows-verification-prompt.md) |
 | Windows 任务列表与待验清单 | [windows-task-list.md](windows-task-list.md) |
 | 交付报告（D25 冻结，含 Windows 轮次必须先看的问题） | [delivery-report.md](delivery-report.md) |
 | Linux 完整报告 | `artifacts/verify-portable/d24-linux-report.json`、`artifacts/verify-portable/d24-runs/` |
