@@ -95,3 +95,25 @@ pwsh -NoProfile -File ./eng/verify-portable.ps1 -Profile Development -ArtifactsD
 
 v2.1.0 源码与文档已双平台推送，release 已创建并上传可用资产；安装包因缺少 Windows 构建环境未产出。
 DEV 轨道保持 `DevelopmentReady`，Windows 保持 `pending`，`releaseEligible=false`。
+
+## 8. 附：安装包产出后如何补传到本 release
+
+在 Windows 轨道产出 `DSH.Windows.Launcher-Setup-2.1.0-win-x64.exe`（+ `.sha256`、`package-manifest.json`、
+`verify-summary.json`、SBOM、第三方许可证）后，用发布者凭据补传即可（凭据从 `~/.git-credentials` 读取，
+不要写进命令历史或提交）：
+
+```bash
+# GitHub（release id 389136149）
+curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/octet-stream" \
+  "https://uploads.github.com/repos/shxtmaker/dsh-windows-launcher/releases/389136149/assets?name=<文件名>" \
+  --data-binary @<本地文件>
+
+# Gitea（release id 30）
+curl -X POST -H "Authorization: token <token>" -F "attachment=@<本地文件>" \
+  "http://192.168.3.100:3300/api/v1/repos/lqy/dsh-windows-launcher/releases/30/assets?name=<文件名>"
+```
+
+补传完成且 `eng/verify.ps1` 的 `verify-summary.json` 为 PASS 后，再把 release 的 `prerelease` 改为
+`false`（PUT `/releases/<id>`，body 含 `"prerelease": false`），并把 `state.json` 的
+`release.installerBuilt` 改为 `true`、`project.releaseEligible` 依正式门禁结论更新。
+`<token>` 一律按实际发布凭据替换；本记录不保存任何凭据。
