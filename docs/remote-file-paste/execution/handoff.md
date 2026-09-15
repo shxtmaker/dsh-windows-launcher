@@ -23,7 +23,7 @@
   （附件插件 tarball、源码 tar.gz/zip、`SHA256SUMS.txt`、Linux 门禁证据、交接清单）。
 - **✅ R30 发布后修复（`aecb3f3`，工作树 clean）**：插件 `README.md` 从 D03 过时描述更正为实际状态；
   删除遗留探针 `tests/fixtures/.d20-probe-tmp.mjs`（含硬编码本机绝对路径，全库无引用）；
-  插件 tarball 因此更新为 `64a359de…`（165 785 B / 59 文件，`src` 树指纹未变）。
+  插件 tarball 因此更新为 `a6f865a4…`（165 802 B / 59 文件，`src` 树指纹未变）。
   ⚠️ **v2.1.0 release 的插件 tarball 资产仍是更正前的 `f8961215…`**（未擅自变更已发布 release；
   可原位置换或另发 v2.1.1）。
 - ⚠️ **安装包未产出**：`Setup-2.1.0-win-x64.exe` 需要 Windows + Inno Setup 7.0.2 + WebView2 输入与真实
@@ -53,7 +53,7 @@
   提交 `676f6a0`）⇒ 证据与 release 提交内容一致（仅文档差异）。
 - 插件 `@shxtmaker/dsh-remote-attachments@0.1.0`；`src` 树 18 文件 `sha256=c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe`。
 - tarball `plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz`：
-  165 785 B / 59 文件，`sha256=64a359de44fd12185297ba8939268208246e61981bf149a1efd0591dfc3b996b`。
+  165 802 B / 59 文件，`sha256=a6f865a439297307501a58c9491e75aafb4438ad05c9f58a723a84923b55aac1`。
 - 上游：Harness CLI `0.1.5-rc.1` + 内部 UI 包 `0.1.5-rc.2` + `@linxin666/dsh-web-all` / `dsh-remote-web-ui` `0.3.20`。
 - 机器可读绑定清单：`artifacts/verify-portable/d25-handoff-manifest.json`（含 `release` 段）。
 

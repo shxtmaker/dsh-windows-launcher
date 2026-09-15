@@ -7,7 +7,7 @@
 >
 > **更新（R30）**：插件 `README.md` 已从 D03 过时描述更正，并删除遗留探针
 > `tests/fixtures/.d20-probe-tmp.mjs`（含硬编码本机绝对路径）；插件 tarball 因此变为
-> `64a359de…`（165 785 B / 59 文件），本报告与 Windows 交接文档已同步。同候选门禁复跑
+> `a6f865a4…`（165 802 B / 59 文件），本报告与 Windows 交接文档已同步。同候选门禁复跑
 > **32/32、546/546、worktree clean、零身份违规**（runId `d24-2026-09-15T16-25-41-981Z-3c29392e`）。
 > ⚠️ v2.1.0 release 的插件 tarball 资产仍为更正前的 `f8961215…`。详见
 > [rounds/R30-plugin-readme-fix.md](rounds/R30-plugin-readme-fix.md)。
@@ -25,9 +25,9 @@
 | HEAD | `df68795c3f7a0a34d6ed4fdd7804e369bdd0258b`（**未提交**，改动留在工作树） |
 | 工作树 | dirty 37；`git status --porcelain=v1`（Trim）`sha256=0b99fd98968999bb5173eea6c1865e9f614df27d7e12a2045beaf616afdc8c10` |
 | 附件插件 | `@shxtmaker/dsh-remote-attachments@0.1.0`；`src` 树 18 文件 `sha256=c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe` |
-| 插件 tarball | `plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz`，165 785 B / 59 文件，`sha256=64a359de44fd12185297ba8939268208246e61981bf149a1efd0591dfc3b996b` |
+| 插件 tarball | `plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz`，165 802 B / 59 文件，`sha256=a6f865a439297307501a58c9491e75aafb4438ad05c9f58a723a84923b55aac1` |
 | Harness 组合 | CLI `0.1.5-rc.1` + 内部 UI 包 `0.1.5-rc.2` + `@linxin666/dsh-web-all` / `dsh-remote-web-ui` `0.3.20`（用户决策"先沿用本机"） |
-| 产品版本 | `2.1.0`，`releaseStatus=candidate`；支持 `Windows 11 25H2+ x64`，兼容记录 `Windows 10 22H2 x64` |
+| 产品版本 | `2.1.1`，`releaseStatus=candidate`；支持 `Windows 11 25H2+ x64`，兼容记录 `Windows 10 22H2 x64` |
 | 绑定清单 | `artifacts/verify-portable/d25-handoff-manifest.json` |
 
 > 任何源码/工作树变化都使本报告与 D24 证据失效，须回到受影响任务重验，不得复用旧报告。
@@ -89,7 +89,7 @@ runId `d24-2026-09-15T11-15-43-616Z-0a0f006c`（约 26 分钟）→
 ## 7. Windows 轮次必须先看的问题（⚠️）
 
 1. **`Platform.Windows.Tests` 基线转义隐患（W00 阻断项）**：4 条含反斜杠参数的理论用例，MTP 的 XML 输出把 `\` 再转义为 `\\`，而 D14 建立的该程序集基线来自枚举 JSON 归一值 ⇒ 真实 Windows 上跑 XML 门禁会报 `missing/unexpected`。修它会删除既有基线哈希，故按"只增不减"规则未在 DEV 轨道修改。**在此之前不得声称该程序集基线在 Windows 上可用**；W00 须按真实 XML 重新推导或统一转义归一。
-2. **插件包摘要以 D25 交接清单为准**：`compatibility-lock.json` 的插件条目是 D03 快照（`5d4016be…`），不随构建更新；权威值是本报告第 1 节的 `64a359de…`。
+2. **插件包摘要以 D25 交接清单为准**：`compatibility-lock.json` 的插件条目是 D03 快照（`5d4016be…`），不随构建更新；权威值是本报告第 1 节的 `a6f865a4…`。
 3. **上游版本偏离**：本机为 all/remote `0.3.20` + CLI `0.1.5-rc.1`（实际 UI 包 `0.1.5-rc.2`），研究快照为 `0.3.21` + `0.1.5-rc.2`；Harness / dsh-web 源码 commit **未核实**（本机无 checkout）。若日后对齐快照，必须重跑 D04–D13。
 4. **口径**：`Session.promptError` 公开路径存在（插件 `ctx.sessions.scope(id)` → `sessionOf(scope)` → `getSnapshot().promptError`）；当前黑盒测试**没有插件上下文句柄**，**不得**表述为"没有公开接口"。撤销证据只表述为"请求到达 Host 前被门控拒绝"（403 + `unpaired`），**不得**扩展为"已通过鉴权的上传流被主动终止"。
 

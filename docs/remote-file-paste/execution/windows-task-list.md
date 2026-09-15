@@ -132,7 +132,7 @@
 | id | 内容 | 触发条件 | 状态 |
 | --- | --- | --- | --- |
 | W00-A | `Platform.Windows.Tests` 反斜杠理论用例基线转义：按真实 XML 重新推导或统一 `\`→`\\` 归一 | 真实 Windows XML 门禁报 `missing/unexpected`（4 条） | pending（**W00 阻断项**） |
-| W00-B | 插件包摘要统一：Windows 侧引用 `d25-handoff-manifest.json` 的 `tarball.sha256`（`64a359de…`），忽略 `compatibility-lock.json` 的 D03 快照值 | 任何引用插件包摘要的位置 | pending |
+| W00-B | 插件包摘要统一：Windows 侧引用 `d25-handoff-manifest.json` 的 `tarball.sha256`（`a6f865a4…`），忽略 `compatibility-lock.json` 的 D03 快照值 | 任何引用插件包摘要的位置 | pending |
 
 ## 6. 开发轨道收尾状态（本文件不改变）
 

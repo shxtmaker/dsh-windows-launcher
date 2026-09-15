@@ -14,14 +14,14 @@ Windows 实机验收。始终用中文说明，代码、命令和报错保持原
 
 ## 一、被测候选与身份（每个结论都必须绑定）
 
-- 仓库 `https://github.com/shxtmaker/dsh-windows-launcher.git`，分支 `main`，发布标签 **`v2.1.0`**
+- 仓库 `https://github.com/shxtmaker/dsh-windows-launcher.git`，分支 `main`，发布标签 **`v2.1.1`**
   （附注标签指向提交 `676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8`）；`main` 尖端另有发布记录提交。
 - 附件插件 tarball：`plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz`
-  （`sha256=64a359de44fd12185297ba8939268208246e61981bf149a1efd0591dfc3b996b`，59 文件，165 785 B）。
+  （`sha256=a6f865a439297307501a58c9491e75aafb4438ad05c9f58a723a84923b55aac1`，59 文件，165 802 B）。
 - Linux 开发门禁（发布前同候选轮，runId `d24-2026-09-15T12-16-27-474Z-ed8d444f`）：Development **32/32 pass**、
   cases **546/546**、`portableStatus=pass`、`crossBuildStatus=pass`。**这只是非 Windows 层级**。
 - 上游：Harness CLI `0.1.5-rc.1`（实际 UI 包 `0.1.5-rc.2`）+ `@linxin666/dsh-web-all`/`dsh-remote-web-ui` `0.3.20`。
-- 产品版本 `2.1.0`、`releaseStatus=candidate`；支持 `Windows 11 25H2+ x64`，兼容记录 `Windows 10 22H2 x64`。
+- 产品版本 `2.1.1`、`releaseStatus=candidate`；支持 `Windows 11 25H2+ x64`，兼容记录 `Windows 10 22H2 x64`。
 
 **第一条铁律**：每一项结果都必须与上面**同一候选**绑定（提交 SHA + 工作树状态 + 插件 tarball SHA-256 +
 `eng/verify.ps1` 的 `verify-summary.json` 摘要）。候选源码/依赖/测试配置一旦变化，按影响范围重跑相关用例，
@@ -82,7 +82,7 @@ Windows 实机验收。始终用中文说明，代码、命令和报错保持原
 2. **先处理两个决策项**（任务列表 §5）：
    - `W00-A` `Platform.Windows.Tests` 反斜杠理论用例基线转义：真实 Windows XML 门禁会因 MTP 双重转义报
      `missing/unexpected`（4 条）。必须按真实 XML 重新推导或统一 `\`→`\\` 归一；**在此之前不得声称该程序集基线可用**。
-   - `W00-B` 插件包摘要一律用 D25 交接清单的 `tarball.sha256`（`64a359de…`）；`compatibility-lock.json` 的插件条目是旧快照。
+   - `W00-B` 插件包摘要一律用 D25 交接清单的 `tarball.sha256`（`a6f865a4…`）；`compatibility-lock.json` 的插件条目是旧快照。
 3. 运行正式 Windows 门禁（完整 solution，不是只构建 Core）：
    ```powershell
    pwsh -File .\eng\verify.ps1 -DotNetPath "$env:LOCALAPPDATA\DshWindowsLauncherDev\dotnet-10.0.400\dotnet.exe"
@@ -90,8 +90,8 @@ Windows 实机验收。始终用中文说明，代码、命令和报错保持原
    保存完整输出与 `verify-summary.json`。注意：`portable-verify-summary.json` 是 Linux 摘要，**不是发布凭据**。
 4. 按方案 §7.1 正式打包（隔离干净 runner，保留 `installer/DshWindowsLauncher.iss` 的安装保护）：
    ```powershell
-   pwsh -File .\eng\package.ps1 -Version 2.1.0 -PackageMode Offline ... -AllowInstallerExecutionForUninstallerVerification
-   pwsh -File .\eng\package.ps1 -Version 2.1.0 -PackageMode Online  ... -AllowInstallerExecutionForUninstallerVerification
+   pwsh -File .\eng\package.ps1 -Version 2.1.1 -PackageMode Offline ... -AllowInstallerExecutionForUninstallerVerification
+   pwsh -File .\eng\package.ps1 -Version 2.1.1 -PackageMode Online  ... -AllowInstallerExecutionForUninstallerVerification
    ```
 5. 至少完成一种包的隔离安装，记录产物身份（候选 EXE、已安装 EXE、托管程序集、Bootstrapper、卸载器 SHA-256、
    `NotSigned` 状态）。
@@ -168,7 +168,7 @@ pwsh -File .\eng\release-smoke.ps1 -InstallerPath '<实际安装包>' -EvidenceD
 ## 七、Windows 侧必须先处理的已知问题（不得当作已通过）
 
 1. ⚠️ `Platform.Windows.Tests` 反斜杠理论用例基线转义隐患（W00 阻断项，见 W00-A）。
-2. 插件包摘要以 D25 交接清单为准（`64a359de…`）；`compatibility-lock.json` 为 D03 旧快照。
+2. 插件包摘要以 D25 交接清单为准（`a6f865a4…`）；`compatibility-lock.json` 为 D03 旧快照。
 3. 上游版本偏离：本交付为 all/remote `0.3.20` + CLI `0.1.5-rc.1`（UI 包实为 `0.1.5-rc.2`），
    研究快照为 `0.3.21` + `0.1.5-rc.2`；Harness/dsh-web 源码 commit **未核实**。对齐快照须重跑 D04–D13。
 4. `Session.promptError` 的公开路径存在（客户端插件 `ctx.sessions.scope(id)` → `sessionOf(scope)` →

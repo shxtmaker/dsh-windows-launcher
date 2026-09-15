@@ -57,9 +57,9 @@ docs/                           兼容/停用策略与 Linux 验证报告
 cordis.patch.yml                单一 Cordis 行：id=remote-attachments
 ```
 
-线协议 v1 的冻结语料位于**本仓库**的 `schemas/remote-attachments/v1/`
+线协议 v1 的冻结语料位于仓库的 `schemas/remote-attachments/v1/`
 （`schema.json` + `golden/` + `malicious/` + `expected.json`）：它与 C# 生产 codec 共用同一份期望，
-因此不放在插件目录内。
+且不随包发布（`package.json` 的 `files` 只含运行期产物）。
 
 ## 命令
 
