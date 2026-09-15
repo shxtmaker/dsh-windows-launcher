@@ -3,6 +3,7 @@
 本文件是 D25 交给 Windows 执行者的**运行手册**。它把 [windows-validation-plan.md](../windows-validation-plan.md)（下称"Windows 方案"）
 第 2 节的输入材料表逐项落实成可执行步骤，并绑定到**同一候选**。任务与用例清单见
 [windows-task-list.md](windows-task-list.md)；状态唯一真值仍是 [state.json](state.json)。
+附件契约、生效限额、网络契约与诊断入口（Windows 方案 §2 材料表的其余几行）见 [§10](#10-附件契约限额网络与诊断入口材料表补全)。
 
 > **口径纪律**：本手册描述的是**待执行**方案。DEV 轨道（Linux）已完成并记 `DevelopmentReady`；
 > Windows 全部为 `WindowsPending`。本手册中的命令都**尚未在 Windows 上执行**，不得把本文件
@@ -203,3 +204,85 @@ Windows 方案 §7.3、§8：对两种包分别执行 `eng/release-smoke.ps1 -Re
 - Windows 轨道**不推进** DEV 任务；DEV 已在 D25 结束调度。
 - 实机缺陷修复另登记代码任务，并复验受影响的 Linux 与 Windows 项；不临场修改 Harness 核心绕过失败。
 - 正式发布 / 推送 / npm 发布均需用户**另行明确授权**，本手册不授权任何发布动作。
+
+## 10. 附件契约、限额、网络与诊断入口（材料表补全）
+
+本节补全 Windows 方案第 2 节材料表中"附件契约 / 限额与资源 / 网络契约 / 诊断入口"四行。
+
+### 10.1 附件契约（v1，已冻结）
+
+- 协议版本 `PROTOCOL_VERSION = 1`，schema 冻结在 `schemas/remote-attachments/v1/`
+  （`schema.json` + `README.md` + 语言中立的 `expected.json` + `golden/`）。改动 schema 必须重跑 D10/D12/D13。
+- **11 类消息**：`hello`、`capabilities`、`context`、`batch-begin`、`file-begin`、`chunk`、`ack`、`file-end`、
+  `import-result`、`batch-end`、`cancel`。`additionalProperties:false`，整数范围与枚举显式声明。
+- **身份绑定**：`operationId == batchId`；`fileId` 绑定 `targetId+documentEpoch+composerEpoch+sessionId+batchId`；
+  `seq` 每文件从 0，`offset` 连续，单文件最多 2 块在途。
+- **三态语义（验收点）**：`transport{idle,buffering,buffered}` / `draft{none,staged,failed,partial}` /
+  `upload{none,harness-owned}`——枚举里**没有** `ready`/`uploaded`；`staged` 只表示对端草稿已接收字节并给出
+  `attachmentIds`，**不保证 receipt 仍有效**（`ready` 是 Harness 上传层状态）。
+- **错误码**：`ERROR_STAGES` 四阶段分开报告（`native-capture` / `protocol-transfer` / `draft-import` /
+  `remote-upload`）；36 个协议拒绝码（`ERROR_CODES`）与 19 个结果码分工不混用。
+- **输入所有权**：页面握手声明截图所有者（`native-paste` 或 `bridge`）；**同一动作只有一个消费者**
+  （原生超时后桥不补导入）；v1 只有 `screenshot` 一个信号位，当前生产插件不含该特性 ⇒ 默认由 bridge 消费。
+  同时具有文件列表与位图时**文件列表恒优先**。
+- **取消策略**：客户端取消（观测为 `client-aborted`）与配对撤销门控（403 + `unpaired`，在进 Host 前拒绝）
+  是两条独立路径；取消后同会话可开新批次，只有复用**同一** `batchId` 才是 `duplicate-operation`。
+- **适配器接入**：客户端插件经 Cordis `ctx` 接入原生草稿/附件接口，**不依赖 React 私有状态或 DOM 猜测**
+  （DOM 仅用于 file input 的 `change` 事件与卡片定位）。
+- **页面全局**（均为页面内对象，不是可被任意网页调用的 API）：
+  `__DSH_ATTACHMENTS_BRIDGE__`（`importFiles(...)`）、`__DSH_ATTACHMENTS_RECEIVER__`（分块接收）、
+  `__DSH_ATTACHMENTS_ADDON__`（版本标记）、`__DSH_ATTACHMENTS_STATUS__`（诊断命名空间）。
+
+### 10.2 生效限额、ACK 窗口与超时（`src/shared/protocol.ts`）
+
+| 项 | 值 | 常量 |
+| --- | --- | --- |
+| 单文件上限 | 20 MiB | `DEFAULT_LIMITS.maxFileBytes` |
+| 单批文件数 | 10 | `maxFilesPerBatch` |
+| 单批字节 | 50 MiB | `maxBatchBytes` |
+| 截图编码前像素 | 4000 万 | `maxScreenshotPixels` |
+| 单目标暂存 | 100 MiB | `maxStagingBytesPerTarget` |
+| 并发目标 | 2 | `maxConcurrentTargets` |
+| 块大小 | 256 KiB | `CHUNK_BYTES` |
+| 在途块 | 2 | `MAX_CHUNKS_IN_FLIGHT` |
+| 握手上限 | 5 s | `WIRE_TIMEOUTS.handshakeMs` |
+| 单块 ACK 上限 | 10 s | `ackMs` |
+| `file-end` → `import-result` | 30 s | `fileEndMs` |
+| 批次整体空闲 | 60 s | `batchIdleMs` |
+| 重放/去重缓存 | 64 条 / 120 s / 活动操作钉住不可淘汰 | `REPLAY_CACHE_CAPACITY`、`REPLAY_CACHE_LIFETIME_MS` |
+
+- **有效限额**还须取 Harness、模型图片能力与代理限制中的较小者（Windows 方案 §4）；实测值以页面诊断
+  `__DSH_ATTACHMENTS_STATUS__.addon.status().handshake.effectiveLimits`（= `min(本端策略, 对端声明)`，
+  含 `policyLimits` / `declaredLimits` / `clamps`）为准，`advertised.capabilities.limits` 是本端握手广告；
+  **不得**用文档值推定运行时值。
+- **暂存位置**：`<应用数据根>\attachments\staging\<targetId:N>`，其中应用数据根为
+  `%LOCALAPPDATA%\DshWindowsLauncher`（自有根 + 所有权标记）。
+- **清理时机**：释放/取消/目标移除/进程退出与启动清理；只删除自有根内由本功能拥有的普通文件，
+  拒绝根外、重解析点与子目录（失败可恢复、有台账上界）。
+- **功能关闭方法**：单独停用附件插件（或本机附件能力开关）。只关闭附件能力，**保留**全家桶配对、心跳与设备库；
+  卸载/清数据按安装器契约执行（普通卸载保留应用数据）。
+
+### 10.3 网络契约
+
+- 主页面与附件上传都必须走 `/remote` 门控：上传路径为
+  `POST <origin>/remote/api/session/uploadFileBinary`，认证为设备 Cookie（`dsh_pair`）或设备头
+  （`x-dsh-remote-device`，调用时从 `sessionStorage` 读取）。
+- **不静默回退裸 `/api`**：远端通道不可用时能力报 `unavailable` / `refused-no-remote-channel`（零请求），
+  内置图片路径仍在原厂位置工作。
+- 承载只对**同源且 `/api/` 前缀**改写（排除 `/api/pair/`、`/api/update/`）；设备头只对 `Headers` 实例 `set()`。
+- HTTP LAN 与 HTTPS（含正常可信证书 / 反向代理）两种 origin 分别验证；Cookie 模式与免 Cookie 模式分别验证。
+- 证据只记录认证模式、请求头是否存在、路径模式、字节数与状态码，**不记录**设备凭据、完整配对 URL、Cookie 值或正文（见 §8）。
+
+### 10.4 诊断入口（默认不暴露任意本机读取）
+
+- **页面诊断**：`window.__DSH_ATTACHMENTS_STATUS__`。host 段含 `enabled`（插件是否被显式禁用）；
+  addon 段含完整 `status()`：`state`（`installed`/`disposed`）、`packageName`、`build`、`protocolVersion`、
+  `origin` 事实、`capability{status,code,reason,missing,facts}`、`upload{hook,ownership,route}`、
+  `advertised`（hello/capabilities）、`handshake`、三层状态 `transport`/`draft`/`upload`。
+  只读诊断，**不提供任何任意本机路径读取接口**。
+- **桥接面**：`__DSH_ATTACHMENTS_BRIDGE__.importFiles({sessionId?, files})` 与接收端 `__DSH_ATTACHMENTS_RECEIVER__`
+  （仅页面内部投递）。两者都在页面上下文，不注册通用文件系统 host object，也不申请任意网页剪贴板权限。
+- **原生表面**：公开成员只接受不透明 id（batchId/captureId/snapshotId），没有任何 Path 参数——
+  由反射用例 WP-21…WP-25、WP-32、WP-37 在实机钉住。
+- **来源校验**：只有规范化后逐字相等且是当前活动顶层文档的页面才获得能力；不存在"任意网页可调用的
+  `readPath`"。诊断入口在普通网页中不出现，能力默认关闭。
