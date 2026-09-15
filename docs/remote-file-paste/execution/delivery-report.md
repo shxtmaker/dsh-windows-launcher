@@ -1,5 +1,10 @@
 # 远程文件粘贴附件 · 交付报告（D25 冻结）
 
+> **后续进展（R29）**：本报告冻结于 D25。之后已按用户指令发布 **v2.1.0（prerelease）**——
+> 分支 `main` 提交 `8e6ae61`+`676f6a0`、附注标签 `v2.1.0`，已推送 GitHub 与 Gitea 并各上传 7 个资产；
+> **Windows Launcher 安装包未构建/未上传**（需 Windows + Inno Setup 7.0.2 + WebView2 与真实安装验证）。
+> 详见 [rounds/R29-release-v2.1.0.md](rounds/R29-release-v2.1.0.md) 与 [handoff.md](handoff.md)。
+
 方案版本 2.0。本报告在 **D25（冻结开发交付并移交 Windows 实机验证）**冻结；状态唯一真值仍是
 [state.json](state.json)，逐轮细节见 [rounds/](rounds/)，恢复入口见 [handoff.md](handoff.md)。
 按既定约定，本报告**只在出现需要 Windows 轮次处理的问题时**更新；本次更新即属该情形

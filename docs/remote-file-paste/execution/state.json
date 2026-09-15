@@ -3,7 +3,7 @@
   "planRevision": "2.0",
   "initializedByExecutor": true,
   "initializedAt": "2026-09-13",
-  "round": "R28",
+  "round": "R29",
   "currentTask": null,
   "baseline": {
     "file": "execution/baseline.json",
@@ -2414,5 +2414,45 @@
     "developmentReadyGateField": "artifacts/verify-portable/portable-verify-summary.json 的 developmentReady=false 是 Linux profile 配置（producesDevelopmentReady=false）口径，与项目级 DevelopmentReady 不同；正式发布门禁摘要只能是 Windows eng/verify.ps1 的 verify-summary.json。",
     "windowsStatus": "pending",
     "releaseEligible": false
+  },
+  "release": {
+    "version": "2.1.0",
+    "tag": "v2.1.0",
+    "tagObject": "f654e8f4eb7ca854dca3053095a132647b5b5732",
+    "commit": "676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8",
+    "commits": {
+      "feature": "8e6ae616c5bbacaab8cf458584d855271e127ae4",
+      "handoffDocs": "676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8"
+    },
+    "branch": "main",
+    "prerelease": true,
+    "remotes": {
+      "github": "https://github.com/shxtmaker/dsh-windows-launcher.git",
+      "gitea": "http://192.168.3.100:3300/lqy/dsh-windows-launcher.git"
+    },
+    "releases": {
+      "github": {
+        "id": 389136149,
+        "url": "https://github.com/shxtmaker/dsh-windows-launcher/releases/tag/v2.1.0"
+      },
+      "gitea": {
+        "id": 30,
+        "url": "http://192.168.3.100:3300/lqy/dsh-windows-launcher/releases/tag/v2.1.0"
+      }
+    },
+    "assets": [
+      "shxtmaker-dsh-remote-attachments-0.1.0.tgz",
+      "dsh-windows-launcher-2.1.0-source.tar.gz",
+      "dsh-windows-launcher-2.1.0-source.zip",
+      "SHA256SUMS.txt",
+      "portable-verify-summary.json",
+      "d24-linux-report.json",
+      "d25-handoff-manifest.json"
+    ],
+    "installerBuilt": false,
+    "installerNote": "Windows Launcher 安装包（Setup-2.1.0-win-x64.exe）未构建：构建机为 Linux，eng/package.ps1 需要 Windows + Inno Setup 7.0.2 + WebView2 输入并在隔离 runner 做真实安装/卸载验证；eng/verify.ps1 正式门禁与 RS-01…RS-15 亦未执行。由 Windows 轨道（windows-runbook.md W00/W05）产出后另行附加。",
+    "linuxGateRunId": "d24-2026-09-15T12-16-27-474Z-ed8d444f",
+    "linuxGateChecks": "32/32 pass、cases 546/546、portableStatus=pass、crossBuildStatus=pass",
+    "roundRecord": "docs/remote-file-paste/execution/rounds/R29-release-v2.1.0.md"
   }
 }

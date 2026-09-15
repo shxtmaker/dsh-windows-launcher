@@ -14,11 +14,19 @@
   [windows-validation-plan §1](../windows-validation-plan.md)：全部 DEV 叶任务完成且证据有效 + D24 完整 Linux 门禁真实通过 +
   D25 源码/tarball/实机交接完整，**不需要 Windows 在线**）；
   `windowsStatus=pending`；`releaseEligible=false`（恒定）。
-- 最近轮次：R28 / D25，结果 **done**，记录见 [rounds/R28-D25.md](rounds/R28-D25.md)。
-- Linux 权威轮（runId `d24-2026-09-15T11-15-43-616Z-0a0f006c`）：Development **32/32 checks pass、incomplete 0、fail 0**、
-  `portableStatus=pass`、`crossBuildStatus=pass`（**独立判定**）、cases 546/546、`harnessIntegration=pass`、
-  `productionInterop=pass`、`windowsValidation=notRun`、`releaseEligible=false`。摘要：
-  `artifacts/verify-portable/portable-verify-summary.json`。
+- 最近轮次：R29 / 发布 v2.1.0，结果 **done**，记录见 [rounds/R29-release-v2.1.0.md](rounds/R29-release-v2.1.0.md)；
+  上一轮 R28 / D25 见 [rounds/R28-D25.md](rounds/R28-D25.md)。
+- **✅ 已发布 v2.1.0（prerelease）**：分支 `main` 提交 `8e6ae61`（功能）+ `676f6a0`（Windows 交接材料补全），
+  附注标签 `v2.1.0`（`f654e8f4…` → `676f6a0`）已推送 GitHub 与 Gitea；
+  两平台 release `DSH Windows Launcher 2.1.0`（id `389136149` / `30`）各上传 7 个资产
+  （附件插件 tarball、源码 tar.gz/zip、`SHA256SUMS.txt`、Linux 门禁证据、交接清单）。
+- ⚠️ **安装包未产出**：`Setup-2.1.0-win-x64.exe` 需要 Windows + Inno Setup 7.0.2 + WebView2 输入与真实
+  安装/卸载验证（`eng/package.ps1`），构建机为 Linux，故未构建、未上传；release 因此标记 prerelease，
+  安装包由 Windows 轨道（[windows-runbook.md](windows-runbook.md) W00/W05）产出后另行附加。
+- Linux 权威轮（runId `d24-2026-09-15T12-16-27-474Z-ed8d444f`，发布前同候选轮）：Development **32/32 checks pass、
+  incomplete 0、fail 0**、`portableStatus=pass`、`crossBuildStatus=pass`（**独立判定**）、cases 546/546、
+  `harnessIntegration=pass`、`productionInterop=pass`、`windowsValidation=notRun`、`releaseEligible=false`。摘要：
+  `artifacts/verify-portable/portable-verify-summary.json`。（D25 轮为 `d24-2026-09-15T11-15-43-616Z-0a0f006c`，同样 32/32。）
 - **口径纪律（务必遵守）**：`portableStatus=pass` **不等于**"所有测试通过"，更**不等于可发布**；
   `portable-verify-summary.json` 的 `developmentReady=false` 是 **profile 配置**（两端 profile 的
   `producesDevelopmentReady` 均为 false），与项目级 `DevelopmentReady` 是**两个口径**——项目级状态由 D25 按方案记账；
@@ -26,16 +34,19 @@
 - Windows：全部实机/打包/安装/发布事实 `WindowsPending`，**不计入任何通过**；`notRun` 合计 20 条
   （WindowsPending 13 + 显式白名单受限 7），`unjustified=0`。
 
-## 2. 本轮候选摘要（冻结）
+## 2. 本轮候选摘要（已发布）
 
-- 仓库 `https://github.com/shxtmaker/dsh-windows-launcher.git`，分支 `feat/remote-file-paste-attachments`，
-  HEAD `df68795c3f7a0a34d6ed4fdd7804e369bdd0258b`（**未提交**，改动留在工作树）。
-- 工作树 dirty 37；`git status --porcelain=v1`（Trim 后）`sha256=0b99fd98968999bb5173eea6c1865e9f614df27d7e12a2045beaf616afdc8c10`。
+- 仓库 `https://github.com/shxtmaker/dsh-windows-launcher.git`，分支 **`main`**（`feat/remote-file-paste-attachments` 同内容）。
+- 发布提交：**`8e6ae616c5bbacaab8cf458584d855271e127ae4`**（`feat: remote file paste attachments (2.1.0)`）
+  + **`676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8`**（`docs: complete Windows handoff materials`，即发布前门禁轮里的 dirty 1）。
+- 标签：**`v2.1.0`**（附注标签对象 `f654e8f4eb7ca854dca3053095a132647b5b5732`），已推送 GitHub 与 Gitea。
+- 发布前门禁轮的候选身份：gitHead `8e6ae61`、worktree dirty 1（porcelain `fbecd7bba4f885314adf82bc44f9b4717628f12db758841072d21271b93dbb5f`，唯一变更 = runbook §10 =
+  提交 `676f6a0`）⇒ 证据与 release 提交内容一致（仅文档差异）。
 - 插件 `@shxtmaker/dsh-remote-attachments@0.1.0`；`src` 树 18 文件 `sha256=c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe`。
 - tarball `plugins/dsh-remote-attachments/pack/shxtmaker-dsh-remote-attachments-0.1.0.tgz`：
   163 832 B / 59 文件，`sha256=f8961215a8c9dffcca44ff78b82a49e8f39708e5df59e84bad46a161b0bc9556`。
 - 上游：Harness CLI `0.1.5-rc.1` + 内部 UI 包 `0.1.5-rc.2` + `@linxin666/dsh-web-all` / `dsh-remote-web-ui` `0.3.20`。
-- 机器可读绑定清单：`artifacts/verify-portable/d25-handoff-manifest.json`。
+- 机器可读绑定清单：`artifacts/verify-portable/d25-handoff-manifest.json`（含 `release` 段）。
 
 ## 3. D25 交付件
 
@@ -47,7 +58,8 @@
 | Windows 任务列表与待验清单 | [windows-task-list.md](windows-task-list.md) |
 | 交付报告（D25 冻结，含 Windows 轮次必须先看的问题） | [delivery-report.md](delivery-report.md) |
 | Linux 完整报告 | `artifacts/verify-portable/d24-linux-report.json`、`artifacts/verify-portable/d24-runs/` |
-| 逐轮记录 | [rounds/](rounds/)（R00–R28） |
+| 2.1.0 发布说明 | [../../release-notes/v2.1.0.md](../../release-notes/v2.1.0.md) |
+| 逐轮记录 | [rounds/](rounds/)（R00–R29，含 [R29 发布记录](rounds/R29-release-v2.1.0.md)） |
 
 ## 4. D25 本轮独立复核（父代理亲测）
 
