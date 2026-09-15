@@ -14,19 +14,26 @@
   [windows-validation-plan §1](../windows-validation-plan.md)：全部 DEV 叶任务完成且证据有效 + D24 完整 Linux 门禁真实通过 +
   D25 源码/tarball/实机交接完整，**不需要 Windows 在线**）；
   `windowsStatus=pending`；`releaseEligible=false`（恒定）。
-- 最近轮次：R29 / 发布 v2.1.0，结果 **done**，记录见 [rounds/R29-release-v2.1.0.md](rounds/R29-release-v2.1.0.md)；
-  上一轮 R28 / D25 见 [rounds/R28-D25.md](rounds/R28-D25.md)。
+- 最近轮次：R30 / 发布后修复（插件 README 更正 + 删除遗留探针），结果 **done**，
+  记录见 [rounds/R30-plugin-readme-fix.md](rounds/R30-plugin-readme-fix.md)；
+  上一轮 R29 / 发布 v2.1.0 见 [rounds/R29-release-v2.1.0.md](rounds/R29-release-v2.1.0.md)。
 - **✅ 已发布 v2.1.0（prerelease）**：分支 `main` 提交 `8e6ae61`（功能）+ `676f6a0`（Windows 交接材料补全），
   附注标签 `v2.1.0`（`f654e8f4…` → `676f6a0`）已推送 GitHub 与 Gitea；
   两平台 release `DSH Windows Launcher 2.1.0`（id `389136149` / `30`）各上传 7 个资产
   （附件插件 tarball、源码 tar.gz/zip、`SHA256SUMS.txt`、Linux 门禁证据、交接清单）。
+- **✅ R30 发布后修复（`aecb3f3`，工作树 clean）**：插件 `README.md` 从 D03 过时描述更正为实际状态；
+  删除遗留探针 `tests/fixtures/.d20-probe-tmp.mjs`（含硬编码本机绝对路径，全库无引用）；
+  插件 tarball 因此更新为 `64a359de…`（165 785 B / 59 文件，`src` 树指纹未变）。
+  ⚠️ **v2.1.0 release 的插件 tarball 资产仍是更正前的 `f8961215…`**（未擅自变更已发布 release；
+  可原位置换或另发 v2.1.1）。
 - ⚠️ **安装包未产出**：`Setup-2.1.0-win-x64.exe` 需要 Windows + Inno Setup 7.0.2 + WebView2 输入与真实
   安装/卸载验证（`eng/package.ps1`），构建机为 Linux，故未构建、未上传；release 因此标记 prerelease，
   安装包由 Windows 轨道（[windows-runbook.md](windows-runbook.md) W00/W05）产出后另行附加。
-- Linux 权威轮（runId `d24-2026-09-15T12-16-27-474Z-ed8d444f`，发布前同候选轮）：Development **32/32 checks pass、
-  incomplete 0、fail 0**、`portableStatus=pass`、`crossBuildStatus=pass`（**独立判定**）、cases 546/546、
-  `harnessIntegration=pass`、`productionInterop=pass`、`windowsValidation=notRun`、`releaseEligible=false`。摘要：
-  `artifacts/verify-portable/portable-verify-summary.json`。（D25 轮为 `d24-2026-09-15T11-15-43-616Z-0a0f006c`，同样 32/32。）
+- Linux 权威轮（**R30 复验**，runId `d24-2026-09-15T16-25-41-981Z-3c29392e`，gitHead `aecb3f3`，工作树 clean）：
+  Development **32/32 checks pass、incomplete 0、fail 0**、`portableStatus=pass`、`crossBuildStatus=pass`（**独立判定**）、
+  cases 546/546、`harnessIntegration=pass`、`productionInterop=pass`、`windowsValidation=notRun`、`releaseEligible=false`。
+  摘要：`artifacts/verify-portable/portable-verify-summary.json`。
+  （历史轮：R29 为 `d24-2026-09-15T12-16-27-474Z-ed8d444f`、D25 为 `…11-15-43-616Z-0a0f006c`，均 32/32。）
 - **口径纪律（务必遵守）**：`portableStatus=pass` **不等于**"所有测试通过"，更**不等于可发布**；
   `portable-verify-summary.json` 的 `developmentReady=false` 是 **profile 配置**（两端 profile 的
   `producesDevelopmentReady` 均为 false），与项目级 `DevelopmentReady` 是**两个口径**——项目级状态由 D25 按方案记账；
@@ -40,6 +47,8 @@
 - 发布提交：**`8e6ae616c5bbacaab8cf458584d855271e127ae4`**（`feat: remote file paste attachments (2.1.0)`）
   + **`676f6a0e6d69a84c7c430a4952cfa5c5c5eea2f8`**（`docs: complete Windows handoff materials`，即发布前门禁轮里的 dirty 1）。
 - 标签：**`v2.1.0`**（附注标签对象 `f654e8f4eb7ca854dca3053095a132647b5b5732`），已推送 GitHub 与 Gitea。
+- **当前 `main`/`feat` 尖端**：`aecb3f3e6e9c80616e84aa803b8ef2850fa16194`（R30 修复轮，工作树 **clean**）；
+  本轮 Linux 门禁即绑定该提交。
 - 发布前门禁轮的候选身份：gitHead `8e6ae61`、worktree dirty 1（porcelain `fbecd7bba4f885314adf82bc44f9b4717628f12db758841072d21271b93dbb5f`，唯一变更 = runbook §10 =
   提交 `676f6a0`）⇒ 证据与 release 提交内容一致（仅文档差异）。
 - 插件 `@shxtmaker/dsh-remote-attachments@0.1.0`；`src` 树 18 文件 `sha256=c4597fe4e012c76571c8cde8211b23b0aef6698b8ffc366d4c8d8ae78b0dfbbe`。
@@ -60,7 +69,7 @@
 | 交付报告（D25 冻结，含 Windows 轮次必须先看的问题） | [delivery-report.md](delivery-report.md) |
 | Linux 完整报告 | `artifacts/verify-portable/d24-linux-report.json`、`artifacts/verify-portable/d24-runs/` |
 | 2.1.0 发布说明 | [../../release-notes/v2.1.0.md](../../release-notes/v2.1.0.md) |
-| 逐轮记录 | [rounds/](rounds/)（R00–R29，含 [R29 发布记录](rounds/R29-release-v2.1.0.md)） |
+| 逐轮记录 | [rounds/](rounds/)（R00–R30，含 [R29 发布记录](rounds/R29-release-v2.1.0.md)、[R30 修复轮](rounds/R30-plugin-readme-fix.md)） |
 
 ## 4. D25 本轮独立复核（父代理亲测）
 

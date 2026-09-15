@@ -4,6 +4,13 @@
 > 分支 `main` 提交 `8e6ae61`+`676f6a0`、附注标签 `v2.1.0`，已推送 GitHub 与 Gitea 并各上传 7 个资产；
 > **Windows Launcher 安装包未构建/未上传**（需 Windows + Inno Setup 7.0.2 + WebView2 与真实安装验证）。
 > 详见 [rounds/R29-release-v2.1.0.md](rounds/R29-release-v2.1.0.md) 与 [handoff.md](handoff.md)。
+>
+> **更新（R30）**：插件 `README.md` 已从 D03 过时描述更正，并删除遗留探针
+> `tests/fixtures/.d20-probe-tmp.mjs`（含硬编码本机绝对路径）；插件 tarball 因此变为
+> `64a359de…`（165 785 B / 59 文件），本报告与 Windows 交接文档已同步。同候选门禁复跑
+> **32/32、546/546、worktree clean、零身份违规**（runId `d24-2026-09-15T16-25-41-981Z-3c29392e`）。
+> ⚠️ v2.1.0 release 的插件 tarball 资产仍为更正前的 `f8961215…`。详见
+> [rounds/R30-plugin-readme-fix.md](rounds/R30-plugin-readme-fix.md)。
 
 方案版本 2.0。本报告在 **D25（冻结开发交付并移交 Windows 实机验证）**冻结；状态唯一真值仍是
 [state.json](state.json)，逐轮细节见 [rounds/](rounds/)，恢复入口见 [handoff.md](handoff.md)。

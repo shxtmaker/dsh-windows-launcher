@@ -3,7 +3,7 @@
   "planRevision": "2.0",
   "initializedByExecutor": true,
   "initializedAt": "2026-09-13",
-  "round": "R29",
+  "round": "R30",
   "currentTask": null,
   "baseline": {
     "file": "execution/baseline.json",
@@ -2454,5 +2454,29 @@
     "linuxGateRunId": "d24-2026-09-15T12-16-27-474Z-ed8d444f",
     "linuxGateChecks": "32/32 pass、cases 546/546、portableStatus=pass、crossBuildStatus=pass",
     "roundRecord": "docs/remote-file-paste/execution/rounds/R29-release-v2.1.0.md"
+  },
+  "postRelease": {
+    "fixes": [
+      {
+        "round": "R30",
+        "commit": "aecb3f3e6e9c80616e84aa803b8ef2850fa16194",
+        "worktreeState": "clean",
+        "changes": [
+          "plugins/dsh-remote-attachments/README.md 从 D03 过时描述更正为实际状态",
+          "删除 plugins/dsh-remote-attachments/tests/fixtures/.d20-probe-tmp.mjs（含硬编码本机绝对路径，全库无引用）",
+          "6 份 Windows 交接/交付文档与验收提示词同步插件 tarball 摘要 f8961215… → 64a359de…（165785B/59 文件）"
+        ],
+        "gateRunId": "d24-2026-09-15T16-25-41-981Z-3c29392e",
+        "gateResult": "32/32 checks pass、cases 546/546、portableStatus=pass、crossBuildStatus=pass、identityViolations=[]、D22 tarball 门禁 26/26",
+        "pluginTarballBefore": "f8961215a8c9dffcca44ff78b82a49e8f39708e5df59e84bad46a161b0bc9556",
+        "pluginTarballAfter": "64a359de44fd12185297ba8939268208246e61981bf149a1efd0591dfc3b996b",
+        "unresolved": [
+          "v2.1.0 release 资产仍为更正前的插件 tarball（未擅自变更已发布 release）",
+          "独立仓库与上游副本仍同源但非逐字节相同（布局相关路径解析 + README 文本）"
+        ],
+        "roundRecord": "docs/remote-file-paste/execution/rounds/R30-plugin-readme-fix.md"
+      }
+    ],
+    "lastFixRound": "R30"
   }
 }
